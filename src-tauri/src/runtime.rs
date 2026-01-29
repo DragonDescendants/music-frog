@@ -11,7 +11,6 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::time::{sleep, Duration, Instant};
 use async_trait::async_trait;
-use std::path::{Path, PathBuf};
 
 use crate::{
     app_state::AppState,

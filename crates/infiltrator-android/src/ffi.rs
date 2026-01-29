@@ -122,4 +122,36 @@ mod tests {
         assert_eq!(result.status.code, FfiErrorCode::NotReady);
         assert!(!result.value);
     }
+
+    #[test]
+    fn test_ffi_string_result_ok_none() {
+        let res = FfiStringResult::ok(None);
+        assert!(res.value.is_none());
+        assert_eq!(res.status.code, FfiErrorCode::Ok);
+    }
+
+    #[test]
+    fn test_ffi_status_from_error() {
+        // Test manual conversion helpers if any
+        let s = FfiStatus::err(FfiErrorCode::Io, "io");
+        assert_eq!(s.code, FfiErrorCode::Io);
+    }
+
+    #[test]
+    fn test_all_error_variants_mapped() {
+        let codes = [
+            FfiErrorCode::Ok,
+            FfiErrorCode::InvalidState,
+            FfiErrorCode::InvalidInput,
+            FfiErrorCode::NotReady,
+            FfiErrorCode::NotSupported,
+            FfiErrorCode::Io,
+            FfiErrorCode::Network,
+            FfiErrorCode::Unknown,
+        ];
+        for (i, &code) in codes.iter().enumerate() {
+            // Uniffi enums usually map to their discriminants
+            assert_eq!(code as u32, if i == 7 { 255 } else { i as u32 });
+        }
+    }
 }

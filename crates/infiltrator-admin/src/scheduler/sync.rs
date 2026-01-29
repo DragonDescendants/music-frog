@@ -100,3 +100,6 @@ pub async fn run_sync_tick<C: AdminApiContext>(
         total_actions,
     })
 }
+
+#[cfg(test)]
+mod sync_test;

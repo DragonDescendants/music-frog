@@ -151,3 +151,16 @@ fn build_admin_url(base: &str, anchor: Option<&str>) -> String {
         _ => base.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_admin_url() {
+        assert_eq!(build_admin_url("http://localhost:8080", None), "http://localhost:8080");
+        assert_eq!(build_admin_url("http://localhost:8080", Some("")), "http://localhost:8080");
+        assert_eq!(build_admin_url("http://localhost:8080", Some("  ")), "http://localhost:8080");
+        assert_eq!(build_admin_url("http://localhost:8080", Some("profiles")), "http://localhost:8080#profiles");
+    }
+}

@@ -293,6 +293,18 @@ pub mod test_utils {
 mod tests {
     use super::*;
     use super::test_utils::*;
+    use async_trait::async_trait;
+
+    struct MockDav;
+    #[async_trait]
+    impl DavClient for MockDav {
+        async fn list(&self, _path: &str) -> Result<Vec<RemoteEntry>> { Ok(vec![]) }
+        async fn get(&self, _path: &str) -> Result<Vec<u8>> { Ok(vec![]) }
+        async fn put(&self, _p: &str, _c: &[u8], _e: Option<&str>) -> Result<String> { Ok("".into()) }
+        async fn delete(&self, _p: &str) -> Result<()> { Ok(()) }
+        async fn move_item(&self, _f: &str, _t: &str) -> Result<()> { Ok(()) }
+        async fn mkdir(&self, _p: &str) -> Result<()> { Ok(()) }
+    }
 
     #[test]
     fn test_local_new_file_should_upload() {
@@ -458,27 +470,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_plan_async_flow() {
-        use async_trait::async_trait;
-        
-        struct MockDav;
-        #[async_trait]
-        impl DavClient for MockDav {
-            async fn list(&self, _path: &str) -> Result<Vec<RemoteEntry>> {
-                Ok(vec![RemoteEntry {
-                    path: "/configs/remote.yaml".to_string(),
-                    etag: "remote_etag".to_string(),
-                    last_modified: chrono::Utc::now(),
-                    is_dir: false,
-                    size: 100,
-                }])
-            }
-            async fn get(&self, _path: &str) -> Result<Vec<u8>> { Ok(vec![]) }
-            async fn put(&self, _path: &str, _content: &[u8], _last_etag: Option<&str>) -> Result<String> { Ok("".to_string()) }
-            async fn delete(&self, _path: &str) -> Result<()> { Ok(()) }
-            async fn move_item(&self, _from: &str, _to: &str) -> Result<()> { Ok(()) }
-            async fn mkdir(&self, _path: &str) -> Result<()> { Ok(()) }
-        }
-
         let temp_dir = tempfile::tempdir().unwrap();
         let store = StateStore::new(":memory:").await.unwrap();
         let dav = MockDav;
@@ -490,12 +481,132 @@ mod tests {
         );
 
         let actions = planner.build_plan().await.unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_normalize_remote_path_behavior() {
+        let dav = MockDav;
+        let store = StateStore::new(":memory:").await.unwrap();
+        let planner = SyncPlanner::new(PathBuf::from("/l"), "/rem/base".to_string(), &dav, &store);
         
-        // Should want to download remote.yaml since it's new
+        assert_eq!(planner.normalize_remote_path("/rem/base/sub/f.yaml"), "sub/f.yaml");
+        assert_eq!(planner.normalize_remote_path("/rem/base/f.yaml"), "f.yaml");
+    }
+
+    #[test]
+    fn test_remote_deleted_local_modified_should_upload() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![make_local_entry("mod.yaml", "new_hash")];
+        let remotes = vec![];
+        let states = vec![make_state_row("mod.yaml", "old_etag", "old_hash")];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Download { remote_path, .. } => assert_eq!(remote_path, "remote.yaml"),
-            _ => panic!("Expected Download"),
+            SyncAction::Upload { remote_path, last_etag, .. } => {
+                assert_eq!(remote_path, "mod.yaml");
+                assert!(last_etag.is_none());
+            }
+            _ => panic!("Expected Upload action"),
         }
+    }
+
+    #[test]
+    fn test_local_deleted_remote_modified_should_download() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![];
+        let remotes = vec![make_remote_entry("mod.yaml", "new_etag")];
+        let states = vec![make_state_row("mod.yaml", "old_etag", "old_hash")];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::Download { remote_path, remote_etag, .. } => {
+                assert_eq!(remote_path, "mod.yaml");
+                assert_eq!(remote_etag, "new_etag");
+            }
+            _ => panic!("Expected Download action"),
+        }
+    }
+
+    #[test]
+    fn test_conflict_on_content_mismatch_same_size() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![make_local_entry("c.yaml", "hash_a")];
+        let remotes = vec![make_remote_entry("c.yaml", "etag_b")];
+        let states = vec![make_state_row("c.yaml", "old_etag", "old_hash")];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], SyncAction::Conflict { .. }));
+    }
+
+    #[test]
+    fn test_planner_handles_deep_paths() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![make_local_entry("sub/dir/very/deep/config.yaml", "h1")];
+        let remotes = vec![];
+        let states = vec![];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::Upload { remote_path, .. } => {
+                assert_eq!(remote_path, "sub/dir/very/deep/config.yaml");
+            }
+            _ => panic!("Expected Upload for deep path"),
+        }
+    }
+
+    #[test]
+    fn test_local_new_than_state_but_older_than_remote_should_conflict() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![make_local_entry("f.yaml", "new_hash")];
+        let remotes = vec![make_remote_entry("f.yaml", "new_etag")];
+        let states = vec![make_state_row("f.yaml", "old_etag", "old_hash")];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], SyncAction::Conflict { .. }));
+    }
+
+    #[test]
+    fn test_empty_local_file_should_upload() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![make_local_entry("empty.yaml", "d41d8cd98f00b204e9800998ecf8427e")];
+        let remotes = vec![];
+        let states = vec![];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], SyncAction::Upload { .. }));
+    }
+
+    #[test]
+    fn test_planner_handles_unexpected_state_without_files() {
+        let local_root = PathBuf::from("/configs");
+        let locals = vec![];
+        let remotes = vec![];
+        let states = vec![make_state_row("ghost.yaml", "e1", "h1")];
+
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_normalization_with_trailing_slash() {
+        let local_root = PathBuf::from("/l");
+        let locals = vec![];
+        let remotes = vec![];
+        let states = vec![];
+        
+        let actions = build_plan_from_data(local_root, locals, remotes, states);
+        assert!(actions.is_empty());
     }
 }

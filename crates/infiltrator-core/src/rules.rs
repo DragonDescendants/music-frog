@@ -190,9 +190,19 @@ mod tests {
     fn test_parse_rule_entry() {
         let entry = parse_rule_entry("DOMAIN,example.com");
         assert!(entry.enabled);
+        assert_eq!(entry.rule, "DOMAIN,example.com");
+
+        let entry = parse_rule_entry("  DOMAIN,example.com  ");
+        assert!(entry.enabled);
+        assert_eq!(entry.rule, "DOMAIN,example.com  ");
+
         let entry = parse_rule_entry("# DIRECT");
         assert!(!entry.enabled);
         assert_eq!(entry.rule, "DIRECT");
+
+        let entry = parse_rule_entry(" #  MATCH,Proxy ");
+        assert!(!entry.enabled);
+        assert_eq!(entry.rule, "MATCH,Proxy ");
     }
 
     #[test]
@@ -202,6 +212,25 @@ mod tests {
             enabled: false,
         };
         assert_eq!(format_rule_entry(&entry), "# DIRECT");
+
+        let entry = RuleEntry {
+            rule: "DOMAIN,google.com".to_string(),
+            enabled: true,
+        };
+        assert_eq!(format_rule_entry(&entry), "DOMAIN,google.com");
+    }
+
+    #[test]
+    fn test_apply_rules_preserves_order() {
+        let mut doc: Value = serde_yaml::from_str("rules:\n  - OLD\n").expect("yaml");
+        let rules = vec![
+            RuleEntry { rule: "FIRST".into(), enabled: true },
+            RuleEntry { rule: "SECOND".into(), enabled: false },
+        ];
+        apply_rules(&mut doc, &rules).expect("apply");
+        let seq = doc.get("rules").unwrap().as_sequence().unwrap();
+        assert_eq!(seq[0].as_str(), Some("FIRST"));
+        assert_eq!(seq[1].as_str(), Some("# SECOND"));
     }
 
     #[test]

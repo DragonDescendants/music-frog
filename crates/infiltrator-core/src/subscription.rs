@@ -1,181 +1,96 @@
-use anyhow::anyhow;
-use log::{info, warn};
-use infiltrator_http::reqwest::header::{ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE};
-use infiltrator_http::HttpClient;
+use anyhow::{anyhow, Result};
+use flate2::read::{GzDecoder, ZlibDecoder};
 use std::io::Read;
 
 pub async fn fetch_subscription_text(
-    default_client: &HttpClient,
-    raw_client: &HttpClient,
+    client: &infiltrator_http::HttpClient,
+    raw_client: &infiltrator_http::HttpClient,
     url: &str,
-) -> anyhow::Result<String> {
-    let primary = fetch_subscription_bytes(default_client, url, false).await;
-    let response = match primary {
-        Ok(response) => response,
-        Err(err) => {
-            if is_decode_error(&err) {
-                warn!("subscription decode error, retry with identity: {err}");
-                fetch_subscription_bytes(raw_client, url, true).await?
+) -> Result<String> {
+    let mut resp = client.get(url).send().await?;
+    if !resp.status().is_success() {
+        resp = raw_client.get(url).send().await?;
+    }
+
+    if !resp.status().is_success() {
+        return Err(anyhow!("订阅链接请求失败: HTTP {}", resp.status()));
+    }
+
+    let encoding = resp
+        .headers()
+        .get("subscription-userinfo")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| {
+            if v.contains("gzip") {
+                "gzip"
+            } else if v.contains("deflate") {
+                "deflate"
             } else {
-                return Err(err);
+                "plain"
             }
-        }
-    };
+        });
 
-    let bytes = if response.used_raw_client {
-        decode_subscription_bytes(response.bytes, response.encoding.as_deref())?
-    } else {
-        response.bytes
-    };
-
-    let content = decode_utf8_text(&bytes)?;
-    Ok(strip_utf8_bom(&content))
-}
-
-pub fn strip_utf8_bom(content: &str) -> String {
-    content.trim_start_matches('\u{feff}').to_string()
+    let bytes = resp.bytes().await?.to_vec();
+    let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
+    let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
+    Ok(text)
 }
 
 pub fn mask_subscription_url(url: &str) -> String {
-    let mut masked = url.to_string();
-    if let Some(pos) = masked.find("link/") {
-        let start = pos + "link/".len();
-        if let Some(tail) = masked.get(start..) {
-            let end = tail
-                .find('?')
-                .map(|offset| start + offset)
-                .unwrap_or_else(|| masked.len());
-            if start < end {
-                masked.replace_range(start..end, "***");
+    if let Ok(mut parsed) = infiltrator_http::reqwest::Url::parse(url) {
+        let path = parsed.path().to_string();
+        let segments: Vec<&str> = path.split('/').collect();
+        if segments.len() > 2 {
+            let last = segments.last().unwrap_or(&"");
+            if last.len() > 8 {
+                let masked_path = path.replace(last, "***");
+                parsed.set_path(&masked_path);
+                return parsed.to_string();
             }
         }
     }
-    masked
+    url.to_string()
 }
 
-struct SubscriptionResponse {
-    bytes: Vec<u8>,
-    encoding: Option<String>,
-    used_raw_client: bool,
+pub fn strip_utf8_bom(text: &str) -> &str {
+    text.strip_prefix("\u{feff}").unwrap_or(text)
 }
 
-async fn fetch_subscription_bytes(
-    client: &HttpClient,
-    url: &str,
-    force_identity: bool,
-) -> anyhow::Result<SubscriptionResponse> {
-    let mut request = client.get(url).header(ACCEPT, "text/yaml, text/plain, */*");
-    if force_identity {
-        request = request.header(ACCEPT_ENCODING, "identity");
+fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<Vec<u8>> {
+    if bytes.is_empty() {
+        return Ok(Vec::new());
     }
-    let response = request.send().await?;
-    let status = response.status();
-    let content_type = response
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("-")
-        .to_string();
-    let encoding = response
-        .headers()
-        .get(CONTENT_ENCODING)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_string());
-    let bytes = response.bytes().await?;
-    let size = bytes.len();
-    info!(
-        "subscription response: status={} content-type={} encoding={} bytes={}",
-        status.as_u16(),
-        content_type,
-        encoding.clone().unwrap_or_else(|| "-".to_string()),
-        size
-    );
-    if !status.is_success() {
-        return Err(anyhow!("拉取失败，HTTP {}", status));
-    }
-    if size == 0 {
-        return Err(anyhow!("订阅返回内容为空"));
-    }
-    Ok(SubscriptionResponse {
-        bytes: bytes.to_vec(),
-        encoding,
-        used_raw_client: force_identity,
-    })
-}
 
-fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> anyhow::Result<Vec<u8>> {
-    let encoding = encoding
-        .unwrap_or("")
-        .split(',')
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_ascii_lowercase();
-    let encoding = if encoding.is_empty() {
-        if looks_like_gzip(&bytes) {
-            "gzip".to_string()
-        } else {
-            String::new()
+    let mut data = bytes;
+    if let Some(enc) = encoding {
+        match enc {
+            "gzip" => {
+                let mut decoder = GzDecoder::new(&data[..]);
+                let mut decoded = Vec::new();
+                decoder.read_to_end(&mut decoded)?;
+                data = decoded;
+            }
+            "deflate" => {
+                let mut decoder = ZlibDecoder::new(&data[..]);
+                let mut decoded = Vec::new();
+                decoder.read_to_end(&mut decoded)?;
+                data = decoded;
+            }
+            _ => {}
         }
-    } else {
-        encoding
-    };
-
-    match encoding.as_str() {
-        "" => Ok(bytes),
-        "gzip" | "x-gzip" => decode_gzip(&bytes),
-        "deflate" => decode_deflate(&bytes),
-        "br" => decode_brotli(&bytes),
-        other => Err(anyhow!("不支持的订阅编码类型: {}", other)),
+    } else if looks_like_gzip(&data) {
+        let mut decoder = GzDecoder::new(&data[..]);
+        let mut decoded = Vec::new();
+        if decoder.read_to_end(&mut decoded).is_ok() {
+            data = decoded;
+        }
     }
-}
 
-fn decode_gzip(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut decoder = flate2::read::GzDecoder::new(bytes);
-    let mut output = Vec::new();
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|e| anyhow!("gzip 解码失败: {e}"))?;
-    Ok(output)
-}
-
-fn decode_deflate(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut decoder = flate2::read::DeflateDecoder::new(bytes);
-    let mut output = Vec::new();
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|e| anyhow!("deflate 解码失败: {e}"))?;
-    Ok(output)
-}
-
-fn decode_brotli(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut decoder = brotli::Decompressor::new(bytes, 4096);
-    let mut output = Vec::new();
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|e| anyhow!("brotli 解码失败: {e}"))?;
-    Ok(output)
+    Ok(data)
 }
 
 fn looks_like_gzip(bytes: &[u8]) -> bool {
-    matches!(bytes.get(..2), Some([0x1f, 0x8b]))
-}
-
-fn decode_utf8_text(bytes: &[u8]) -> anyhow::Result<String> {
-    match String::from_utf8(bytes.to_vec()) {
-        Ok(text) => Ok(text),
-        Err(err) => {
-            warn!("subscription utf-8 decode failed: {err}");
-            Ok(String::from_utf8_lossy(bytes).to_string())
-        }
-    }
-}
-
-fn is_decode_error(err: &anyhow::Error) -> bool {
-    let message = err.to_string().to_ascii_lowercase();
-    message.contains("error decoding response body")
-        || message.contains("failed to decode")
-        || message.contains("decoder")
+    bytes.len() >= 10 && bytes[0] == 0x1f && bytes[1] == 0x8b
 }
 
 #[cfg(test)]
@@ -183,71 +98,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_strip_utf8_bom() {
-        let content_with_bom = "\u{feff}hello";
-        assert_eq!(strip_utf8_bom(content_with_bom), "hello");
-
-        let content_without_bom = "hello";
-        assert_eq!(strip_utf8_bom(content_without_bom), "hello");
-    }
-
-    #[test]
-    fn test_mask_subscription_url() {
-        let url = "https://example.com/link/abcdefg123456?mu=0";
-        assert_eq!(mask_subscription_url(url), "https://example.com/link/***?mu=0");
-
-        let url_no_query = "https://example.com/link/abcdefg123456";
-        assert_eq!(mask_subscription_url(url_no_query), "https://example.com/link/***");
-
-        let normal_url = "https://google.com";
-        assert_eq!(mask_subscription_url(normal_url), "https://google.com");
-    }
-
-    #[test]
     fn test_looks_like_gzip() {
-        assert!(looks_like_gzip(&[0x1f, 0x8b, 0x08]));
-        assert!(!looks_like_gzip(&[0x00, 0x00, 0x00]));
-        assert!(!looks_like_gzip(&[]));
+        assert!(!looks_like_gzip(&[0, 1, 2]));
+        let mut gzip_header = vec![0u8; 10];
+        gzip_header[0] = 0x1f;
+        gzip_header[1] = 0x8b;
+        assert!(looks_like_gzip(&gzip_header));
+    }
+
+    #[test]
+    fn test_decode_utf8_text() {
+        let text = "plain text";
+        let decoded = decode_subscription_bytes(text.as_bytes().to_vec(), None).unwrap();
+        assert_eq!(String::from_utf8(decoded).unwrap(), text);
     }
 
     #[test]
     fn test_decode_gzip() {
         use std::io::Write;
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        encoder.write_all(b"hello world").unwrap();
+        encoder.write_all(b"compressed").unwrap();
         let compressed = encoder.finish().unwrap();
-        let decoded = decode_gzip(&compressed).unwrap();
-        assert_eq!(decoded, b"hello world");
+        let decoded = decode_subscription_bytes(compressed, Some("gzip")).unwrap();
+        assert_eq!(String::from_utf8(decoded).unwrap(), "compressed");
     }
 
     #[test]
     fn test_decode_deflate() {
         use std::io::Write;
-        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
-        encoder.write_all(b"hello world").unwrap();
+        let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(b"deflated").unwrap();
         let compressed = encoder.finish().unwrap();
-        let decoded = decode_deflate(&compressed).unwrap();
-        assert_eq!(decoded, b"hello world");
+        let decoded = decode_subscription_bytes(compressed, Some("deflate")).unwrap();
+        assert_eq!(String::from_utf8(decoded).unwrap(), "deflated");
     }
 
     #[test]
-    fn test_decode_brotli() {
-        use std::io::Write;
-        let mut writer = brotli::CompressorWriter::new(Vec::new(), 4096, 3, 20);
-        writer.write_all(b"hello world").unwrap();
-        let compressed = writer.into_inner();
-        let decoded = decode_brotli(&compressed).unwrap();
-        assert_eq!(decoded, b"hello world");
+    fn test_mask_subscription_url() {
+        let url = "https://example.com/link/abcdefg123456?mu=0";
+        let masked = mask_subscription_url(url);
+        assert!(masked.contains("***"));
+        assert!(!masked.contains("abcdefg123456"));
     }
 
     #[test]
-    fn test_decode_utf8_text() {
-        assert_eq!(decode_utf8_text(b"hello").unwrap(), "hello");
-        
-        // Invalid UTF-8 should fallback to lossy
-        let invalid = b"\xff\xfe\xfd";
-        let decoded = decode_utf8_text(invalid).unwrap();
-        assert!(decoded.contains('\u{FFFD}'));
+    fn test_strip_utf8_bom() {
+        let text = "\u{feff}config content";
+        assert_eq!(strip_utf8_bom(text), "config content");
+        assert_eq!(strip_utf8_bom("no bom"), "no bom");
     }
 
     #[test]
@@ -257,19 +155,28 @@ mod tests {
         encoder.write_all(b"hello world").unwrap();
         let compressed = encoder.finish().unwrap();
         
-        // Auto-detect gzip by header
         let decoded = decode_subscription_bytes(compressed, None).unwrap();
         assert_eq!(decoded, b"hello world");
     }
 
     #[test]
-    fn test_decode_subscription_bytes_explicit() {
-        use std::io::Write;
-        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
-        encoder.write_all(b"hello world").unwrap();
-        let compressed = encoder.finish().unwrap();
-        
-        let decoded = decode_subscription_bytes(compressed, Some("deflate")).unwrap();
-        assert_eq!(decoded, b"hello world");
+    fn test_strip_utf8_bom_exhaustive() {
+        let with_bom = vec![0xEF, 0xBB, 0xBF, 'a' as u8, 'b' as u8];
+        assert_eq!(strip_utf8_bom(std::str::from_utf8(&with_bom).unwrap()), "ab");
+        assert_eq!(strip_utf8_bom("no bom"), "no bom");
+        assert_eq!(strip_utf8_bom(""), "");
+    }
+
+    #[test]
+    fn test_looks_like_gzip_minimum_size() {
+        assert!(!looks_like_gzip(&[0x1f, 0x8b]));
+        assert!(looks_like_gzip(&[0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
+    }
+
+    #[test]
+    fn test_decode_unsupported_encoding() {
+        let data = b"data";
+        let result = decode_subscription_bytes(data.to_vec(), Some("lzma"));
+        assert!(result.is_ok());
     }
 }

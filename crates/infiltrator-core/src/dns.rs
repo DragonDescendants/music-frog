@@ -284,6 +284,45 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_partial_patch_preserves_existing() {
+        let mut config = DnsConfig {
+            enable: Some(true),
+            nameserver: Some(vec!["8.8.8.8".to_string()]),
+            listen: Some("127.0.0.1:53".to_string()),
+            ..DnsConfig::default()
+        };
+        
+        let patch = DnsConfigPatch {
+            enable: Some(false),
+            // nameserver and listen are None in patch
+            ..DnsConfigPatch::default()
+        };
+        
+        config.apply_patch(patch);
+        
+        assert_eq!(config.enable, Some(false));
+        // Should preserve existing values
+        assert_eq!(config.nameserver, Some(vec!["8.8.8.8".to_string()]));
+        assert_eq!(config.listen, Some("127.0.0.1:53".to_string()));
+    }
+
+    #[test]
+    fn test_apply_dns_config_preserves_other_sections() {
+        let mut doc: Value = serde_yaml::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n").expect("yaml");
+        let config = DnsConfig {
+            enable: Some(true),
+            nameserver: Some(vec!["1.1.1.1".to_string()]),
+            ..DnsConfig::default()
+        };
+        apply_dns_config(&mut doc, &config).expect("apply dns");
+        
+        let map = doc.as_mapping().expect("mapping");
+        assert!(map.get(Value::String("tun".to_string())).is_some());
+        assert!(map.get(Value::String("proxies".to_string())).is_some());
+        assert!(map.get(Value::String("dns".to_string())).is_some());
+    }
+
+    #[test]
     fn test_validate_dns_config_all_errors() {
         // Empty listen
         let config = DnsConfig { listen: Some(" ".to_string()), ..DnsConfig::default() };

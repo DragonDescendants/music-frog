@@ -296,3 +296,46 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         _ => key.to_string().into(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_language_code() {
+        assert_eq!(resolve_language_code("en"), "en-US");
+        assert_eq!(resolve_language_code("EN"), "en-US");
+        assert_eq!(resolve_language_code("zh-CN"), "zh-CN");
+        assert_eq!(resolve_language_code("fr-FR"), "fr-FR");
+    }
+
+    #[test]
+    fn test_normalize_locale() {
+        assert_eq!(normalize_locale("zh-TW"), "zh-CN");
+        assert_eq!(normalize_locale("ZH-CN"), "zh-CN");
+        assert_eq!(normalize_locale("en-GB"), "en-US");
+        assert_eq!(normalize_locale("ja-JP"), "en-US");
+    }
+
+    #[test]
+    fn test_translations_zh() {
+        let lang = Lang("zh-CN");
+        assert_eq!(lang.tr("enabled"), "已开启");
+        assert_eq!(lang.tr("disabled"), "已关闭");
+        assert_eq!(lang.tr("nonexistent_key"), "nonexistent_key");
+    }
+
+    #[test]
+    fn test_translations_en() {
+        let lang = Lang("en-US");
+        assert_eq!(lang.tr("enabled"), "Enabled");
+        assert_eq!(lang.tr("disabled"), "Disabled");
+        assert_eq!(lang.tr("nonexistent_key"), "nonexistent_key");
+    }
+
+    #[test]
+    fn test_lang_alias_en() {
+        let lang = Lang("en");
+        assert_eq!(lang.tr("settings"), "Settings");
+    }
+}

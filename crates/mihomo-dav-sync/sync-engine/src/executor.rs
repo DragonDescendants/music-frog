@@ -44,16 +44,27 @@ impl<'a> SyncExecutor<'a> {
                 if let Some(parent) = local.parent() {
                     fs::create_dir_all(parent).await?;
                 }
-                fs::write(&tmp_path, &content).await?;
-                fs::rename(&tmp_path, &local).await?;
 
-                self.store.upsert_state(SyncStateRow {
-                    path: remote_path,
-                    last_etag: remote_etag,
-                    last_hash: hash,
-                    last_sync_at: Utc::now(),
-                    is_tombstone: 0,
-                }).await?;
+                let result: Result<()> = async {
+                    fs::write(&tmp_path, &content).await?;
+                    fs::rename(&tmp_path, &local).await?;
+
+                    self.store.upsert_state(SyncStateRow {
+                        path: remote_path,
+                        last_etag: remote_etag,
+                        last_hash: hash,
+                        last_sync_at: Utc::now(),
+                        is_tombstone: 0,
+                    }).await?;
+                    Ok(())
+                }.await;
+
+                if let Err(err) = result {
+                    if tmp_path.exists() {
+                        let _ = fs::remove_file(&tmp_path).await;
+                    }
+                    return Err(err);
+                }
             }
 
             SyncAction::Conflict { local, remote_path } => {
@@ -81,3 +92,6 @@ impl<'a> SyncExecutor<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod executor_test;

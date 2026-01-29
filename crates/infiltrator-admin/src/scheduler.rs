@@ -106,3 +106,22 @@ pub(crate) fn update_lock() -> &'static Mutex<()> {
     static UPDATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     UPDATE_LOCK.get_or_init(|| Mutex::new(()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_update_lock_exclusivity() {
+        let lock = update_lock();
+        let guard = lock.try_lock();
+        assert!(guard.is_ok(), "First lock should succeed");
+        
+        let guard2 = lock.try_lock();
+        assert!(guard2.is_err(), "Second concurrent lock should fail");
+        
+        drop(guard);
+        let guard3 = lock.try_lock();
+        assert!(guard3.is_ok(), "Lock should be available again after drop");
+    }
+}

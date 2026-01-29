@@ -182,6 +182,29 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_partial_patch_preserves_existing() {
+        let mut config = TunConfig {
+            enable: Some(true),
+            stack: Some("system".to_string()),
+            mtu: Some(1400),
+            ..TunConfig::default()
+        };
+        
+        let patch = TunConfigPatch {
+            enable: Some(false),
+            // stack and mtu are None in patch
+            ..TunConfigPatch::default()
+        };
+        
+        config.apply_patch(patch);
+        
+        assert_eq!(config.enable, Some(false));
+        // Should preserve existing values
+        assert_eq!(config.stack, Some("system".to_string()));
+        assert_eq!(config.mtu, Some(1400));
+    }
+
+    #[test]
     fn test_validate_tun_config_errors() {
         // Invalid stack
         let config = TunConfig { stack: Some("lwip".to_string()), ..TunConfig::default() };

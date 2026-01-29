@@ -191,6 +191,21 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_fake_ip_preserves_other_dns_settings() {
+        let mut doc: Value = serde_yaml::from_str("dns:\n  enable: true\n  nameserver:\n    - 8.8.8.8\n").expect("yaml");
+        let config = FakeIpConfig {
+            fake_ip_range: Some("198.18.0.1/16".to_string()),
+            ..FakeIpConfig::default()
+        };
+        apply_fake_ip_config(&mut doc, &config).expect("apply fake ip");
+        
+        let dns = doc.get("dns").expect("dns should exist");
+        assert_eq!(dns.get("enable"), Some(&Value::Bool(true)));
+        assert!(dns.get("nameserver").is_some());
+        assert_eq!(dns.get("fake-ip-range"), Some(&Value::String("198.18.0.1/16".to_string())));
+    }
+
+    #[test]
     fn test_validate_fake_ip_config_errors() {
         let config = FakeIpConfig {
             fake_ip_range: Some(" ".to_string()),

@@ -646,3 +646,157 @@ async fn read_core_version_info(
     let use_bundled = state.use_bundled_core().await || installed_len == 0;
     Ok((current, installed_len, use_bundled))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_app_state_default() {
+        let state = AppState::default();
+        assert_eq!(state.get_lang_code().await, "zh-CN");
+        assert!(state.runtime().await.is_err());
+        assert!(!*state.tun_enabled.read().await);
+        assert!(state.current_mode.read().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_mode_management() {
+        let state = AppState::default();
+        state.set_current_mode(Some("rule".to_string())).await;
+        assert_eq!(state.current_mode.read().await.as_deref(), Some("rule"));
+        state.set_current_mode(None).await;
+        assert!(state.current_mode.read().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_tun_enabled() {
+        let state = AppState::default();
+        state.set_tun_enabled(true).await;
+        assert!(*state.tun_enabled.read().await);
+        state.set_tun_enabled(false).await;
+        assert!(!*state.tun_enabled.read().await);
+    }
+
+    #[tokio::test]
+    async fn test_proxy_groups_management() {
+        let state = AppState::default();
+        let mut groups = HashMap::new();
+        let info = ProxyInfo {
+            proxy_type: "Selector".to_string(),
+            now: None,
+            all: None,
+            history: vec![],
+        };
+        groups.insert("Group1".to_string(), info);
+        state.set_proxy_groups(groups).await;
+        let stored_groups = state.proxy_groups.read().await;
+        assert!(stored_groups.contains_key("Group1"));
+    }
+
+    #[tokio::test]
+    async fn test_tray_profile_map() {
+        let state = AppState::default();
+        let mut map = HashMap::new();
+        map.insert("id_1".into(), "profile_1".into());
+        state.set_tray_profile_map(map.clone()).await;
+        let fetched = state.tray_profile_map().await;
+        assert_eq!(fetched.get("id_1"), Some(&"profile_1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_tray_proxy_map() {
+        let state = AppState::default();
+        let mut map = HashMap::new();
+        map.insert("id_1".into(), ("group1".into(), "node1".into()));
+        state.set_tray_proxy_map(map.clone()).await;
+        let fetched = state.tray_proxy_map().await;
+        assert_eq!(fetched.get("id_1"), Some(&("group1".to_string(), "node1".to_string())));
+    }
+
+    #[tokio::test]
+    async fn test_open_webui_setting_memory() {
+        let state = AppState::default();
+        assert!(!state.open_webui_on_startup().await);
+        state.set_open_webui_on_startup(true).await;
+        assert!(state.open_webui_on_startup().await);
+    }
+
+    #[tokio::test]
+    async fn test_app_state_concurrency() {
+        let state = AppState::default();
+        let state_clone = state.clone();
+        let _ = tokio::spawn(async move {
+            state_clone.set_current_mode(Some("direct".to_string())).await;
+        }).await;
+        state.set_current_mode(Some("global".to_string())).await;
+        assert!(state.current_mode.read().await.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_proxy_groups_clear() {
+        let state = AppState::default();
+        let mut groups = HashMap::new();
+        groups.insert("G1".to_string(), ProxyInfo { proxy_type: "S".into(), now: None, all: None, history: vec![] });
+        state.set_proxy_groups(groups).await;
+        state.set_proxy_groups(HashMap::new()).await;
+        assert_eq!(state.proxy_groups.read().await.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_tray_map_consistency() {
+        let state = AppState::default();
+        let mut p_map = HashMap::new();
+        p_map.insert("id".into(), "prof".into());
+        state.set_tray_profile_map(p_map).await;
+        assert_eq!(state.tray_profile_map().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_admin_event_bus_delivery() {
+        let state = AppState::default();
+        let bus = state.admin_event_bus();
+        let mut rx = bus.subscribe();
+        state.emit_admin_event(infiltrator_admin::AdminEvent::new("test_event"));
+        let received = rx.recv().await.unwrap();
+        assert_eq!(received.kind, "test_event");
+    }
+
+    #[tokio::test]
+    async fn test_system_proxy_state_update() {
+        let state = AppState::default();
+        state.set_system_proxy_state(true, Some("127.0.0.1:1234".into())).await;
+        let s = state.system_proxy.read().await;
+        assert!(s.enabled);
+        assert_eq!(s.endpoint, Some("127.0.0.1:1234".into()));
+    }
+
+    #[tokio::test]
+    async fn test_editor_path_management() {
+        let state = AppState::default();
+        state.set_editor_path(Some("/usr/bin/vim".into())).await;
+        assert_eq!(state.editor_path().await, Some("/usr/bin/vim".into()));
+    }
+
+    #[tokio::test]
+    async fn test_use_bundled_core_toggle() {
+        let state = AppState::default();
+        state.set_use_bundled_core(false).await;
+        assert!(!state.use_bundled_core().await);
+    }
+
+    #[tokio::test]
+    async fn test_current_ports_empty() {
+        let state = AppState::default();
+        let (p1, p2) = state.current_ports().await;
+        assert!(p1.is_none());
+        assert!(p2.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_all_idempotent() {
+        let state = AppState::default();
+        state.shutdown_all().await;
+        state.shutdown_all().await;
+    }
+}

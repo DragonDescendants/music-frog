@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "MusicFrog-Despicable-Infiltrator"
-version = "0.12.20"
+version = "0.12.21"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2777,7 +2777,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-admin"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2831,7 +2831,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "brotli",
@@ -3408,7 +3408,7 @@ dependencies = [
 
 [[package]]
 name = "mihomo-version"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5948,7 +5948,7 @@ dependencies = [
 
 [[package]]
 name = "sync-engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",

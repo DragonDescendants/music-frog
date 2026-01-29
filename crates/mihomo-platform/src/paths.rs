@@ -47,9 +47,12 @@ pub fn get_home_dir() -> Result<PathBuf, MihomoError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_set_home_dir_override() {
+        let _guard = TEST_LOCK.lock().unwrap();
         let path = PathBuf::from("/test/path");
         let result = set_home_dir_override(path.clone());
         assert!(result);
@@ -57,20 +60,24 @@ mod tests {
         // Get the override
         let retrieved = get_home_dir().unwrap();
         assert_eq!(retrieved, path);
+        clear_home_dir_override();
     }
 
     #[test]
     fn test_get_home_dir_with_override() {
+        let _guard = TEST_LOCK.lock().unwrap();
         let path = PathBuf::from("/custom/home");
         set_home_dir_override(path.clone());
 
         let result = get_home_dir();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), path);
+        clear_home_dir_override();
     }
 
     #[test]
     fn test_get_home_dir_without_override() {
+        let _guard = TEST_LOCK.lock().unwrap();
         // Clear override
         clear_home_dir_override();
 
@@ -87,6 +94,7 @@ mod tests {
 
     #[test]
     fn test_get_home_dir_default() {
+        let _guard = TEST_LOCK.lock().unwrap();
         // Clear override and env var
         clear_home_dir_override();
         unsafe { std::env::remove_var("MIHOMO_HOME") };
