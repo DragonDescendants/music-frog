@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use axum::{
+    use axum::
+    {
         body::Body,
         http::{Request, StatusCode},
     };
@@ -44,7 +45,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_profiles_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
 
@@ -68,7 +69,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_settings_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
 
@@ -91,7 +92,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_import_profile_integration() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         
         let mut server = mockito::Server::new_async().await;
         let mock_yaml = "port: 7890\nmode: rule";
@@ -139,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_invalid_yaml_returns_400() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let app = setup_app();
         let payload = SaveProfilePayload {
             name: "invalid-yaml".to_string(),
@@ -162,7 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_switch_nonexistent_profile_returns_error() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
         
@@ -186,7 +187,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_active_profile_rejected() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
         
@@ -209,7 +210,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_rebuild_status_reflects_reality() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let app = setup_app();
 
         let response = app.oneshot(
@@ -230,7 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_dns_config_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
         let manager = mihomo_config::ConfigManager::new().unwrap();
@@ -246,7 +247,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tun_config_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
         let manager = mihomo_config::ConfigManager::new().unwrap();
@@ -262,7 +263,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_rules_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
         let manager = mihomo_config::ConfigManager::new().unwrap();
@@ -278,7 +279,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_flush_fake_ip_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
         let app = setup_app();
@@ -291,7 +292,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_core_versions_route() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let app = setup_app();
         let response = app.oneshot(
             Request::builder().uri("/admin/api/core/versions").body(Body::empty()).unwrap()

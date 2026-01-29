@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_strip_utf8_bom_exhaustive() {
-        let with_bom = vec![0xEF, 0xBB, 0xBF, 'a' as u8, 'b' as u8];
+        let with_bom = vec![0xEF, 0xBB, 0xBF, b'a', b'b'];
         assert_eq!(strip_utf8_bom(std::str::from_utf8(&with_bom).unwrap()), "ab");
         assert_eq!(strip_utf8_bom("no bom"), "no bom");
         assert_eq!(strip_utf8_bom(""), "");

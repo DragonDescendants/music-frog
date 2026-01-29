@@ -267,11 +267,11 @@ async fn update_profile_subscription(
     );
     let content = fetch_subscription_text(params.client, params.raw_client, params.url).await?;
     let content = strip_utf8_bom(&content);
-    if core_config::validate_yaml(&content).is_err() {
+    if core_config::validate_yaml(content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
     params.manager
-        .save(&params.profile.name, &content)
+        .save(&params.profile.name, content)
         .await
         .map_err(|err| anyhow!(err.to_string()))?;
 

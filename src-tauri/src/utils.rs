@@ -29,9 +29,8 @@ pub(crate) fn extract_port_from_url(url: &str) -> Option<u16> {
     let url = url.trim();
     if url.is_empty() { return None; }
 
-    if let Ok(u) = url.parse::<reqwest::Url>() {
-        if let Some(p) = u.port() { return Some(p); }
-    }
+    if let Ok(u) = url.parse::<reqwest::Url>()
+        && let Some(p) = u.port() { return Some(p); }
     
     let target = if url.starts_with(':') {
         format!("http://127.0.0.1{}", url)

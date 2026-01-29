@@ -86,11 +86,6 @@ mod tests {
         let config_path = temp_dir.path().join("config.yaml");
 
         let _manager = ServiceManager::new(binary_path.clone(), config_path.clone());
-
-        // Verify the manager was created
-        // We can't access the internal controller directly,
-        // but we can verify it doesn't panic
-        assert!(true);
     }
 
     #[test]
@@ -101,9 +96,6 @@ mod tests {
         let home = temp_dir.path().join("home");
 
         let _manager = ServiceManager::with_home(binary_path.clone(), config_path.clone(), home.clone());
-
-        // Verify the manager was created
-        assert!(true);
     }
 
     #[test]
@@ -118,9 +110,6 @@ mod tests {
             config_path.clone(),
             pid_file.clone(),
         );
-
-        // Verify the manager was created
-        assert!(true);
     }
 
     #[test]

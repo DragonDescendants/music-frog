@@ -242,11 +242,10 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
             let endpoint = format!("http://{}", endpoint);
             previous_proxy_port = extract_port_from_url(&endpoint);
         }
-    if let Some(runtime) = previous_runtime {
-        if let Err(err) = runtime.shutdown().await {
+    if let Some(runtime) = previous_runtime
+        && let Err(err) = runtime.shutdown().await {
             warn!("failed to stop running mihomo instance: {err}");
         }
-    }
     if let Some(port) = previous_controller_port {
         wait_for_port_release(port, Duration::from_secs(5)).await;
         if !is_port_available(port).await {
@@ -266,12 +265,11 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
     register_runtime(app, state, runtime).await;
     
     if state.is_system_proxy_enabled().await
-        && let Ok(runtime) = state.runtime().await {
-            if let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
-                if let Err(_) = apply_system_proxy(Some(&endpoint)) {
-                } else {
-                    state.set_system_proxy_state(true, Some(endpoint)).await;
-                }
+        && let Ok(runtime) = state.runtime().await
+        && let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
+            if apply_system_proxy(Some(&endpoint)).is_err() {
+            } else {
+                state.set_system_proxy_state(true, Some(endpoint)).await;
             }
         }
     let _ = refresh_profile_switch_submenu(app, state).await;

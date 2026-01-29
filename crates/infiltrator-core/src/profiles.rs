@@ -77,12 +77,12 @@ pub async fn create_profile_from_url(name: &str, url: &str) -> anyhow::Result<Pr
     let content =
         core_subscription::fetch_subscription_text(&client, &raw_client, source_url).await?;
     let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(&content).is_err() {
+    if core_config::validate_yaml(content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
 
     let manager = ConfigManager::new()?;
-    manager.save(&profile_name, &content).await?;
+    manager.save(&profile_name, content).await?;
 
     let now = Utc::now();
     let mut metadata = manager.get_profile_metadata(&profile_name).await?;
@@ -122,10 +122,10 @@ pub async fn update_profile(name: &str) -> anyhow::Result<ProfileInfo> {
     let raw_client = build_raw_http_client(&client);
     let content = core_subscription::fetch_subscription_text(&client, &raw_client, url).await?;
     let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(&content).is_err() {
+    if core_config::validate_yaml(content).is_err() {
         return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
-    manager.save(&profile_name, &content).await?;
+    manager.save(&profile_name, content).await?;
 
     let now = Utc::now();
     metadata.last_updated = Some(now);

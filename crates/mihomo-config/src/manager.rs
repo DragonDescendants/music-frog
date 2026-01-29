@@ -970,7 +970,7 @@ external-controller: http://127.0.0.1:9090
         manager.update_profile_metadata("test", &metadata).await.unwrap();
 
         // 2. Verify store has the secret
-        let key = format!("subscription:test");
+        let key = "subscription:test".to_string();
         assert_eq!(store.data.lock().unwrap().get(&key).unwrap(), "https://secret.url/sub");
 
         // 3. Load metadata and verify url is recovered

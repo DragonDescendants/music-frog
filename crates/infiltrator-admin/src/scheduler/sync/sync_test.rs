@@ -37,9 +37,11 @@ mod tests {
     #[tokio::test]
     async fn test_run_sync_tick_empty_url() {
         let ctx = MockContext;
-        let mut config = WebDavConfig::default();
-        config.enabled = true;
-        config.url = "".to_string();
+        let config = WebDavConfig {
+            enabled: true,
+            url: "".to_string(),
+            ..WebDavConfig::default()
+        };
         
         let result = run_sync_tick(&ctx, &config).await;
         assert!(result.is_err());
@@ -48,14 +50,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_sync_tick_invalid_url() {
-        let _guard = TEST_LOCK.lock().unwrap();
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
 
         let ctx = MockContext;
-        let mut config = WebDavConfig::default();
-        config.enabled = true;
-        config.url = "not-a-url".to_string();
+        let config = WebDavConfig {
+            enabled: true,
+            url: "not-a-url".to_string(),
+            ..WebDavConfig::default()
+        };
         
         let result = run_sync_tick(&ctx, &config).await;
         // Should fail during client creation or plan building

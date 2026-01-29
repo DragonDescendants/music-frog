@@ -6,4 +6,4 @@ pub use admin_api::*;
 pub use scheduler::SubscriptionScheduler;
 
 #[cfg(test)]
-pub(crate) static TEST_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> = std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+pub(crate) use mihomo_platform::TEST_LOCK;

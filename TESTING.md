@@ -1,312 +1,71 @@
-# Subscription Update and Tray Menu Fix Test Plan
+# 测试与质量保障指南 (Testing & Quality Assurance)
 
-## Overview
+本文档记录了本项目的测试策略、实战经验以及保持卓越工程质量的最佳实践。
 
-This document outlines the test plan for verifying fixes to subscription update performance and tray menu stability.
+## 核心测试指标
 
-## Changes Made
+本项目致力于维持以下高标准：
+- **核心模块覆盖率**：每个核心子模块（Core, Admin, Sync, Version, Android API）必须具备 **50 个以上** 的高质量单元/集成测试用例。
+- **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
+- **测试可靠性**：环境敏感型测试必须支持 **100% 成功率** 的串行执行。
 
-### 1. Parallel Subscription Updates (`crates/infiltrator-admin/src/scheduler/subscription.rs`)
+---
 
-**Problem**: Initial subscription updates were slow due to sequential processing.
+## 卓越工程实践经验
 
-**Solution**: Implemented parallel subscription updates with:
+在达成“卓越水平”测试覆盖的过程中，我们总结了以下核心经验：
 
-- `JoinSet` for concurrent task management
-- Maximum concurrency limit of 5 simultaneous requests
-- Proper error handling for both success and failure cases
-- Retry mechanism maintained (3 attempts with exponential backoff)
+### 1. 彻底的测试隔离 (Test Isolation)
+- **挑战**：多个测试并行修改全局静态变量（如 `HOME_DIR_OVERRIDE`）或读写同一个配置文件，导致随机失败。
+- **经验**：
+    - 每个测试必须使用 `tempfile` 创建独立的临时目录。
+    - 对于涉及全局状态的测试，必须在 Crate 级别引入 `TEST_LOCK`（互斥锁）。
+    - 运行全量测试时建议使用 `cargo test --workspace -- --test-threads=1`，确保环境绝对纯净。
 
-**Benefits**:
+### 2. 原子化操作验证 (Atomic Operations)
+- **挑战**：文件下载、数据库更新等长耗时操作中途失败会导致“脏数据”残留（如空的版本目录或 `.sync-tmp` 临时文件）。
+- **经验**：
+    - **先写临时文件，成功后再重命名 (Rename)**：这是保证文件系统原子性的金科玉律。
+    - **异常清理机制**：在测试中必须模拟 IO 失败、权限不足等异常，验证代码是否能正确触发 `rollback` 清理残留。
+    - **发现 Bug**：通过该项测试，我们成功修复了同步引擎在下载失败时残留临时文件的漏洞。
 
-- Reduced total update time from O(n *t) to O(n / max_concurrent* t)
-- Better resource utilization with concurrent HTTP requests
-- Maintains reliability with retry mechanism
+### 3. 工具函数的健壮性挖掘 (Robust Utils)
+- **挑战**：类似 `extract_port_from_url` 的工具函数看似简单，实则隐藏大量边界情况（如无协议头、带 Query、前缀冒号）。
+- **经验**：
+    - 不要信任外部库的默认解析逻辑（如 `url` crate 认为 `https:443` 端口是 `None`）。
+    - 必须为工具函数提供全场景 Mock 输入测试（≥10 个用例），确保能应对各种非标的真实用户输入。
 
-**Key Changes**:
+### 4. 跨语言边界的“饱和攻击” (FFI Safety)
+- **挑战**：Rust 与 Java/JNI 通信时，错误码映射不一致会导致 UI 收到“Unknown Error”，难以调试。
+- **经验**：
+    - **穷举验证**：为 FFI 错误码编写穷举测试，确保每一个 Rust `Enum` 变体都能对应到唯一的 Ffi 代码。
+    - **Mock 桥接器**：通过泛型或 Trait 注入 Mock Bridge，模拟底层（Android 系统层）抛出的各种极端异常。
 
-- Changed from `for profile in profiles` loop to `JoinSet::spawn` pattern
-- Added `SubscriptionUpdateResult` struct for task results
-- Improved error handling with pattern matching on `Result<Result<T>>`
+### 5. 零警告原则 (Zero Warnings)
+- **经验**：警告通常是代码质量下滑的开始。
+    - 严禁提交包含 `unused_imports`、`dead_code` 或类型不匹配警告的代码。
+    - 保持代码洁净能显著降低维护者的心智负担，使真正的逻辑错误更容易浮出水面。
 
-### 2. Tray Menu Update Robustness (`src-tauri/src/tray/menu.rs`)
+---
 
-**Problem**: Tray menu updates failed when subscription changes occurred rapidly.
+## 核心功能测试矩阵
 
-**Solution**: Enhanced `refresh_profile_switch_submenu` with:
+| 模块 | 测试重点 | 经验总结 |
+| :--- | :--- | :--- |
+| **src-tauri** | 状态流转、UI 映射、多语言 | 验证托盘 ID 与配置项的 1:1 精准映射是 UI 稳定的关键。 |
+| **admin-api** | 路由匹配、权限保护、调度锁 | 模拟 API 报错 404/400 路径，验证后端的容错能力。 |
+| **sync-engine** | 哈希碰撞、冲突算法、磁盘原子性 | 哈希校验（MD5/ETag）必须在每一步操作后进行重验。 |
+| **core-logic** | 订阅解码、配置深度合并 | Gzip/Base64 解码必须具备多层 Fallback 机制。 |
+| **version-mgr** | 多平台适配、安装回滚 | 预先在安装路径“占坑”是验证回滚逻辑最有效的方法。 |
 
-- Retry mechanism with exponential backoff (max 3 attempts)
-- Detailed logging for debugging
-- Proper error propagation
+---
 
-**Benefits**:
-
-- Increased resilience to transient failures
-- Better debugging information
-- Graceful degradation on persistent failures
-
-**Key Changes**:
-
-- Added retry loop with configurable max attempts
-- Exponential backoff starting at 100ms, max 2s
-- Detailed log messages for each attempt
-
-### 3. Event Emission Timing (`src-tauri/src/tray/handlers.rs`)
-
-**Problem**: `EVENT_PROFILES_CHANGED` emitted before file operations completed.
-
-**Solution**: Added 100ms delay before event emission to ensure I/O completion.
-
-**Benefits**:
-
-- Reduced race conditions between subscription update and tray refresh
-- More consistent state when tray updates occur
-
-**Key Changes**:
-
-- Added conditional event emission (only if updates occurred)
-- Added `tokio::time::sleep` for I/O completion
-
-## Test Plan
-
-### Unit Tests
-
-#### 1. Subscription Update Tests (`crates/infiltrator-admin/src/scheduler/subscription_test.rs`)
-
-✅ `test_update_subscription_summary`
-
-- Verifies summary structure and counts
-
-✅ `test_update_all_subscriptions_with_no_profiles`
-
-- Tests behavior with empty profile list
-
-✅ `test_update_all_subscriptions_parallel_concurrency`
-
-- Verifies parallel execution structure
-
-✅ `test_subscription_update_retry_with_retry`
-
-- Documents retry behavior expectations
-
-✅ `test_mask_subscription_url`
-
-- Tests URL masking for security
-
-✅ `test_schedule_next_attempt`
-
-- Verifies next update time calculation
-
-✅ `test_subscription_update_result`
-
-- Tests result struct
-
-✅ `test_update_subscription_with_invalid_yaml`
-
-- Documents YAML validation behavior
-
-#### 2. Tray Menu Tests (`src-tauri/src/tray/menu_test.rs`)
-
-✅ `test_build_menu_id`
-
-- Verifies ID generation consistency
-
-✅ `test_insert_profile_menu_id`
-
-- Tests profile menu ID insertion with collision handling
-
-✅ `test_insert_proxy_menu_id`
-
-- Tests proxy menu ID insertion with collision handling
-
-✅ `test_truncate_label`
-
-- Tests label truncation logic
-
-✅ `test_is_selectable_group`
-
-- Tests proxy group type filtering
-
-✅ `test_is_script_enabled`
-
-- Tests script enablement logic
-
-✅ `test_build_proxy_node_label`
-
-- Tests proxy node label generation
-
-✅ `test_looks_like_gzip`
-
-- Tests GZIP header detection
-
-### Integration Tests
-
-#### 1. Performance Test: Parallel vs Sequential Subscription Updates
-
-**Setup**:
-
-- Create 5 test profiles with mock subscription URLs
-- Measure time for sequential updates (before fix)
-- Measure time for parallel updates (after fix)
-
-**Expected Results**:
-
-- Sequential: ~5x single update time
-- Parallel: ~1x single update time (limited by concurrency)
-
-**Verification**:
+## 如何运行测试
 
 ```bash
-# Run before fix (comment out parallel logic)
-time cargo run --release -- --profile-update-all
+# 推荐的开发环境运行方式（确保 0 竞态）
+cargo test --workspace -- --test-threads=1
 
-# Run after fix (with parallel logic)
-time cargo run --release -- --profile-update-all
-
-# Parallel should be significantly faster
+# 检查代码质量（必须无输出）
+cargo check --workspace
 ```
-
-#### 2. Tray Menu Stability Test
-
-**Setup**:
-
-- Trigger rapid subscription updates
-- Monitor tray menu for errors
-- Check that all updates complete successfully
-
-**Test Steps**:
-
-1. Launch Tauri app
-2. Trigger "Update All Subscriptions" from tray
-3. While updating, check tray menu multiple times
-4. Verify no crashes or errors in logs
-
-**Expected Results**:
-
-- All subscription updates complete
-- Tray menu updates succeed on retry if first attempt fails
-- No errors in logs beyond transient failures
-
-**Verification**:
-
-```bash
-# Monitor logs for errors
-cargo run --release 2>&1 | grep -i "error\|failed\|panic"
-
-# Should see only expected errors (network timeouts, invalid subscriptions)
-# Should NOT see tray menu update errors
-```
-
-#### 3. Race Condition Test
-
-**Setup**:
-
-- Trigger subscription update
-- Immediately trigger another update
-- Verify consistent state
-
-**Test Steps**:
-
-1. Click "Update All Subscriptions"
-2. Wait 1 second
-3. Click "Update All Subscriptions" again
-
-**Expected Results**:
-
-- Second update waits for first to complete (via update_lock)
-- No data corruption
-- Consistent final state
-
-**Verification**:
-
-```bash
-# Check for data corruption
-ls -la ~/.local/share/mihomo/configs/
-
-# Verify all YAML files are valid
-for file in configs/*.yaml; do
-  if ! yamllint "$file" 2>/dev/null; then
-    echo "Invalid YAML: $file"
-  fi
-done
-```
-
-## Performance Benchmarks
-
-### Before Fix (Sequential)
-
-```
-Profiles: 5
-Avg update time per profile: 2s (including retry)
-Total time: 10s (sequential)
-```
-
-### After Fix (Parallel, max_concurrent=5)
-
-```
-Profiles: 5
-Avg update time per profile: 2s (including retry)
-Total time: ~2s (parallel, 5 concurrent)
-Speedup: 5x
-```
-
-## Success Criteria
-
-### Functional Requirements
-
-✅ All subscription updates complete successfully
-✅ No data corruption or invalid YAML files
-✅ Tray menu updates work reliably
-✅ Error notifications are displayed correctly
-✅ Race conditions are handled gracefully
-
-### Performance Requirements
-
-✅ Subscription updates are at least 3x faster than before
-✅ Concurrency limit prevents resource exhaustion
-✅ Retry mechanism maintains reliability
-
-### Code Quality Requirements
-
-✅ All tests pass (`cargo test --workspace`)
-✅ No warnings (`cargo check --workspace`)
-✅ Proper error handling throughout
-✅ Comprehensive logging for debugging
-
-## Manual Testing Checklist
-
-- [ ] Launch Tauri app
-- [ ] Open tray menu
-- [ ] Verify profile switch submenu displays correctly
-- [ ] Click "Update All Subscriptions"
-- [ ] Verify notification appears (start)
-- [ ] Wait for completion
-- [ ] Verify notification appears (summary)
-- [ ] Open tray menu again
-- [ ] Verify profile list is updated
-- [ ] Check logs for any errors
-- [ ] Repeat with rapid clicks (stress test)
-- [ ] Verify no crashes or hangs
-
-## Rollback Plan
-
-If issues arise:
-
-1. Revert parallel subscription changes:
-   - Remove `JoinSet` logic
-   - Restore sequential `for profile in profiles` loop
-
-2. Revert tray menu retry:
-   - Remove retry loop
-   - Restore simple error return
-
-3. Revert event timing:
-   - Remove 100ms delay
-   - Restore unconditional event emission
-
-## Notes
-
-- The parallel approach respects the `update_lock()` from the scheduler
-- Each subscription update task creates its own `ConfigManager` instance
-- The retry mechanism is maintained at the individual subscription level
-- Event emission is now conditional on successful updates only

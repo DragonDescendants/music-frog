@@ -10,9 +10,11 @@ mod tests {
     use infiltrator_core::AppSettings;
     use crate::TEST_LOCK;
 
+    type Notifications = Arc<Mutex<Vec<(String, bool, Option<String>)>>>;
+
     #[derive(Clone)]
     struct MockContext {
-        notifications: Arc<Mutex<Vec<(String, bool, Option<String>)>>>,
+        notifications: Notifications,
     }
 
     #[async_trait::async_trait]
@@ -60,7 +62,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_subscriptions_with_no_profiles() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::Builder::new().prefix("sub-test-none-").tempdir().unwrap();
         mihomo_platform::clear_home_dir_override();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
@@ -82,7 +84,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_subscriptions_parallel_concurrency() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::Builder::new().prefix("sub-test-parallel-").tempdir().unwrap();
         mihomo_platform::clear_home_dir_override();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());
@@ -138,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_schedule_next_attempt() {
-        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::Builder::new().prefix("sub-test-schedule-").tempdir().unwrap();
         mihomo_platform::clear_home_dir_override();
         mihomo_platform::set_home_dir_override(temp_dir.path().to_path_buf());

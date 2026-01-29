@@ -316,11 +316,11 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
             .await
             .map_err(|e| ApiError::internal(e.to_string()))?;
     let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(&content).is_err() {
+    if core_config::validate_yaml(content).is_err() {
         return Err(ApiError::bad_request("订阅内容不是有效的 YAML"));
     }
     manager
-        .save(&profile_name, &content)
+        .save(&profile_name, content)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
@@ -658,14 +658,14 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         ));
     }
     let content = core_subscription::strip_utf8_bom(&content);
-    if core_config::validate_yaml(&content).is_err() {
+    if core_config::validate_yaml(content).is_err() {
         return Err(anyhow!(
             "订阅内容不是有效的 YAML"
         ));
     }
 
     let manager = ConfigManager::new()?;
-    manager.save(&profile_name, &content).await?;
+    manager.save(&profile_name, content).await?;
 
     let mut rebuild_scheduled = false;
     if activate {

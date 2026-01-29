@@ -180,8 +180,10 @@ mod tests {
 
     #[test]
     fn test_get_disallowed_packages() {
-        let mut config = AppRoutingConfig::default();
-        config.mode = AppRoutingMode::BypassSelected;
+        let mut config = AppRoutingConfig {
+            mode: AppRoutingMode::BypassSelected,
+            ..AppRoutingConfig::default()
+        };
         config.packages.insert("com.example.app".to_string());
         
         let disallowed = config.get_disallowed_packages().unwrap();
@@ -194,8 +196,10 @@ mod tests {
 
     #[test]
     fn test_app_routing_serialization() {
-        let mut config = AppRoutingConfig::default();
-        config.mode = AppRoutingMode::ProxySelected;
+        let mut config = AppRoutingConfig {
+            mode: AppRoutingMode::ProxySelected,
+            ..AppRoutingConfig::default()
+        };
         config.packages.insert("com.test".to_string());
 
         let toml_str = toml::to_string(&config).unwrap();

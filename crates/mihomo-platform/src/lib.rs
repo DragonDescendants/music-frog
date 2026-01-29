@@ -10,6 +10,10 @@ pub use desktop::*;
 pub use paths::*;
 pub use traits::*;
 
+/// Shared test lock for cross-crate synchronization of global state (e.g. HOME_DIR_OVERRIDE).
+/// Using tokio's Mutex to allow holding across .await points.
+pub static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub fn apply_data_dir_override<P: DataDirProvider>(provider: &P) {
     if let Some(path) = provider.data_dir() {
         paths::set_home_dir_override(path);
@@ -31,8 +35,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_apply_data_dir_override() {
+    #[tokio::test]
+    async fn test_apply_data_dir_override() {
+        let _guard = TEST_LOCK.lock().await;
         let path = PathBuf::from("/test/path");
         let provider = MockProvider { path: path.clone() };
         apply_data_dir_override(&provider);
@@ -40,8 +45,9 @@ mod tests {
         paths::clear_home_dir_override();
     }
 
-    #[test]
-    fn test_apply_data_dir_override_none() {
+    #[tokio::test]
+    async fn test_apply_data_dir_override_none() {
+        let _guard = TEST_LOCK.lock().await;
         struct NoneProvider;
         impl DataDirProvider for NoneProvider {
             fn data_dir(&self) -> Option<PathBuf> { None }
@@ -49,12 +55,12 @@ mod tests {
         let provider = NoneProvider;
         paths::clear_home_dir_override();
         apply_data_dir_override(&provider);
-        // Should not change anything
     }
 
-    #[test]
-    fn test_apply_default_data_dir_override() {
-        let provider = DesktopDataDirProvider::default();
+    #[tokio::test]
+    async fn test_apply_default_data_dir_override() {
+        let _guard = TEST_LOCK.lock().await;
+        let provider = DesktopDataDirProvider;
         apply_data_dir_override(&provider);
     }
 }

@@ -115,8 +115,10 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let settings_file = temp_dir.path().join("settings.toml");
         
-        let mut settings = AppSettings::default();
-        settings.language = "en-US".to_string();
+        let mut settings = AppSettings {
+            language: "en-US".to_string(),
+            ..AppSettings::default()
+        };
         settings.webdav.enabled = true;
         
         save_settings(&settings_file, &settings).await.unwrap();

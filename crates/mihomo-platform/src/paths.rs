@@ -47,12 +47,10 @@ pub fn get_home_dir() -> Result<PathBuf, MihomoError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    #[test]
-    fn test_set_home_dir_override() {
-        let _guard = TEST_LOCK.lock().unwrap();
+    #[tokio::test]
+    async fn test_set_home_dir_override() {
+        let _guard = crate::TEST_LOCK.lock().await;
         let path = PathBuf::from("/test/path");
         let result = set_home_dir_override(path.clone());
         assert!(result);
@@ -63,9 +61,9 @@ mod tests {
         clear_home_dir_override();
     }
 
-    #[test]
-    fn test_get_home_dir_with_override() {
-        let _guard = TEST_LOCK.lock().unwrap();
+    #[tokio::test]
+    async fn test_get_home_dir_with_override() {
+        let _guard = crate::TEST_LOCK.lock().await;
         let path = PathBuf::from("/custom/home");
         set_home_dir_override(path.clone());
 
@@ -75,9 +73,9 @@ mod tests {
         clear_home_dir_override();
     }
 
-    #[test]
-    fn test_get_home_dir_without_override() {
-        let _guard = TEST_LOCK.lock().unwrap();
+    #[tokio::test]
+    async fn test_get_home_dir_without_override() {
+        let _guard = crate::TEST_LOCK.lock().await;
         // Clear override
         clear_home_dir_override();
 
@@ -92,16 +90,14 @@ mod tests {
         unsafe { std::env::remove_var("MIHOMO_HOME") };
     }
 
-    #[test]
-    fn test_get_home_dir_default() {
-        let _guard = TEST_LOCK.lock().unwrap();
+    #[tokio::test]
+    async fn test_get_home_dir_default() {
+        let _guard = crate::TEST_LOCK.lock().await;
         // Clear override and env var
         clear_home_dir_override();
         unsafe { std::env::remove_var("MIHOMO_HOME") };
 
         // This should use dirs::home_dir() and return Ok
-        // (will fail in headless environments, but that's expected)
         let _result = get_home_dir();
-        // We don't assert success here as it depends on the test environment
     }
 }
