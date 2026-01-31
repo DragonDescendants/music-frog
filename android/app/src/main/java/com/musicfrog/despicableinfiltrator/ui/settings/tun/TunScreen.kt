@@ -60,7 +60,10 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 )
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
+            ) {
                 item {
                     OutlinedTextField(
                         value = state.mtu,

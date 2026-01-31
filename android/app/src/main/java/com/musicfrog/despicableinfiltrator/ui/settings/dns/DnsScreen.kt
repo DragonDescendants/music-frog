@@ -60,7 +60,10 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 )
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
+            ) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.dns_enable),

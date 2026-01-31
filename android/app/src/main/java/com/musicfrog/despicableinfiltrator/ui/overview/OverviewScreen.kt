@@ -1,40 +1,18 @@
 package com.musicfrog.despicableinfiltrator.ui.overview
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.PowerSettingsNew
-import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -100,12 +78,17 @@ fun OverviewScreen(
         )
     }
 
+    // Fix: Proper padding handling instead of global box
+    val contentPadding = PaddingValues(16.dp)
+
     if (isExpanded) {
         val leftCards = cards.filterIndexed { index, _ -> index % 2 == 0 }
         val rightCards = cards.filterIndexed { index, _ -> index % 2 == 1 }
         Row(
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.fillMaxSize()
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(contentPadding)
         ) {
             Column(
                 modifier = Modifier.weight(1f),
@@ -123,12 +106,13 @@ fun OverviewScreen(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(cards) { card ->
                 card()
             }
+            item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
 }
@@ -151,69 +135,15 @@ private fun overviewCards(
 ): List<@Composable () -> Unit> {
     return listOf(
         {
-            // Compact TUN Service Card with Switch
-            val vpnSubtitle = when {
-                !vpnPermissionGranted -> stringResource(R.string.status_permission_required)
-                vpnStarting -> stringResource(R.string.status_starting)
-                vpnStopping -> stringResource(R.string.status_stopping)
-                vpnRunning -> stringResource(R.string.status_active)
-                else -> stringResource(R.string.status_idle)
-            }
-            
-            // Interaction logic
-            val isBusy = vpnStarting || vpnStopping
-            val onSwitch = { checked: Boolean ->
-                if (!vpnPermissionGranted) {
-                    onRequestVpnPermission()
-                } else {
-                    onToggleVpn()
-                }
-            }
-
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                colors = androidx.compose.material3.CardDefaults.outlinedCardColors(
-                    containerColor = if (vpnRunning) 
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                    else 
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Outlined.PowerSettingsNew,
-                                contentDescription = null,
-                                tint = if (vpnRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = stringResource(R.string.status_tun_service),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                            )
-                        }
-                        Text(
-                            text = vpnSubtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (vpnRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 36.dp, top = 4.dp)
-                        )
-                    }
-                    
-                    Switch(
-                        checked = vpnRunning,
-                        onCheckedChange = onSwitch,
-                        enabled = !isBusy
-                    )
-                }
-            }
+            // Hero VPN Card
+            VpnHeroCard(
+                vpnRunning = vpnRunning,
+                vpnStarting = vpnStarting,
+                vpnStopping = vpnStopping,
+                vpnPermissionGranted = vpnPermissionGranted,
+                onRequestVpnPermission = onRequestVpnPermission,
+                onToggleVpn = onToggleVpn
+            )
         },
         {
             var expanded by remember { mutableStateOf(false) }
@@ -223,8 +153,13 @@ private fun overviewCards(
                 icon = Icons.Outlined.Tune,
                 actions = {
                     Box {
-                        OutlinedButton(onClick = { expanded = true }) {
+                        FilledTonalButton(
+                            onClick = { expanded = true },
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
                             Text(stringResource(R.string.action_change_mode))
+                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Outlined.ArrowDropDown, null, modifier = Modifier.size(18.dp))
                         }
                         DropdownMenu(
                             expanded = expanded,
@@ -251,28 +186,45 @@ private fun overviewCards(
             TrafficCard(traffic, trafficLoading)
         },
         {
-            // Core Runtime (Hidden unless stopped/error)
-            val coreSubtitle = if (coreRunning) stringResource(R.string.status_running) else stringResource(R.string.status_stopped)
-            // Only show actions if NOT running
+            // Core Runtime
             if (!coreRunning) {
-                StatusCard(
-                    title = stringResource(R.string.status_core_runtime),
-                    subtitle = coreSubtitle,
-                    actions = {
-                        TextButton(onClick = onRestartCore) {
-                            Text(text = stringResource(R.string.action_restart))
-                        }
-                    }
-                )
+               Card(
+                   colors = CardDefaults.cardColors(
+                       containerColor = MaterialTheme.colorScheme.errorContainer,
+                       contentColor = MaterialTheme.colorScheme.onErrorContainer
+                   )
+               ) {
+                   Column(
+                       modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                       verticalArrangement = Arrangement.spacedBy(8.dp)
+                   ) {
+                       Row(verticalAlignment = Alignment.CenterVertically) {
+                           Icon(Icons.Outlined.Warning, null)
+                           Spacer(Modifier.width(8.dp))
+                           Text(
+                               stringResource(R.string.status_core_runtime), 
+                               style = MaterialTheme.typography.titleMedium,
+                               fontWeight = FontWeight.Bold
+                           )
+                       }
+                       Text(stringResource(R.string.status_stopped))
+                       Button(
+                           onClick = onRestartCore, 
+                           colors = ButtonDefaults.buttonColors(
+                               containerColor = MaterialTheme.colorScheme.onErrorContainer,
+                               contentColor = MaterialTheme.colorScheme.errorContainer
+                           )
+                       ) {
+                           Text(stringResource(R.string.action_restart))
+                       }
+                   }
+               }
             } else {
-                // If running, we can optionally hide it completely or show a minimalist info
-                // User asked to put it above logs. Let's keep it but make it very small if running?
-                // Or just standard StatusCard without actions.
-                // Let's use a standard card but minimal.
-                StatusCard(
+                 StatusCard(
                     title = stringResource(R.string.status_core_runtime),
-                    subtitle = coreSubtitle
-                )
+                    subtitle = stringResource(R.string.status_running),
+                    icon = Icons.Outlined.Memory
+                 )
             }
         },
         {
@@ -282,43 +234,137 @@ private fun overviewCards(
 }
 
 @Composable
+private fun VpnHeroCard(
+    vpnRunning: Boolean,
+    vpnStarting: Boolean,
+    vpnStopping: Boolean,
+    vpnPermissionGranted: Boolean,
+    onRequestVpnPermission: () -> Unit,
+    onToggleVpn: () -> Unit
+) {
+    val isBusy = vpnStarting || vpnStopping
+    
+    val containerColor by animateColorAsState(
+        targetValue = if (vpnRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = tween(500),
+        label = "cardColor"
+    )
+    
+    val contentColor by animateColorAsState(
+        targetValue = if (vpnRunning) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+        animationSpec = tween(500),
+        label = "contentColor"
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (vpnRunning) 8.dp else 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            val statusText = when {
+                !vpnPermissionGranted -> stringResource(R.string.status_permission_required)
+                vpnStarting -> stringResource(R.string.status_starting)
+                vpnStopping -> stringResource(R.string.status_stopping)
+                vpnRunning -> stringResource(R.string.status_active)
+                else -> stringResource(R.string.status_idle)
+            }
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                 Column {
+                     Text(
+                        text = stringResource(R.string.status_tun_service),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                     )
+                     Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = contentColor.copy(alpha = 0.8f)
+                        )
+                     )
+                 }
+                 
+                 FilledIconButton(
+                     onClick = { 
+                        if (!vpnPermissionGranted) onRequestVpnPermission() else onToggleVpn()
+                     },
+                     enabled = !isBusy,
+                     modifier = Modifier.size(64.dp),
+                     colors = IconButtonDefaults.filledIconButtonColors(
+                         containerColor = if (vpnRunning) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
+                         contentColor = if (vpnRunning) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary
+                     )
+                 ) {
+                     Icon(
+                         Icons.Rounded.PowerSettingsNew,
+                         contentDescription = null,
+                         modifier = Modifier.size(32.dp)
+                     )
+                 }
+            }
+        }
+    }
+}
+
+@Composable
 private fun StatusCard(
     title: String,
     subtitle: String,
     icon: ImageVector? = null,
     actions: @Composable (() -> Unit)? = null
 ) {
-    OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-        colors = androidx.compose.material3.CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 if (icon != null) {
                     Icon(
                         icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                 }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = if (icon != null) Modifier.padding(start = 36.dp) else Modifier
-            )
             if (actions != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     actions()
                 }
             }
@@ -331,17 +377,15 @@ private fun TrafficCard(
     snapshot: TrafficSnapshot?,
     isLoading: Boolean
 ) {
-    OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-        colors = androidx.compose.material3.CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
+        colors = CardDefaults.elevatedCardColors(
+             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -357,62 +401,63 @@ private fun TrafficCard(
             }
             
             if (isLoading || snapshot == null) {
-                Text(
-                    text = stringResource(R.string.text_loading),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 36.dp)
-                )
+                 Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                     CircularProgressIndicator()
+                 }
             } else {
-                // Speed row
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 36.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Column {
+                    // Upload
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.ArrowUpward, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+                            Text(stringResource(R.string.label_upload), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         Text(
-                            text = "↑ ${formatSpeed(snapshot.upRate.toLong())}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
+                            text = formatSpeed(snapshot.upRate.toLong()),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = stringResource(R.string.label_upload),
+                            text = formatBytes(snapshot.upTotal.toLong()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Column(horizontalAlignment = Alignment.End) {
+                    
+                    VerticalDivider(modifier = Modifier.height(60.dp))
+                    
+                    // Download
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.ArrowDownward, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Text(stringResource(R.string.label_download), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         Text(
-                            text = "↓ ${formatSpeed(snapshot.downRate.toLong())}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.secondary
+                            text = formatSpeed(snapshot.downRate.toLong()),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = stringResource(R.string.label_download),
+                            text = formatBytes(snapshot.downTotal.toLong()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 
-                // Total row
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 36.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = stringResource(
-                            R.string.label_total,
-                            formatBytes(snapshot.upTotal.toLong()),
-                            formatBytes(snapshot.downTotal.toLong())
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
+                     Text(
                         text = stringResource(R.string.label_connections, snapshot.connections),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -425,12 +470,10 @@ private fun LogPreviewCard(
     logs: List<LogEntry>,
     isLoading: Boolean
 ) {
-    OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-        colors = androidx.compose.material3.CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(
@@ -466,7 +509,7 @@ private fun LogPreviewCard(
                 )
             } else {
                 Column(modifier = Modifier.padding(start = 36.dp)) {
-                    logs.reversed().forEach { entry ->
+                    logs.reversed().take(5).forEach { entry ->
                         val levelColor = when (entry.level) {
                             LogLevel.ERROR -> MaterialTheme.colorScheme.error
                             LogLevel.WARNING -> MaterialTheme.colorScheme.tertiary

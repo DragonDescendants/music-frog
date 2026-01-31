@@ -1,11 +1,17 @@
+#[cfg(target_os = "android")]
 pub mod android;
+#[cfg(target_os = "android")]
 pub mod android_bridge;
+#[cfg(not(target_os = "android"))]
 pub mod desktop;
 pub mod paths;
 pub mod traits;
 
+#[cfg(target_os = "android")]
 pub use android::*;
+#[cfg(target_os = "android")]
 pub use android_bridge::*;
+#[cfg(not(target_os = "android"))]
 pub use desktop::*;
 pub use paths::*;
 pub use traits::*;

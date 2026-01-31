@@ -56,7 +56,8 @@ fun SettingsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
         ) {
             item {
                 StandardListItem(

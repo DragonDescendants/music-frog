@@ -50,16 +50,14 @@ fun ProxiesScreen(viewModel: ProxiesViewModel = viewModel()) {
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
         ) {
             items(groups) { group ->
                 ProxyGroupCard(
                     group = group,
                     onSelect = { server -> viewModel.selectProxy(group.name, server) }
                 )
-            }
-            item {
-                Spacer(modifier = Modifier.padding(12.dp))
             }
         }
 
@@ -92,12 +90,12 @@ fun ProxyGroupCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    OutlinedCard(
+    androidx.compose.material3.ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        colors = androidx.compose.material3.CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column {

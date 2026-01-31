@@ -65,7 +65,10 @@ fun RulesScreen(viewModel: RulesViewModel = viewModel()) {
                 )
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
+            ) {
                 item {
                     Text(
                         text = stringResource(R.string.section_add_rule),

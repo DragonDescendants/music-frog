@@ -77,12 +77,11 @@ fun ProfilesScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (isLoading && profiles.isEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-            
-            LazyColumn {
+        // Use a Box only to overlay the loading indicator or empty message, but not for padding
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp) // Space for FAB
+            ) {
                 items(profiles) { profile ->
                     ProfileRow(
                         profile = profile,
@@ -91,6 +90,10 @@ fun ProfilesScreen(
                     )
                     HorizontalDivider()
                 }
+            }
+
+            if (isLoading && profiles.isEmpty()) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
 
             if (!isLoading && profiles.isEmpty() && emptyMessage != null) {

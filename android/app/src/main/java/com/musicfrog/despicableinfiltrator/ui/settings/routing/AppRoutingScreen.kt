@@ -19,7 +19,9 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
@@ -73,7 +75,7 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                         readOnly = true,
                         label = { Text(stringResource(R.string.routing_mode_label)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMode) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = expandedMode,
@@ -110,7 +112,7 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
             )
 
             // User/System Tabs
-            TabRow(selectedTabIndex = selectedTab) {
+            PrimaryTabRow(selectedTabIndex = selectedTab) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
@@ -141,7 +143,10 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                         )
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
+                    ) {
                         items(filteredApps, key = { it.packageName }) { app ->
                             AppRow(
                                 app = app,

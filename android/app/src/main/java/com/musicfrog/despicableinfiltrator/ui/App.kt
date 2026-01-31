@@ -151,7 +151,6 @@ fun InfiltratorApp(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
             ) {
                 when (section) {
                     AppSection.Overview -> OverviewScreen(

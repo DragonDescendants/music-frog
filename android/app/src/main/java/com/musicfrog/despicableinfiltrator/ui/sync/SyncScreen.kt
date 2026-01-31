@@ -31,128 +31,164 @@ fun SyncScreen() {
     val viewModel = remember { SyncViewModel() }
     val state by viewModel.state.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(text = "WebDAV Sync", style = MaterialTheme.typography.titleLarge)
+        item {
+            Text(text = "WebDAV Sync", style = MaterialTheme.typography.titleLarge)
+        }
 
         if (state.isLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Loading...")
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Loading...")
+                }
             }
         }
 
         if (state.error != null) {
-            ErrorDialog(
-                message = state.error ?: "",
-                onDismiss = { viewModel.clearError() }
-            )
+            item {
+                ErrorDialog(
+                    message = state.error ?: "",
+                    onDismiss = { viewModel.clearError() }
+                )
+            }
         }
 
-        ToggleRow(
-            title = "Enable WebDAV Sync",
-            checked = state.enabled,
-            onCheckedChange = { viewModel.updateEnabled(it) },
-            enabled = !state.isLoading
-        )
-
-        OutlinedTextField(
-            value = state.url,
-            onValueChange = { viewModel.updateUrl(it) },
-            label = { Text("WebDAV URL") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading
-        )
-
-        OutlinedTextField(
-            value = state.username,
-            onValueChange = { viewModel.updateUsername(it) },
-            label = { Text("Username") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading
-        )
-
-        OutlinedTextField(
-            value = state.password,
-            onValueChange = { viewModel.updatePassword(it) },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading,
-            visualTransformation = PasswordVisualTransformation()
-        )
-
-        OutlinedTextField(
-            value = state.syncInterval,
-            onValueChange = { viewModel.updateSyncInterval(it) },
-            label = { Text("Sync interval (minutes)") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading
-        )
-
-        ToggleRow(
-            title = "Sync on startup",
-            checked = state.syncOnStartup,
-            onCheckedChange = { viewModel.updateSyncOnStartup(it) },
-            enabled = !state.isLoading
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { viewModel.save() },
-                enabled = !state.isLoading
+        item {
+            androidx.compose.material3.ElevatedCard(
+                 colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
             ) {
-                Text(text = "Save")
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ToggleRow(
+                        title = "Enable WebDAV Sync",
+                        checked = state.enabled,
+                        onCheckedChange = { viewModel.updateEnabled(it) },
+                        enabled = !state.isLoading
+                    )
+
+                    OutlinedTextField(
+                        value = state.url,
+                        onValueChange = { viewModel.updateUrl(it) },
+                        label = { Text("WebDAV URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isLoading
+                    )
+
+                    OutlinedTextField(
+                        value = state.username,
+                        onValueChange = { viewModel.updateUsername(it) },
+                        label = { Text("Username") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isLoading
+                    )
+
+                    OutlinedTextField(
+                        value = state.password,
+                        onValueChange = { viewModel.updatePassword(it) },
+                        label = { Text("Password") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isLoading,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+
+                    OutlinedTextField(
+                        value = state.syncInterval,
+                        onValueChange = { viewModel.updateSyncInterval(it) },
+                        label = { Text("Sync interval (minutes)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isLoading
+                    )
+
+                    ToggleRow(
+                        title = "Sync on startup",
+                        checked = state.syncOnStartup,
+                        onCheckedChange = { viewModel.updateSyncOnStartup(it) },
+                        enabled = !state.isLoading
+                    )
+                }
             }
-            TextButton(
-                onClick = { viewModel.testConnection() },
-                enabled = !state.isLoading
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "Test")
+                Button(
+                    onClick = { viewModel.save() },
+                    enabled = !state.isLoading,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(text = "Save")
+                }
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { viewModel.testConnection() },
+                    enabled = !state.isLoading
+                ) {
+                    Text(text = "Test")
+                }
             }
-            TextButton(
-                onClick = { viewModel.syncNow() },
-                enabled = !state.isLoading
+        }
+        
+        item {
+             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "Sync Now")
-            }
-            TextButton(
-                onClick = { viewModel.load() },
-                enabled = !state.isLoading
-            ) {
-                Text(text = "Reload")
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { viewModel.syncNow() },
+                    enabled = !state.isLoading,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(text = "Sync Now")
+                }
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.load() },
+                    enabled = !state.isLoading
+                ) {
+                    Text(text = "Reload")
+                }
             }
         }
 
         if (state.saved) {
-            Text(
-                text = "Saved",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            item {
+                Text(
+                    text = "Saved",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
 
         if (state.testMessage != null) {
-            Text(
-                text = state.testMessage ?: "",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            item {
+                Text(
+                    text = state.testMessage ?: "",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
 
         if (state.syncSummary != null) {
-            Text(
-                text = state.syncSummary ?: "",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            item {
+                Text(
+                    text = state.syncSummary ?: "",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 }

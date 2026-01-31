@@ -1,5 +1,6 @@
 package com.musicfrog.despicableinfiltrator
 
+import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
 import android.service.quicksettings.Tile
@@ -46,13 +47,20 @@ class InfiltratorTileService : TileService() {
                     val intent = Intent(this, MainActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
+                    
+                    val pendingIntent = PendingIntent.getActivity(
+                        this,
+                        0,
+                        intent,
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                    
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        // Android 14+ requires specific handling for starting activity from tile
-                        // but startActivityAndCollapse is usually preferred
-                        startActivityAndCollapse(intent)
+                        startActivityAndCollapse(pendingIntent)
                     } else {
-                        @Suppress("DEPRECATION")
-                        startActivityAndCollapse(intent)
+                        // For older versions, we can still use the PendingIntent version if available,
+                        // or fall back. TileService has had (PendingIntent) since API 24.
+                        startActivityAndCollapse(pendingIntent)
                     }
                 }
             }

@@ -132,6 +132,8 @@ class MihomoVpnService : VpnService() {
                 ROUTING_MODE_PROXY_SELECTED -> {
                     if (selectedPackages.isNotEmpty()) {
                         for (pkg in selectedPackages) {
+                            // Prevent adding self to allowlist (would cause loop)
+                            if (pkg == packageName) continue
                             try {
                                 builder.addAllowedApplication(pkg)
                             } catch (e: Exception) {
@@ -141,8 +143,12 @@ class MihomoVpnService : VpnService() {
                     }
                 }
                 ROUTING_MODE_BYPASS_SELECTED -> {
+                    // Always exclude self to prevent loop
+                    try { builder.addDisallowedApplication(packageName) } catch (e: Exception) { Log.w(TAG, "Failed to exclude self", e) }
+
                     if (selectedPackages.isNotEmpty()) {
                         for (pkg in selectedPackages) {
+                            if (pkg == packageName) continue // Already handled
                             try {
                                 builder.addDisallowedApplication(pkg)
                             } catch (e: Exception) {
@@ -151,7 +157,15 @@ class MihomoVpnService : VpnService() {
                         }
                     }
                 }
-                else -> Log.i(TAG, "Proxy All mode active")
+                else -> {
+                    Log.i(TAG, "Proxy All mode active")
+                    // Always exclude self to prevent loop
+                    try {
+                        builder.addDisallowedApplication(packageName)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to disallow self in Proxy All mode", e)
+                    }
+                }
             }
             
             vpnInterface = builder.establish()
