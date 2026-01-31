@@ -236,6 +236,7 @@ private class MihomoProcessManager(private val context: Context) {
             mode: rule
             log-level: info
             external-controller: $CONTROLLER_ADDR
+            find-process-name: false
             
             tun:
               enable: false

@@ -1,6 +1,7 @@
 package com.musicfrog.despicableinfiltrator.ui.settings.tun
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,7 +10,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -17,6 +17,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -24,26 +27,61 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.despicableinfiltrator.R
 import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
+import com.musicfrog.despicableinfiltrator.ui.common.InputDialog
 import com.musicfrog.despicableinfiltrator.ui.common.StandardListItem
 
 @Composable
 fun TunScreen(viewModel: TunViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    var showMtuDialog by remember { mutableStateOf(false) }
+    var showDnsDialog by remember { mutableStateOf(false) }
+
+    if (showMtuDialog) {
+        InputDialog(
+            title = stringResource(R.string.label_mtu),
+            initialValue = state.mtu,
+            onDismiss = { showMtuDialog = false },
+            onConfirm = {
+                viewModel.updateMtu(it)
+                showMtuDialog = false
+            },
+            isNumeric = true
+        )
+    }
+
+    if (showDnsDialog) {
+        InputDialog(
+            title = stringResource(R.string.label_dns_servers),
+            initialValue = state.dnsServers,
+            onDismiss = { showDnsDialog = false },
+            onConfirm = {
+                viewModel.updateDnsServers(it)
+                showDnsDialog = false
+            },
+            singleLine = false
+        )
+    }
 
     Scaffold(
         bottomBar = {
-            if (state.saved) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { viewModel.save() },
+                    enabled = !state.isLoading,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = stringResource(R.string.text_saved),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Text(stringResource(R.string.action_save))
+                }
+                TextButton(
+                    onClick = { viewModel.load() },
+                    enabled = !state.isLoading
+                ) {
+                    Text(stringResource(R.string.action_reload))
                 }
             }
         }
@@ -62,19 +100,14 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
             ) {
                 item {
-                    OutlinedTextField(
-                        value = state.mtu,
-                        onValueChange = { viewModel.updateMtu(it) },
-                        label = { Text(stringResource(R.string.label_mtu)) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        enabled = !state.isLoading,
-                        singleLine = true
+                    StandardListItem(
+                        headline = stringResource(R.string.label_mtu),
+                        supporting = if (state.mtu.isEmpty()) "Default (1500)" else state.mtu,
+                        onClick = { if (!state.isLoading) showMtuDialog = true }
                     )
+                    HorizontalDivider()
                 }
 
                 item {
@@ -126,39 +159,22 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 }
 
                 item {
-                    OutlinedTextField(
-                        value = state.dnsServers,
-                        onValueChange = { viewModel.updateDnsServers(it) },
-                        label = { Text(stringResource(R.string.label_dns_servers)) },
-                        supportingText = { Text(stringResource(R.string.desc_one_per_line)) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        enabled = !state.isLoading,
-                        minLines = 3,
-                        maxLines = 6
+                    StandardListItem(
+                        headline = stringResource(R.string.label_dns_servers),
+                        supporting = if (state.dnsServers.isEmpty()) "System DNS" else state.dnsServers.replace("\n", ", "),
+                        onClick = { if (!state.isLoading) showDnsDialog = true }
                     )
+                    HorizontalDivider()
                 }
-
-                item {
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { viewModel.save() },
-                            enabled = !state.isLoading,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(stringResource(R.string.action_save))
-                        }
-                        TextButton(
-                            onClick = { viewModel.load() },
-                            enabled = !state.isLoading
-                        ) {
-                            Text(stringResource(R.string.action_reload))
+                
+                if (state.saved) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = stringResource(R.string.text_saved),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge
+                            )
                         }
                     }
                 }

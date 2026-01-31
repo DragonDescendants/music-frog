@@ -1,6 +1,8 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -53,41 +55,38 @@ val vendorMihomoAmd64 = rootProject.file("../vendor/mihomo-android-amd64")
 val jniDirArm64 = layout.projectDirectory.dir("src/main/jniLibs/arm64-v8a")
 val jniDirX86_64 = layout.projectDirectory.dir("src/main/jniLibs/x86_64")
 
-// 2. 修正 Copy 任务：多架构支持
-tasks.register("prepareMihomoAsset") {
-    // 使用 doLast 确保在执行阶段运行
-    doLast {
-        if (vendorMihomoArm64.exists()) {
-            copy {
-                from(vendorMihomoArm64)
-                into(jniDirArm64)
-                rename { "libmihomo.so" }
-            }
-        } else {
-            logger.warn("Warning: ARM64 binary not found at $vendorMihomoArm64")
-        }
-
-        if (vendorMihomoAmd64.exists()) {
-            copy {
-                from(vendorMihomoAmd64)
-                into(jniDirX86_64)
-                rename { "libmihomo.so" }
-            }
-        } else {
-            logger.warn("Warning: AMD64 binary not found at $vendorMihomoAmd64")
+// 2. 修正 Copy 任务：使用标准 Copy 任务类型以兼容配置缓存
+tasks.register<Copy>("prepareMihomoAsset") {
+    if (vendorMihomoArm64.exists()) {
+        from(vendorMihomoArm64) {
+            into("arm64-v8a")
+            rename { "libmihomo.so" }
         }
     }
+    if (vendorMihomoAmd64.exists()) {
+        from(vendorMihomoAmd64) {
+            into("x86_64")
+            rename { "libmihomo.so" }
+        }
+    }
+    into(layout.projectDirectory.dir("src/main/jniLibs"))
 }
 
 tasks.register<Exec>("cargoBuild") {
     val scriptPath = rootProject.file("../scripts/android-build.ps1").absolutePath
     val scriptShPath = rootProject.file("../scripts/android-build.sh").absolutePath
 
-    // 3. 关键修复：直接从 Android 插件获取最准确的 SDK/NDK 路径
-    // 这样无论 local.properties 里写没写，只要 AS 能识别 NDK，这里就能拿到
-    val androidExt = project.extensions.getByType(com.android.build.gradle.BaseExtension::class.java)
-    val sdkDir = androidExt.sdkDirectory
-    val ndkDir = androidExt.ndkDirectory
+    // 3. 从 local.properties 或环境读取
+    val localProperties = Properties()
+    val localFile = rootProject.file("local.properties")
+    if (localFile.exists()) {
+        localFile.inputStream().use { input ->
+            localProperties.load(input)
+        }
+    }
+    
+    val sdkDir = localProperties.getProperty("sdk.dir") ?: ""
+    val ndkDir = localProperties.getProperty("ndk.dir") ?: ""
 
     environment("ANDROID_SDK_ROOT", sdkDir)
     environment("ANDROID_HOME", sdkDir)

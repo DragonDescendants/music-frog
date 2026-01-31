@@ -145,4 +145,17 @@
     <string name="notification_title">Infiltrator VPN</string>
     <string name="notification_starting">Starting...</string>
     <string name="notification_active">Protection Active</string>
+
+    <!-- Sync / WebDAV -->
+    <string name="title_webdav_sync">WebDAV Sync</string>
+    <string name="label_enable_webdav">Enable WebDAV Sync</string>
+    <string name="label_webdav_url">WebDAV URL</string>
+    <string name="label_username">Username</string>
+    <string name="label_password">Password</string>
+    <string name="label_sync_interval">Sync interval (minutes)</string>
+    <string name="label_sync_on_startup">Sync on startup</string>
+    <string name="action_test">Test</string>
+    <string name="action_sync_now">Sync Now</string>
+    <string name="text_sync_saved">Saved</string>
+    <string name="text_sync_loading">Loading...</string>
 </resources>

@@ -4,12 +4,11 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-// Removed AppCompatActivity import
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
@@ -21,7 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.musicfrog.despicableinfiltrator.ui.InfiltratorApp
 import com.musicfrog.despicableinfiltrator.ui.theme.InfiltratorTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     private var bridgeHost: BridgeHost? = null
     private var pendingImportUrl = mutableStateOf<String?>(null)
 

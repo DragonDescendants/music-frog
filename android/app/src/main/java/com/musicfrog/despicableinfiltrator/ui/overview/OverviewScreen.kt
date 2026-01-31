@@ -79,7 +79,7 @@ fun OverviewScreen(
     }
 
     // Fix: Proper padding handling instead of global box
-    val contentPadding = PaddingValues(16.dp)
+    val contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 
     if (isExpanded) {
         val leftCards = cards.filterIndexed { index, _ -> index % 2 == 0 }
@@ -92,13 +92,13 @@ fun OverviewScreen(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 leftCards.forEach { card -> card() }
             }
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 rightCards.forEach { card -> card() }
             }
@@ -107,12 +107,12 @@ fun OverviewScreen(
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(cards) { card ->
                 card()
             }
-            item { Spacer(modifier = Modifier.height(32.dp)) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 }

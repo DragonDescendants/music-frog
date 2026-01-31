@@ -22,8 +22,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.musicfrog.despicableinfiltrator.R
 import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
 
 @Composable
@@ -37,7 +39,7 @@ fun SyncScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(text = "WebDAV Sync", style = MaterialTheme.typography.titleLarge)
+            Text(text = stringResource(R.string.title_webdav_sync), style = MaterialTheme.typography.titleLarge)
         }
 
         if (state.isLoading) {
@@ -45,7 +47,7 @@ fun SyncScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.height(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Loading...")
+                    Text(text = stringResource(R.string.text_sync_loading))
                 }
             }
         }
@@ -70,7 +72,7 @@ fun SyncScreen() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     ToggleRow(
-                        title = "Enable WebDAV Sync",
+                        title = stringResource(R.string.label_enable_webdav),
                         checked = state.enabled,
                         onCheckedChange = { viewModel.updateEnabled(it) },
                         enabled = !state.isLoading
@@ -79,7 +81,7 @@ fun SyncScreen() {
                     OutlinedTextField(
                         value = state.url,
                         onValueChange = { viewModel.updateUrl(it) },
-                        label = { Text("WebDAV URL") },
+                        label = { Text(stringResource(R.string.label_webdav_url)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.isLoading
                     )
@@ -87,7 +89,7 @@ fun SyncScreen() {
                     OutlinedTextField(
                         value = state.username,
                         onValueChange = { viewModel.updateUsername(it) },
-                        label = { Text("Username") },
+                        label = { Text(stringResource(R.string.label_username)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.isLoading
                     )
@@ -95,7 +97,7 @@ fun SyncScreen() {
                     OutlinedTextField(
                         value = state.password,
                         onValueChange = { viewModel.updatePassword(it) },
-                        label = { Text("Password") },
+                        label = { Text(stringResource(R.string.label_password)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.isLoading,
                         visualTransformation = PasswordVisualTransformation()
@@ -104,13 +106,13 @@ fun SyncScreen() {
                     OutlinedTextField(
                         value = state.syncInterval,
                         onValueChange = { viewModel.updateSyncInterval(it) },
-                        label = { Text("Sync interval (minutes)") },
+                        label = { Text(stringResource(R.string.label_sync_interval)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.isLoading
                     )
 
                     ToggleRow(
-                        title = "Sync on startup",
+                        title = stringResource(R.string.label_sync_on_startup),
                         checked = state.syncOnStartup,
                         onCheckedChange = { viewModel.updateSyncOnStartup(it) },
                         enabled = !state.isLoading
@@ -129,13 +131,13 @@ fun SyncScreen() {
                     enabled = !state.isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(text = "Save")
+                    Text(text = stringResource(R.string.action_save))
                 }
                 androidx.compose.material3.OutlinedButton(
                     onClick = { viewModel.testConnection() },
                     enabled = !state.isLoading
                 ) {
-                    Text(text = "Test")
+                    Text(text = stringResource(R.string.action_test))
                 }
             }
         }
@@ -150,13 +152,13 @@ fun SyncScreen() {
                     enabled = !state.isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(text = "Sync Now")
+                    Text(text = stringResource(R.string.action_sync_now))
                 }
                 androidx.compose.material3.TextButton(
                     onClick = { viewModel.load() },
                     enabled = !state.isLoading
                 ) {
-                    Text(text = "Reload")
+                    Text(text = stringResource(R.string.action_reload))
                 }
             }
         }
@@ -164,7 +166,7 @@ fun SyncScreen() {
         if (state.saved) {
             item {
                 Text(
-                    text = "Saved",
+                    text = stringResource(R.string.text_sync_saved),
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodyMedium
                 )

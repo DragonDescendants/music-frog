@@ -145,4 +145,17 @@
     <string name="notification_title">Infiltrator VPN</string>
     <string name="notification_starting">正在启动...</string>
     <string name="notification_active">保护已开启</string>
+
+    <!-- Sync / WebDAV -->
+    <string name="title_webdav_sync">WebDAV 同步</string>
+    <string name="label_enable_webdav">启用 WebDAV 同步</string>
+    <string name="label_webdav_url">WebDAV 地址 (URL)</string>
+    <string name="label_username">用户名</string>
+    <string name="label_password">密码</string>
+    <string name="label_sync_interval">同步间隔 (分钟)</string>
+    <string name="label_sync_on_startup">启动时同步</string>
+    <string name="action_test">测试连接</string>
+    <string name="action_sync_now">立即同步</string>
+    <string name="text_sync_saved">已保存</string>
+    <string name="text_sync_loading">加载中...</string>
 </resources>

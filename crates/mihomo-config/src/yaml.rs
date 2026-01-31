@@ -48,6 +48,20 @@ pub(crate) fn set_str(doc: &mut Yaml, key: &str, value: &str) -> Result<()> {
     }
 }
 
+pub fn set_bool(doc: &mut Yaml, key: &str, value: bool) -> Result<()> {
+    if let Yaml::Hash(hash) = doc {
+        hash.insert(
+            Yaml::String(key.to_string()),
+            Yaml::Boolean(value),
+        );
+        Ok(())
+    } else {
+        Err(MihomoError::Config(
+            "Invalid YAML mapping".to_string(),
+        ))
+    }
+}
+
 pub(crate) fn set_u16(doc: &mut Yaml, key: &str, value: u16) -> Result<()> {
     if let Yaml::Hash(hash) = doc {
         hash.insert(
