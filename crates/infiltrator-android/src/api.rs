@@ -200,20 +200,48 @@ mod tests {
     struct FailingBridge;
     #[async_trait::async_trait]
     impl AndroidBridge for FailingBridge {
-        async fn core_start(&self) -> Result<()> { Err(mihomo_api::MihomoError::Config("fail".into())) }
-        async fn core_stop(&self) -> Result<()> { Ok(()) }
-        async fn core_is_running(&self) -> Result<bool> { Ok(false) }
-        fn core_controller_url(&self) -> Option<String> { None }
-        async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> { Ok(None) }
-        async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> { Ok(()) }
-        async fn credential_delete(&self, _s: &str, _k: &str) -> Result<()> { Ok(()) }
-        fn data_dir(&self) -> Option<PathBuf> { None }
-        fn cache_dir(&self) -> Option<PathBuf> { None }
-        async fn vpn_start(&self) -> Result<bool> { Err(mihomo_api::MihomoError::Service("vpn fail".into())) }
-        async fn vpn_stop(&self) -> Result<bool> { Ok(false) }
-        async fn vpn_is_running(&self) -> Result<bool> { Ok(false) }
-        async fn tun_set_enabled(&self, _e: bool) -> Result<bool> { Ok(false) }
-        async fn tun_is_enabled(&self) -> Result<bool> { Ok(false) }
+        async fn core_start(&self) -> Result<()> {
+            Err(mihomo_api::MihomoError::Config("fail".into()))
+        }
+        async fn core_stop(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn core_is_running(&self) -> Result<bool> {
+            Ok(false)
+        }
+        fn core_controller_url(&self) -> Option<String> {
+            None
+        }
+        async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+        async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> {
+            Ok(())
+        }
+        async fn credential_delete(&self, _s: &str, _k: &str) -> Result<()> {
+            Ok(())
+        }
+        fn data_dir(&self) -> Option<PathBuf> {
+            None
+        }
+        fn cache_dir(&self) -> Option<PathBuf> {
+            None
+        }
+        async fn vpn_start(&self) -> Result<bool> {
+            Err(mihomo_api::MihomoError::Service("vpn fail".into()))
+        }
+        async fn vpn_stop(&self) -> Result<bool> {
+            Ok(false)
+        }
+        async fn vpn_is_running(&self) -> Result<bool> {
+            Ok(false)
+        }
+        async fn tun_set_enabled(&self, _e: bool) -> Result<bool> {
+            Ok(false)
+        }
+        async fn tun_is_enabled(&self) -> Result<bool> {
+            Ok(false)
+        }
     }
 
     #[tokio::test]
@@ -235,34 +263,64 @@ mod tests {
         }
         #[async_trait::async_trait]
         impl AndroidBridge for CredBridge {
-            async fn core_start(&self) -> Result<()> { Ok(()) }
-            async fn core_stop(&self) -> Result<()> { Ok(()) }
-            async fn core_is_running(&self) -> Result<bool> { Ok(false) }
-            fn core_controller_url(&self) -> Option<String> { None }
+            async fn core_start(&self) -> Result<()> {
+                Ok(())
+            }
+            async fn core_stop(&self) -> Result<()> {
+                Ok(())
+            }
+            async fn core_is_running(&self) -> Result<bool> {
+                Ok(false)
+            }
+            fn core_controller_url(&self) -> Option<String> {
+                None
+            }
             async fn credential_get(&self, _s: &str, k: &str) -> Result<Option<String>> {
                 Ok(self.store.lock().unwrap().get(k).cloned())
             }
             async fn credential_set(&self, _s: &str, k: &str, v: &str) -> Result<()> {
-                self.store.lock().unwrap().insert(k.to_string(), v.to_string());
+                self.store
+                    .lock()
+                    .unwrap()
+                    .insert(k.to_string(), v.to_string());
                 Ok(())
             }
             async fn credential_delete(&self, _s: &str, k: &str) -> Result<()> {
                 self.store.lock().unwrap().remove(k);
                 Ok(())
             }
-            fn data_dir(&self) -> Option<PathBuf> { None }
-            fn cache_dir(&self) -> Option<PathBuf> { None }
-            async fn vpn_start(&self) -> Result<bool> { Ok(true) }
-            async fn vpn_stop(&self) -> Result<bool> { Ok(true) }
-            async fn vpn_is_running(&self) -> Result<bool> { Ok(false) }
-            async fn tun_set_enabled(&self, _e: bool) -> Result<bool> { Ok(false) }
-            async fn tun_is_enabled(&self) -> Result<bool> { Ok(false) }
+            fn data_dir(&self) -> Option<PathBuf> {
+                None
+            }
+            fn cache_dir(&self) -> Option<PathBuf> {
+                None
+            }
+            async fn vpn_start(&self) -> Result<bool> {
+                Ok(true)
+            }
+            async fn vpn_stop(&self) -> Result<bool> {
+                Ok(true)
+            }
+            async fn vpn_is_running(&self) -> Result<bool> {
+                Ok(false)
+            }
+            async fn tun_set_enabled(&self, _e: bool) -> Result<bool> {
+                Ok(false)
+            }
+            async fn tun_is_enabled(&self) -> Result<bool> {
+                Ok(false)
+            }
         }
 
-        let api = AndroidApi::new(CredBridge { store: Mutex::new(Default::default()) });
-        
+        let api = AndroidApi::new(CredBridge {
+            store: Mutex::new(Default::default()),
+        });
+
         api.credential_set("svc", "key1", "val1").await.unwrap();
-        assert_eq!(api.credential_get("svc", "key1").await.unwrap(), Some("val1".to_string()));
+        assert_eq!(
+            api.credential_get("svc", "key1").await.unwrap(),
+            Some("val1".to_string())
+        );
         api.credential_delete("svc", "key1").await.unwrap();
         assert_eq!(api.credential_get("svc", "key1").await.unwrap(), None);
     }
@@ -308,22 +366,48 @@ mod tests {
         struct FailingCredBridge;
         #[async_trait::async_trait]
         impl AndroidBridge for FailingCredBridge {
-            async fn core_start(&self) -> Result<()> { Ok(()) }
-            async fn core_stop(&self) -> Result<()> { Ok(()) }
-            async fn core_is_running(&self) -> Result<bool> { Ok(false) }
-            fn core_controller_url(&self) -> Option<String> { None }
-            async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> { 
-                Err(mihomo_api::MihomoError::Config("mock error".into())) 
+            async fn core_start(&self) -> Result<()> {
+                Ok(())
             }
-            async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> { Ok(()) }
-            async fn credential_delete(&self, _s: &str, _k: &str) -> Result<()> { Ok(()) }
-            fn data_dir(&self) -> Option<PathBuf> { None }
-            fn cache_dir(&self) -> Option<PathBuf> { None }
-            async fn vpn_start(&self) -> Result<bool> { Ok(true) }
-            async fn vpn_stop(&self) -> Result<bool> { Ok(true) }
-            async fn vpn_is_running(&self) -> Result<bool> { Ok(false) }
-            async fn tun_set_enabled(&self, _e: bool) -> Result<bool> { Ok(false) }
-            async fn tun_is_enabled(&self) -> Result<bool> { Ok(false) }
+            async fn core_stop(&self) -> Result<()> {
+                Ok(())
+            }
+            async fn core_is_running(&self) -> Result<bool> {
+                Ok(false)
+            }
+            fn core_controller_url(&self) -> Option<String> {
+                None
+            }
+            async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> {
+                Err(mihomo_api::MihomoError::Config("mock error".into()))
+            }
+            async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> {
+                Ok(())
+            }
+            async fn credential_delete(&self, _s: &str, _k: &str) -> Result<()> {
+                Ok(())
+            }
+            fn data_dir(&self) -> Option<PathBuf> {
+                None
+            }
+            fn cache_dir(&self) -> Option<PathBuf> {
+                None
+            }
+            async fn vpn_start(&self) -> Result<bool> {
+                Ok(true)
+            }
+            async fn vpn_stop(&self) -> Result<bool> {
+                Ok(true)
+            }
+            async fn vpn_is_running(&self) -> Result<bool> {
+                Ok(false)
+            }
+            async fn tun_set_enabled(&self, _e: bool) -> Result<bool> {
+                Ok(false)
+            }
+            async fn tun_is_enabled(&self) -> Result<bool> {
+                Ok(false)
+            }
         }
         let api = AndroidApi::new(FailingCredBridge);
         assert!(api.credential_get("s", "k").await.is_err());
@@ -334,7 +418,7 @@ mod tests {
         use crate::ffi::FfiStatus;
         let s = FfiStatus::ok();
         assert!(s.message.is_none());
-        
+
         let e = FfiStatus::err(crate::ffi::FfiErrorCode::Io, "io");
         assert_eq!(e.message, Some("io".into()));
     }
@@ -344,20 +428,48 @@ mod tests {
         struct NoDirBridge;
         #[async_trait::async_trait]
         impl AndroidBridge for NoDirBridge {
-            async fn core_start(&self) -> Result<()> { Ok(()) }
-            async fn core_stop(&self) -> Result<()> { Ok(()) }
-            async fn core_is_running(&self) -> Result<bool> { Ok(false) }
-            fn core_controller_url(&self) -> Option<String> { None }
-            async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> { Ok(None) }
-            async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> { Ok(()) }
-            async fn credential_delete(&self, _s: &str, _k: &str) -> Result<()> { Ok(()) }
-            fn data_dir(&self) -> Option<PathBuf> { None }
-            fn cache_dir(&self) -> Option<PathBuf> { None }
-            async fn vpn_start(&self) -> Result<bool> { Ok(true) }
-            async fn vpn_stop(&self) -> Result<bool> { Ok(true) }
-            async fn vpn_is_running(&self) -> Result<bool> { Ok(false) }
-            async fn tun_set_enabled(&self, _e: bool) -> Result<bool> { Ok(false) }
-            async fn tun_is_enabled(&self) -> Result<bool> { Ok(false) }
+            async fn core_start(&self) -> Result<()> {
+                Ok(())
+            }
+            async fn core_stop(&self) -> Result<()> {
+                Ok(())
+            }
+            async fn core_is_running(&self) -> Result<bool> {
+                Ok(false)
+            }
+            fn core_controller_url(&self) -> Option<String> {
+                None
+            }
+            async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> {
+                Ok(None)
+            }
+            async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> {
+                Ok(())
+            }
+            async fn credential_delete(&self, _s: &str, _k: &str) -> Result<()> {
+                Ok(())
+            }
+            fn data_dir(&self) -> Option<PathBuf> {
+                None
+            }
+            fn cache_dir(&self) -> Option<PathBuf> {
+                None
+            }
+            async fn vpn_start(&self) -> Result<bool> {
+                Ok(true)
+            }
+            async fn vpn_stop(&self) -> Result<bool> {
+                Ok(true)
+            }
+            async fn vpn_is_running(&self) -> Result<bool> {
+                Ok(false)
+            }
+            async fn tun_set_enabled(&self, _e: bool) -> Result<bool> {
+                Ok(false)
+            }
+            async fn tun_is_enabled(&self) -> Result<bool> {
+                Ok(false)
+            }
         }
         let api = AndroidApi::new(NoDirBridge);
         assert!(api.data_dir().is_none());

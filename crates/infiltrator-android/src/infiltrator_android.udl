@@ -20,6 +20,26 @@ namespace infiltrator_android {
   FfiStatus profile_update(string name);
 
   [Async]
+  ProfileDetailResult profile_detail(string name);
+
+  [Async]
+  FfiStatus profile_save(string name, string content, boolean activate);
+
+  [Async]
+  FfiStatus profile_delete(string name);
+
+  [Async]
+  FfiStatus profile_subscription_save(
+    string name,
+    string url,
+    boolean auto_update_enabled,
+    u32? update_interval_hours
+  );
+
+  [Async]
+  FfiStatus profile_subscription_clear(string name);
+
+  [Async]
   ProxyGroupsResult proxies_groups();
 
   [Async]
@@ -33,6 +53,15 @@ namespace infiltrator_android {
 
   [Async]
   IpResult ip_check();
+
+  [Async]
+  ConnectionsResult connections_list();
+
+  [Async]
+  FfiStatus connection_close(string id);
+
+  [Async]
+  FfiStatus connections_close_all();
 
   [Async]
   TunStatusResult tun_status();
@@ -124,6 +153,22 @@ dictionary ProfilesResult {
   sequence<ProfileSummary> profiles;
 };
 
+dictionary ProfileDetail {
+  string name;
+  boolean active;
+  string content;
+  string? subscription_url;
+  boolean auto_update_enabled;
+  u32? update_interval_hours;
+  string? last_updated;
+  string? next_update;
+};
+
+dictionary ProfileDetailResult {
+  FfiStatus status;
+  ProfileDetail? profile;
+};
+
 dictionary ProxyGroupSummary {
   string name;
   string group_type;
@@ -151,6 +196,25 @@ dictionary TrafficResult {
   TrafficSnapshot? snapshot;
 };
 
+dictionary ConnectionRecord {
+  string id;
+  string host;
+  string process_path;
+  string network;
+  string connection_type;
+  string rule;
+  u64 upload;
+  u64 download;
+  sequence<string> chains;
+};
+
+dictionary ConnectionsResult {
+  FfiStatus status;
+  sequence<ConnectionRecord> connections;
+  u64 upload_total;
+  u64 download_total;
+};
+
 dictionary IpCheckResult {
   string ip;
   string? country;
@@ -174,6 +238,8 @@ dictionary VpnTunSettings {
   boolean? strict_route;
   sequence<string> dns_servers;
   boolean? ipv6;
+  string? stack;
+  boolean? auto_detect_interface;
 };
 
 dictionary VpnTunSettingsPatch {
@@ -182,6 +248,8 @@ dictionary VpnTunSettingsPatch {
   boolean? strict_route;
   sequence<string>? dns_servers;
   boolean? ipv6;
+  string? stack;
+  boolean? auto_detect_interface;
 };
 
 dictionary VpnTunSettingsResult {
@@ -196,6 +264,7 @@ dictionary DnsSettings {
   sequence<string> nameserver;
   sequence<string> default_nameserver;
   sequence<string> fallback;
+  DnsFallbackFilterSettings? fallback_filter;
 };
 
 dictionary DnsSettingsPatch {
@@ -205,6 +274,15 @@ dictionary DnsSettingsPatch {
   sequence<string>? nameserver;
   sequence<string>? default_nameserver;
   sequence<string>? fallback;
+  DnsFallbackFilterSettings? fallback_filter;
+};
+
+dictionary DnsFallbackFilterSettings {
+  boolean? geoip;
+  string? geoip_code;
+  sequence<string> ipcidr;
+  sequence<string> domain;
+  sequence<string> domain_suffix;
 };
 
 dictionary DnsSettingsResult {

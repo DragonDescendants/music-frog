@@ -12,6 +12,8 @@ pub const EVENT_DNS_CHANGED: &str = "dns-changed";
 pub const EVENT_FAKE_IP_CHANGED: &str = "fake-ip-changed";
 pub const EVENT_RULES_CHANGED: &str = "rules-changed";
 pub const EVENT_RULE_PROVIDERS_CHANGED: &str = "rule-providers-changed";
+pub const EVENT_PROXY_PROVIDERS_CHANGED: &str = "proxy-providers-changed";
+pub const EVENT_SNIFFER_CHANGED: &str = "sniffer-changed";
 pub const EVENT_TUN_CHANGED: &str = "tun-changed";
 pub const EVENT_WEBDAV_SYNCED: &str = "webdav-synced";
 

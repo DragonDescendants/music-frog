@@ -7,7 +7,7 @@ use jni::objects::{GlobalRef, JObject, JString, JValue};
 use jni::sys::{jint, jstring};
 use jni::{JNIEnv, JavaVM};
 use mihomo_api::{MihomoError, Result};
-use mihomo_platform::{set_android_bridge, set_home_dir_override, AndroidBridge};
+use mihomo_platform::{AndroidBridge, set_android_bridge, set_home_dir_override};
 
 use crate::{FfiErrorCode, FfiStatus};
 
@@ -15,8 +15,7 @@ const SIG_NOARGS_BOOL: &str = "()Z";
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
 const SIG_STR_STR_BOOL: &str = "(Ljava/lang/String;Ljava/lang/String;)Z";
 const SIG_STR_STR_STR_BOOL: &str = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z";
-const SIG_STR_STR_STRING: &str =
-    "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
+const SIG_STR_STR_STRING: &str = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
 const SIG_BOOL_BOOL: &str = "(Z)Z";
 
 struct JniBridge {
@@ -35,34 +34,20 @@ impl JniBridge {
             .map_err(|err| MihomoError::Service(format!("attach jni thread failed: {err}")))
     }
 
-    fn call_bool(
-        &self,
-        method: &str,
-        sig: &str,
-        args: &[JValue],
-    ) -> Result<bool> {
+    fn call_bool(&self, method: &str, sig: &str, args: &[JValue]) -> Result<bool> {
         let mut env = self.env()?;
         let value = env
             .call_method(self.host.as_obj(), method, sig, args)
             .map_err(|err| map_jni_error(method, err))?;
-        value
-            .z()
-            .map_err(|err| map_jni_error(method, err))
+        value.z().map_err(|err| map_jni_error(method, err))
     }
 
-    fn call_string(
-        &self,
-        method: &str,
-        sig: &str,
-        args: &[JValue],
-    ) -> Result<Option<String>> {
+    fn call_string(&self, method: &str, sig: &str, args: &[JValue]) -> Result<Option<String>> {
         let mut env = self.env()?;
         let value = env
             .call_method(self.host.as_obj(), method, sig, args)
             .map_err(|err| map_jni_error(method, err))?;
-        let obj = value
-            .l()
-            .map_err(|err| map_jni_error(method, err))?;
+        let obj = value.l().map_err(|err| map_jni_error(method, err))?;
         if obj.is_null() {
             return Ok(None);
         }
@@ -75,17 +60,11 @@ impl JniBridge {
     }
 
     fn to_java_string<'a>(env: &mut JNIEnv<'a>, value: &str) -> Result<JString<'a>> {
-        env.new_string(value).map_err(|err| {
-            MihomoError::Service(format!("create java string failed: {err}"))
-        })
+        env.new_string(value)
+            .map_err(|err| MihomoError::Service(format!("create java string failed: {err}")))
     }
 
-    fn call_bool_result(
-        &self,
-        method: &str,
-        sig: &str,
-        args: &[JValue],
-    ) -> Result<()> {
+    fn call_bool_result(&self, method: &str, sig: &str, args: &[JValue]) -> Result<()> {
         let ok = self.call_bool(method, sig, args)?;
         if ok {
             Ok(())
@@ -105,16 +84,11 @@ impl JniBridge {
         let mut env = self.env()?;
         let arg1 = Self::to_java_string(&mut env, arg1)?;
         let arg2 = Self::to_java_string(&mut env, arg2)?;
-        let args = [
-            JValue::Object(arg1.as_ref()),
-            JValue::Object(arg2.as_ref()),
-        ];
+        let args = [JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
         let value = env
             .call_method(self.host.as_obj(), method, SIG_STR_STR_STRING, &args)
             .map_err(|err| map_jni_error(method, err))?;
-        let obj = value
-            .l()
-            .map_err(|err| map_jni_error(method, err))?;
+        let obj = value.l().map_err(|err| map_jni_error(method, err))?;
         if obj.is_null() {
             return Ok(None);
         }
@@ -141,10 +115,7 @@ impl JniBridge {
             Some(value) => Some(Self::to_java_string(&mut env, value)?),
             None => None,
         };
-        let mut values = vec![
-            JValue::Object(arg1.as_ref()),
-            JValue::Object(arg2.as_ref()),
-        ];
+        let mut values = vec![JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
         if let Some(arg3_value) = arg3_value.as_ref() {
             values.push(JValue::Object(arg3_value.as_ref()));
         }
@@ -200,13 +171,7 @@ impl AndroidBridge for JniBridge {
     }
 
     async fn credential_delete(&self, service: &str, key: &str) -> Result<()> {
-        self.call_bool_with_args(
-            "credentialDelete",
-            SIG_STR_STR_BOOL,
-            service,
-            key,
-            None,
-        )
+        self.call_bool_with_args("credentialDelete", SIG_STR_STR_BOOL, service, key, None)
     }
 
     fn data_dir(&self) -> Option<PathBuf> {
@@ -321,7 +286,7 @@ fn register_bridge(env: &mut JNIEnv, host: JObject) -> FfiStatus {
             return FfiStatus::err(
                 FfiErrorCode::InvalidState,
                 format!("get java vm failed: {err}"),
-            )
+            );
         }
     };
 
@@ -331,7 +296,7 @@ fn register_bridge(env: &mut JNIEnv, host: JObject) -> FfiStatus {
             return FfiStatus::err(
                 FfiErrorCode::InvalidState,
                 format!("create global ref failed: {err}"),
-            )
+            );
         }
     };
 

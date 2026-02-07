@@ -27,11 +27,16 @@ pub(crate) fn parse_launch_ports() -> LaunchPorts {
 
 pub(crate) fn extract_port_from_url(url: &str) -> Option<u16> {
     let url = url.trim();
-    if url.is_empty() { return None; }
+    if url.is_empty() {
+        return None;
+    }
 
     if let Ok(u) = url.parse::<reqwest::Url>()
-        && let Some(p) = u.port() { return Some(p); }
-    
+        && let Some(p) = u.port()
+    {
+        return Some(p);
+    }
+
     let target = if url.starts_with(':') {
         format!("http://127.0.0.1{}", url)
     } else if !url.contains("://") {
@@ -75,7 +80,7 @@ mod tests {
     fn extracts_port_from_urls() {
         assert_eq!(extract_port_from_url("http://127.0.0.1:9090"), Some(9090));
         // Note: standard ports might return None in URL crate if they match the scheme
-        assert_eq!(extract_port_from_url("https://example.com:443/api"), None); 
+        assert_eq!(extract_port_from_url("https://example.com:443/api"), None);
         assert_eq!(extract_port_from_url("127.0.0.1:7890"), Some(7890));
         assert_eq!(extract_port_from_url(":1234"), Some(1234));
     }

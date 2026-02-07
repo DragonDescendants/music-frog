@@ -148,16 +148,16 @@ mod tests {
     #[test]
     fn test_should_proxy() {
         let mut config = AppRoutingConfig::default();
-        
+
         // ProxyAll mode
         assert!(config.should_proxy("com.example.app"));
-        
+
         // ProxySelected mode
         config.mode = AppRoutingMode::ProxySelected;
         config.packages.insert("com.example.app".to_string());
         assert!(config.should_proxy("com.example.app"));
         assert!(!config.should_proxy("com.other.app"));
-        
+
         // BypassSelected mode
         config.mode = AppRoutingMode::BypassSelected;
         assert!(!config.should_proxy("com.example.app"));
@@ -167,10 +167,10 @@ mod tests {
     #[test]
     fn test_get_allowed_packages() {
         let mut config = AppRoutingConfig::default();
-        
+
         // ProxyAll returns None
         assert!(config.get_allowed_packages().is_none());
-        
+
         // ProxySelected with packages
         config.mode = AppRoutingMode::ProxySelected;
         config.packages.insert("com.example.app".to_string());
@@ -185,7 +185,7 @@ mod tests {
             ..AppRoutingConfig::default()
         };
         config.packages.insert("com.example.app".to_string());
-        
+
         let disallowed = config.get_disallowed_packages().unwrap();
         assert_eq!(disallowed.len(), 1);
         assert_eq!(disallowed[0], "com.example.app");

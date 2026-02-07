@@ -1,21 +1,38 @@
 use anyhow::Result;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::collections::HashSet;
+use std::path::PathBuf;
 
 pub mod executor;
 
 use dav_client::{DavClient, RemoteEntry};
-use state_store::{StateStore, SyncStateRow};
 use indexer::{Indexer, LocalEntry};
+use state_store::{StateStore, SyncStateRow};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncAction {
-    Upload { local: PathBuf, remote_path: String, last_etag: Option<String> },
-    Download { remote_path: String, local: PathBuf, remote_etag: String },
-    Conflict { local: PathBuf, remote_path: String },
-    DeleteRemote { remote_path: String, last_etag: String },
-    DeleteLocal { local: PathBuf, remote_path: String },
+    Upload {
+        local: PathBuf,
+        remote_path: String,
+        last_etag: Option<String>,
+    },
+    Download {
+        remote_path: String,
+        local: PathBuf,
+        remote_etag: String,
+    },
+    Conflict {
+        local: PathBuf,
+        remote_path: String,
+    },
+    DeleteRemote {
+        remote_path: String,
+        last_etag: String,
+    },
+    DeleteLocal {
+        local: PathBuf,
+        remote_path: String,
+    },
 }
 
 pub struct SyncPlanner<'a> {
@@ -26,8 +43,18 @@ pub struct SyncPlanner<'a> {
 }
 
 impl<'a> SyncPlanner<'a> {
-    pub fn new(local_root: PathBuf, remote_base: String, dav: &'a dyn DavClient, store: &'a StateStore) -> Self {
-        Self { local_root, remote_base, dav, store }
+    pub fn new(
+        local_root: PathBuf,
+        remote_base: String,
+        dav: &'a dyn DavClient,
+        store: &'a StateStore,
+    ) -> Self {
+        Self {
+            local_root,
+            remote_base,
+            dav,
+            store,
+        }
     }
 
     pub async fn build_plan(&self) -> Result<Vec<SyncAction>> {
@@ -35,21 +62,24 @@ impl<'a> SyncPlanner<'a> {
         let remotes = self.dav.list(&self.remote_base).await?;
         let states = self.store.get_all_states().await?;
 
-        let local_map: HashMap<String, LocalEntry> = locals.into_iter()
+        let local_map: HashMap<String, LocalEntry> = locals
+            .into_iter()
             .map(|e| (e.relative_path.clone(), e))
             .collect();
 
-        let remote_map: HashMap<String, RemoteEntry> = remotes.into_iter()
+        let remote_map: HashMap<String, RemoteEntry> = remotes
+            .into_iter()
             .filter(|e| !e.is_dir)
             .map(|e| (self.normalize_remote_path(&e.path), e))
             .collect();
 
-        let state_map: HashMap<String, SyncStateRow> = states.into_iter()
-            .map(|s| (s.path.clone(), s))
-            .collect();
+        let state_map: HashMap<String, SyncStateRow> =
+            states.into_iter().map(|s| (s.path.clone(), s)).collect();
 
         let mut actions = Vec::new();
-        let all_paths: HashSet<String> = local_map.keys().cloned()
+        let all_paths: HashSet<String> = local_map
+            .keys()
+            .cloned()
             .chain(remote_map.keys().cloned())
             .chain(state_map.keys().cloned())
             .collect();
@@ -142,7 +172,8 @@ impl<'a> SyncPlanner<'a> {
     }
 
     fn normalize_remote_path(&self, full_path: &str) -> String {
-        full_path.trim_start_matches(&self.remote_base)
+        full_path
+            .trim_start_matches(&self.remote_base)
             .trim_start_matches('/')
             .to_string()
     }
@@ -161,21 +192,24 @@ pub mod test_utils {
         remotes: Vec<RemoteEntry>,
         states: Vec<SyncStateRow>,
     ) -> Vec<SyncAction> {
-        let local_map: HashMap<String, LocalEntry> = locals.into_iter()
+        let local_map: HashMap<String, LocalEntry> = locals
+            .into_iter()
             .map(|e| (e.relative_path.clone(), e))
             .collect();
 
-        let remote_map: HashMap<String, RemoteEntry> = remotes.into_iter()
+        let remote_map: HashMap<String, RemoteEntry> = remotes
+            .into_iter()
             .filter(|e| !e.is_dir)
             .map(|e| (e.path.trim_start_matches('/').to_string(), e))
             .collect();
 
-        let state_map: HashMap<String, SyncStateRow> = states.into_iter()
-            .map(|s| (s.path.clone(), s))
-            .collect();
+        let state_map: HashMap<String, SyncStateRow> =
+            states.into_iter().map(|s| (s.path.clone(), s)).collect();
 
         let mut actions = Vec::new();
-        let all_paths: HashSet<String> = local_map.keys().cloned()
+        let all_paths: HashSet<String> = local_map
+            .keys()
+            .cloned()
             .chain(remote_map.keys().cloned())
             .chain(state_map.keys().cloned())
             .collect();
@@ -291,19 +325,31 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::test_utils::*;
+    use super::*;
     use async_trait::async_trait;
 
     struct MockDav;
     #[async_trait]
     impl DavClient for MockDav {
-        async fn list(&self, _path: &str) -> Result<Vec<RemoteEntry>> { Ok(vec![]) }
-        async fn get(&self, _path: &str) -> Result<Vec<u8>> { Ok(vec![]) }
-        async fn put(&self, _p: &str, _c: &[u8], _e: Option<&str>) -> Result<String> { Ok("".into()) }
-        async fn delete(&self, _p: &str) -> Result<()> { Ok(()) }
-        async fn move_item(&self, _f: &str, _t: &str) -> Result<()> { Ok(()) }
-        async fn mkdir(&self, _p: &str) -> Result<()> { Ok(()) }
+        async fn list(&self, _path: &str) -> Result<Vec<RemoteEntry>> {
+            Ok(vec![])
+        }
+        async fn get(&self, _path: &str) -> Result<Vec<u8>> {
+            Ok(vec![])
+        }
+        async fn put(&self, _p: &str, _c: &[u8], _e: Option<&str>) -> Result<String> {
+            Ok("".into())
+        }
+        async fn delete(&self, _p: &str) -> Result<()> {
+            Ok(())
+        }
+        async fn move_item(&self, _f: &str, _t: &str) -> Result<()> {
+            Ok(())
+        }
+        async fn mkdir(&self, _p: &str) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -317,7 +363,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Upload { remote_path, last_etag, .. } => {
+            SyncAction::Upload {
+                remote_path,
+                last_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "new.yaml");
                 assert!(last_etag.is_none());
             }
@@ -336,7 +386,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Download { remote_path, remote_etag, .. } => {
+            SyncAction::Download {
+                remote_path,
+                remote_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "new.yaml");
                 assert_eq!(remote_etag, "etag123");
             }
@@ -355,7 +409,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Upload { remote_path, last_etag, .. } => {
+            SyncAction::Upload {
+                remote_path,
+                last_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "config.yaml");
                 assert_eq!(last_etag.as_deref(), Some("old_etag"));
             }
@@ -374,7 +432,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Download { remote_path, remote_etag, .. } => {
+            SyncAction::Download {
+                remote_path,
+                remote_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "config.yaml");
                 assert_eq!(remote_etag, "new_etag");
             }
@@ -411,7 +473,10 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::DeleteRemote { remote_path, last_etag } => {
+            SyncAction::DeleteRemote {
+                remote_path,
+                last_etag,
+            } => {
                 assert_eq!(remote_path, "deleted.yaml");
                 assert_eq!(last_etag, "same_etag");
             }
@@ -460,7 +525,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Download { remote_path, remote_etag, .. } => {
+            SyncAction::Download {
+                remote_path,
+                remote_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "file.yaml");
                 assert_eq!(remote_etag, "new_etag");
             }
@@ -477,7 +546,7 @@ mod tests {
             temp_dir.path().to_path_buf(),
             "/configs".to_string(),
             &dav,
-            &store
+            &store,
         );
 
         let actions = planner.build_plan().await.unwrap();
@@ -489,8 +558,11 @@ mod tests {
         let dav = MockDav;
         let store = StateStore::new(":memory:").await.unwrap();
         let planner = SyncPlanner::new(PathBuf::from("/l"), "/rem/base".to_string(), &dav, &store);
-        
-        assert_eq!(planner.normalize_remote_path("/rem/base/sub/f.yaml"), "sub/f.yaml");
+
+        assert_eq!(
+            planner.normalize_remote_path("/rem/base/sub/f.yaml"),
+            "sub/f.yaml"
+        );
         assert_eq!(planner.normalize_remote_path("/rem/base/f.yaml"), "f.yaml");
     }
 
@@ -505,7 +577,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Upload { remote_path, last_etag, .. } => {
+            SyncAction::Upload {
+                remote_path,
+                last_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "mod.yaml");
                 assert!(last_etag.is_none());
             }
@@ -524,7 +600,11 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Download { remote_path, remote_etag, .. } => {
+            SyncAction::Download {
+                remote_path,
+                remote_etag,
+                ..
+            } => {
                 assert_eq!(remote_path, "mod.yaml");
                 assert_eq!(remote_etag, "new_etag");
             }
@@ -579,7 +659,10 @@ mod tests {
     #[test]
     fn test_empty_local_file_should_upload() {
         let local_root = PathBuf::from("/configs");
-        let locals = vec![make_local_entry("empty.yaml", "d41d8cd98f00b204e9800998ecf8427e")];
+        let locals = vec![make_local_entry(
+            "empty.yaml",
+            "d41d8cd98f00b204e9800998ecf8427e",
+        )];
         let remotes = vec![];
         let states = vec![];
 
@@ -605,7 +688,7 @@ mod tests {
         let locals = vec![];
         let remotes = vec![];
         let states = vec![];
-        
+
         let actions = build_plan_from_data(local_root, locals, remotes, states);
         assert!(actions.is_empty());
     }

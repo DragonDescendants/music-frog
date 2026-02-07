@@ -1,10 +1,12 @@
 use async_trait::async_trait;
-use tauri::{async_runtime, AppHandle};
+use mihomo_api::MihomoClient;
+use mihomo_version::{Channel, channel::fetch_latest};
+use tauri::{AppHandle, async_runtime};
 
 use crate::{app_state::AppState, platform, runtime::rebuild_runtime};
-use infiltrator_desktop::editor;
 use infiltrator_admin::AdminApiContext;
 use infiltrator_core::AppSettings;
+use infiltrator_desktop::editor;
 
 #[derive(Clone)]
 pub(crate) struct TauriAdminContext {
@@ -24,6 +26,11 @@ impl AdminApiContext for TauriAdminContext {
 
     async fn refresh_core_version_info(&self) {
         self.app_state.refresh_core_version_info().await;
+    }
+
+    async fn latest_stable_core(&self) -> anyhow::Result<(String, String)> {
+        let latest = fetch_latest(Channel::Stable).await?;
+        Ok((latest.version, latest.release_date))
     }
 
     async fn notify_subscription_update(
@@ -62,5 +69,10 @@ impl AdminApiContext for TauriAdminContext {
 
     async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()> {
         self.app_state.set_app_settings(settings).await
+    }
+
+    async fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
+        let runtime = self.app_state.runtime().await?;
+        Ok(runtime.client())
     }
 }

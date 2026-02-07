@@ -1,4 +1,4 @@
-﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod admin_context;
 mod app_state;
@@ -30,7 +30,9 @@ use crate::{
     tray::create_tray,
     utils::parse_launch_ports,
 };
-use infiltrator_admin::{EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED, EVENT_TUN_CHANGED, SubscriptionScheduler};
+use infiltrator_admin::{
+    EVENT_CORE_CHANGED, EVENT_PROFILES_CHANGED, EVENT_TUN_CHANGED, SubscriptionScheduler,
+};
 
 fn main() {
     std::panic::set_hook(Box::new(|info| {
@@ -109,9 +111,9 @@ fn main() {
                                 } else if event.kind == EVENT_TUN_CHANGED
                                     && let Err(err) =
                                         crate::tray::refresh_tun_menu_item(&state_for_events).await
-                                    {
-                                        warn!("failed to refresh tun menu item: {err:#}");
-                                    }
+                                {
+                                    warn!("failed to refresh tun menu item: {err:#}");
+                                }
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                                 continue;

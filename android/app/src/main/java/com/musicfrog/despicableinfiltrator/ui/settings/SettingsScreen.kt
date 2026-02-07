@@ -47,6 +47,7 @@ fun SettingsScreen(
     onNavigateToDns: () -> Unit,
     onNavigateToFakeIp: () -> Unit,
     onNavigateToRules: () -> Unit,
+    onNavigateToConnections: () -> Unit = {},
     onNavigateToLogs: () -> Unit = {}
 ) {
     val currentLocale by viewModel.currentLocale.collectAsState()
@@ -110,6 +111,15 @@ fun SettingsScreen(
                     supporting = stringResource(R.string.setting_rules_desc),
                     leadingIcon = Icons.AutoMirrored.Outlined.List,
                     onClick = onNavigateToRules
+                )
+                HorizontalDivider()
+            }
+            item {
+                StandardListItem(
+                    headline = stringResource(R.string.setting_connections_title),
+                    supporting = stringResource(R.string.setting_connections_desc),
+                    leadingIcon = Icons.Outlined.Apps,
+                    onClick = onNavigateToConnections
                 )
                 HorizontalDivider()
             }

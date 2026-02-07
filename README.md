@@ -1,6 +1,6 @@
 # MusicFrog Despicable Infiltrator
 
-Desktop manager for mihomo-based proxy configurations with an Admin Web UI for profiles, network settings, core control, and rules, plus grouped tray shortcuts for proxy/config pages, language/theme preferences, and live update notifications for tray and core changes. The Android companion app provides VPN/TUN controls with per-app routing, tun settings, DNS/Fake-IP/Rules management, and WebDAV sync.
+Desktop manager for mihomo-based proxy configurations with an Admin Web UI for profiles, network settings, core control (stable update/download/switch), rules, runtime diagnostics (connections/logs/traffic/memory/ip with live stream and auto refresh controls), proxy delay testing (single + batch), and advanced config editors for `rule-providers`, `proxy-providers`, and `sniffer`, plus grouped tray shortcuts for proxy/config pages, language/theme preferences, and live update notifications for tray and core changes. The Android companion app provides VPN/TUN controls, per-app routing with single FFI-backed state, profile edit/import/subscription management, runtime connection management (filter + disconnect), extended DNS/TUN advanced fields (`fallback-filter`, `stack`, `auto-detect-interface`), DNS/Fake-IP/Rules management, and WebDAV sync.
 
 ## Tech Stack & Libraries
 

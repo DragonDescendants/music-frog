@@ -7,8 +7,8 @@ use crate::{
     paths::{resolve_admin_dir, resolve_main_dir},
     platform::open_in_browser,
 };
-use infiltrator_admin::servers::{AdminServerHandle, StaticServerHandle};
 use infiltrator_admin::servers as core_servers;
+use infiltrator_admin::servers::{AdminServerHandle, StaticServerHandle};
 
 pub(crate) fn spawn_frontends(
     app: AppHandle,
@@ -30,9 +30,10 @@ pub(crate) fn spawn_frontends(
                         .update_static_info_text(format!("静态站点: {}", url))
                         .await;
                     if state_for_main.open_webui_on_startup().await
-                        && let Err(err) = open_in_browser(&url) {
-                            warn!("无法自动打开浏览器: {err}");
-                        }
+                        && let Err(err) = open_in_browser(&url)
+                    {
+                        warn!("无法自动打开浏览器: {err}");
+                    }
                     break;
                 }
                 Err(err) => {
@@ -104,14 +105,7 @@ async fn start_admin_frontend(
         app: app.clone(),
         app_state: state,
     };
-    core_servers::start_admin_server(
-        admin_dir,
-        ctx,
-        preferred_port,
-        25210,
-        event_bus,
-    )
-    .await
+    core_servers::start_admin_server(admin_dir, ctx, preferred_port, 25210, event_bus).await
 }
 
 pub(crate) fn open_frontend(state: AppState) {
@@ -158,9 +152,21 @@ mod tests {
 
     #[test]
     fn test_build_admin_url() {
-        assert_eq!(build_admin_url("http://localhost:8080", None), "http://localhost:8080");
-        assert_eq!(build_admin_url("http://localhost:8080", Some("")), "http://localhost:8080");
-        assert_eq!(build_admin_url("http://localhost:8080", Some("  ")), "http://localhost:8080");
-        assert_eq!(build_admin_url("http://localhost:8080", Some("profiles")), "http://localhost:8080#profiles");
+        assert_eq!(
+            build_admin_url("http://localhost:8080", None),
+            "http://localhost:8080"
+        );
+        assert_eq!(
+            build_admin_url("http://localhost:8080", Some("")),
+            "http://localhost:8080"
+        );
+        assert_eq!(
+            build_admin_url("http://localhost:8080", Some("  ")),
+            "http://localhost:8080"
+        );
+        assert_eq!(
+            build_admin_url("http://localhost:8080", Some("profiles")),
+            "http://localhost:8080#profiles"
+        );
     }
 }

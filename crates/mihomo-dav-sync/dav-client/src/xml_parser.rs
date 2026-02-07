@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
@@ -43,24 +43,32 @@ pub struct ResourceType {
 pub struct Collection {}
 
 pub fn parse_multistatus(xml: &str) -> Result<Vec<crate::RemoteEntry>> {
-    let ms: MultiStatus = quick_xml::de::from_str(xml)
-        .map_err(|e| anyhow!("Failed to parse WebDAV XML: {}", e))?;
+    let ms: MultiStatus =
+        quick_xml::de::from_str(xml).map_err(|e| anyhow!("Failed to parse WebDAV XML: {}", e))?;
 
     let mut entries = Vec::new();
     for resp in ms.responses {
         // 提取成功的 propstat (通常是 HTTP/1.1 200 OK)
         if let Some(ok_stat) = resp.propstats.iter().find(|s| s.status.contains("200")) {
             let is_dir = ok_stat.prop.resource_type.collection.is_some();
-            
+
             // 解析最后修改时间
-            let last_modified = ok_stat.prop.last_modified.as_deref()
+            let last_modified = ok_stat
+                .prop
+                .last_modified
+                .as_deref()
                 .and_then(|t| DateTime::parse_from_rfc2822(t).ok())
                 .map(|t| t.with_timezone(&Utc))
                 .unwrap_or_else(Utc::now);
 
             entries.push(crate::RemoteEntry {
                 path: urlencoding::decode(&resp.href)?.into_owned(),
-                etag: ok_stat.prop.etag.clone().unwrap_or_default().replace('"', ""),
+                etag: ok_stat
+                    .prop
+                    .etag
+                    .clone()
+                    .unwrap_or_default()
+                    .replace('"', ""),
                 last_modified,
                 is_dir,
                 size: ok_stat.prop.content_length.unwrap_or(0),
@@ -114,14 +122,14 @@ mod tests {
     #[test]
     fn test_parse_multistatus_basic() {
         let entries = parse_multistatus(SAMPLE_PROPFIND_RESPONSE).unwrap();
-        
+
         assert_eq!(entries.len(), 3);
     }
 
     #[test]
     fn test_parse_directory_entry() {
         let entries = parse_multistatus(SAMPLE_PROPFIND_RESPONSE).unwrap();
-        
+
         let dir = entries.iter().find(|e| e.path == "/mihomo/").unwrap();
         assert!(dir.is_dir);
     }
@@ -129,8 +137,11 @@ mod tests {
     #[test]
     fn test_parse_file_entry() {
         let entries = parse_multistatus(SAMPLE_PROPFIND_RESPONSE).unwrap();
-        
-        let file = entries.iter().find(|e| e.path == "/mihomo/config.yaml").unwrap();
+
+        let file = entries
+            .iter()
+            .find(|e| e.path == "/mihomo/config.yaml")
+            .unwrap();
         assert!(!file.is_dir);
         assert_eq!(file.etag, "abc123");
         assert_eq!(file.size, 1024);
@@ -139,9 +150,12 @@ mod tests {
     #[test]
     fn test_parse_url_encoded_path() {
         let entries = parse_multistatus(SAMPLE_PROPFIND_RESPONSE).unwrap();
-        
+
         // %2F should be decoded to /
-        let file = entries.iter().find(|e| e.path.contains("rules/proxy")).unwrap();
+        let file = entries
+            .iter()
+            .find(|e| e.path.contains("rules/proxy"))
+            .unwrap();
         assert_eq!(file.path, "/mihomo/rules/proxy.yaml");
         assert_eq!(file.etag, "def456");
     }
@@ -174,7 +188,7 @@ mod tests {
         </D:propstat>
     </D:response>
 </D:multistatus>"#;
-        
+
         let entries = parse_multistatus(xml).unwrap();
         assert_eq!(entries[0].etag, "quoted-etag-value");
     }

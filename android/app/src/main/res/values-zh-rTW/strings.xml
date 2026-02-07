@@ -22,30 +22,53 @@
     <string name="action_start">啟動</string>
     <string name="action_stop">停止</string>
     <string name="action_restart">重啟</string>
+    <string name="action_refresh_ip">刷新 IP</string>
     
     <string name="status_proxy_mode">代理模式</string>
     <string name="action_change_mode">切換模式</string>
     <string name="mode_rule">規則</string>
     <string name="mode_global">全局</string>
     <string name="mode_direct">直連</string>
+    <string name="mode_script">腳本</string>
 
     <string name="card_traffic">流量統計</string>
+    <string name="card_network_diagnostics">網路診斷</string>
     <string name="label_upload">上傳</string>
     <string name="label_download">下載</string>
     <string name="label_total">總量: %1$s ↑ / %2$s ↓</string>
     <string name="label_connections">%1$s 連線</string>
+    <string name="label_exit_ip">出口 IP: %1$s</string>
+    <string name="label_ip_location">地區: %1$s</string>
 
     <string name="card_recent_logs">最近日誌</string>
     <string name="text_no_logs">暫無日誌</string>
     <string name="text_loading">載入中...</string>
+    <string name="text_no_connections">暫無活動連線</string>
+    <string name="text_connections_total">%1$d 個活動連線</string>
+    <string name="text_ip_unavailable">暫無 IP 資訊</string>
 
     <!-- Profiles -->
     <string name="title_add_profile">新增配置</string>
+    <string name="title_edit_profile">編輯配置</string>
+    <string name="title_import_local_profile">匯入本地配置</string>
+    <string name="title_delete_profile">刪除配置</string>
     <string name="label_name">名稱</string>
     <string name="label_url">訂閱連結 (URL)</string>
+    <string name="label_profile_content">配置內容</string>
+    <string name="label_activate_after_save">保存後啟用</string>
+    <string name="label_subscription_url">訂閱連結</string>
+    <string name="label_auto_update">自動更新</string>
+    <string name="label_update_interval_hours">更新間隔 (小時)</string>
     <string name="action_add">新增</string>
     <string name="action_cancel">取消</string>
+    <string name="action_import_local">本地匯入</string>
+    <string name="action_update_now">立即更新</string>
+    <string name="action_edit">編輯</string>
+    <string name="action_subscription_settings">訂閱設定</string>
+    <string name="action_delete">刪除</string>
+    <string name="action_clear_subscription">清除訂閱</string>
     <string name="text_updated_at">更新於: %1$s</string>
+    <string name="text_delete_profile_confirm">確認刪除配置「%1$s」？此操作不可復原。</string>
     <string name="error_load_profiles">載入配置失敗</string>
 
     <!-- Proxies -->
@@ -69,6 +92,8 @@
     <string name="setting_fakeip_desc">管理 Fake-IP 池和過濾器</string>
     <string name="setting_rules_title">規則集</string>
     <string name="setting_rules_desc">管理規則提供者和優先級</string>
+    <string name="setting_connections_title">連線管理</string>
+    <string name="setting_connections_desc">查看活動連線並按需中斷</string>
     <string name="setting_logs_title">運行日誌</string>
     <string name="setting_logs_desc">查看核心運行日誌</string>
 
@@ -85,17 +110,34 @@
     <!-- TUN Settings -->
     <string name="tun_settings_title">TUN 設定</string>
     <string name="label_mtu">MTU</string>
+    <string name="label_stack">協議棧</string>
+    <string name="option_stack_auto">自動</string>
+    <string name="option_stack_system">system</string>
+    <string name="option_stack_gvisor">gvisor</string>
     <string name="tun_auto_route">自動路由</string>
     <string name="tun_auto_route_desc">自動配置系統路由表</string>
     <string name="tun_strict_route">嚴格路由</string>
     <string name="tun_strict_route_desc">嚴格執行路由規則</string>
+    <string name="tun_auto_detect_interface">自動偵測網卡</string>
+    <string name="tun_auto_detect_interface_desc">自動偵測出口網路介面</string>
     <string name="label_ipv6">IPv6</string>
     <string name="tun_ipv6_desc">啟用 IPv6 支援</string>
     <string name="label_dns_servers">DNS 伺服器</string>
     <string name="desc_one_per_line">每行一個伺服器位址</string>
     <string name="action_save">保存</string>
     <string name="action_reload">重載</string>
+    <string name="action_refresh">重新整理</string>
+    <string name="action_disconnect">中斷</string>
+    <string name="action_close_all">全部中斷</string>
     <string name="text_saved">設定已保存</string>
+
+    <!-- Connections -->
+    <string name="label_host_filter">主機過濾</string>
+    <string name="label_process_filter">行程過濾</string>
+    <string name="text_connection_rule">規則: %1$s</string>
+    <string name="text_connection_process">行程: %1$s</string>
+    <string name="text_connection_traffic">上傳 %1$s / 下載 %2$s</string>
+    <string name="text_connection_chains">鏈路: %1$s</string>
 
     <!-- DNS Settings -->
     <string name="dns_settings_title">DNS 設定</string>
@@ -103,9 +145,17 @@
     <string name="dns_enable_desc">啟用內部 DNS 伺服器</string>
     <string name="label_enhanced_mode">增強模式</string>
     <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="option_auto">自動</string>
+    <string name="option_enabled">啟用</string>
+    <string name="option_disabled">停用</string>
     <string name="label_nameserver">Nameserver</string>
     <string name="label_default_nameserver">Default Nameserver</string>
     <string name="label_fallback">Fallback</string>
+    <string name="label_fallback_filter_geoip">Fallback 過濾 GeoIP</string>
+    <string name="label_fallback_filter_geoip_code">Fallback 過濾 GeoIP 代碼</string>
+    <string name="label_fallback_filter_ipcidr">Fallback 過濾 IPCIDR</string>
+    <string name="label_fallback_filter_domain">Fallback 過濾網域</string>
+    <string name="label_fallback_filter_domain_suffix">Fallback 過濾網域後綴</string>
 
     <!-- Fake-IP Settings -->
     <string name="fakeip_settings_title">Fake-IP 設定</string>

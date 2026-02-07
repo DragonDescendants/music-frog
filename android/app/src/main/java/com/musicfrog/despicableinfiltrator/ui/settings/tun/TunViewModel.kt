@@ -18,8 +18,10 @@ import kotlinx.coroutines.launch
 
 data class TunUiState(
     val mtu: String = "",
+    val stack: String = "",
     val autoRoute: Boolean = true,
     val strictRoute: Boolean = false,
+    val autoDetectInterface: Boolean = false,
     val ipv6: Boolean = false,
     val dnsServers: String = "",
     val isLoading: Boolean = false,
@@ -71,8 +73,16 @@ class TunViewModel : ViewModel() {
         _state.value = _state.value.copy(autoRoute = value, saved = false)
     }
 
+    fun updateStack(value: String) {
+        _state.value = _state.value.copy(stack = value, saved = false)
+    }
+
     fun updateStrictRoute(value: Boolean) {
         _state.value = _state.value.copy(strictRoute = value, saved = false)
+    }
+
+    fun updateAutoDetectInterface(value: Boolean) {
+        _state.value = _state.value.copy(autoDetectInterface = value, saved = false)
     }
 
     fun updateIpv6(value: Boolean) {
@@ -110,7 +120,9 @@ class TunViewModel : ViewModel() {
                 current.autoRoute,
                 current.strictRoute,
                 dnsServers,
-                current.ipv6
+                current.ipv6,
+                current.stack.trim().ifBlank { null },
+                current.autoDetectInterface
             )
 
             try {
@@ -148,8 +160,10 @@ class TunViewModel : ViewModel() {
     private fun applySettings(settings: VpnTunSettings) {
         _state.value = TunUiState(
             mtu = settings.mtu?.toString() ?: "",
+            stack = settings.stack ?: "",
             autoRoute = settings.autoRoute ?: true,
             strictRoute = settings.strictRoute ?: false,
+            autoDetectInterface = settings.autoDetectInterface ?: false,
             ipv6 = settings.ipv6 ?: false,
             dnsServers = settings.dnsServers.joinToString(separator = "\n"),
             isLoading = false,

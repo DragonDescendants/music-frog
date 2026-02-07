@@ -66,9 +66,7 @@ pub(crate) fn restart_as_admin(
 ) -> anyhow::Result<()> {
     let exe = std::env::current_exe()?;
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    args.retain(|arg| {
-        !arg.starts_with("--static-port=") && !arg.starts_with("--admin-port=")
-    });
+    args.retain(|arg| !arg.starts_with("--static-port=") && !arg.starts_with("--admin-port="));
     if let Some(port) = static_port {
         args.push(format!("--static-port={port}"));
     }
@@ -102,7 +100,10 @@ pub(crate) fn restart_as_admin(
     };
 
     if (ret as usize) <= 32 {
-        return Err(anyhow!("以管理员身份重启失败 (ShellExecuteW error: {:?})", ret));
+        return Err(anyhow!(
+            "以管理员身份重启失败 (ShellExecuteW error: {:?})",
+            ret
+        ));
     }
 
     Ok(())

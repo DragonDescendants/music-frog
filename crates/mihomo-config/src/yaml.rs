@@ -42,37 +42,25 @@ pub(crate) fn set_str(doc: &mut Yaml, key: &str, value: &str) -> Result<()> {
         );
         Ok(())
     } else {
-        Err(MihomoError::Config(
-            "Invalid YAML mapping".to_string(),
-        ))
+        Err(MihomoError::Config("Invalid YAML mapping".to_string()))
     }
 }
 
 pub fn set_bool(doc: &mut Yaml, key: &str, value: bool) -> Result<()> {
     if let Yaml::Hash(hash) = doc {
-        hash.insert(
-            Yaml::String(key.to_string()),
-            Yaml::Boolean(value),
-        );
+        hash.insert(Yaml::String(key.to_string()), Yaml::Boolean(value));
         Ok(())
     } else {
-        Err(MihomoError::Config(
-            "Invalid YAML mapping".to_string(),
-        ))
+        Err(MihomoError::Config("Invalid YAML mapping".to_string()))
     }
 }
 
 pub(crate) fn set_u16(doc: &mut Yaml, key: &str, value: u16) -> Result<()> {
     if let Yaml::Hash(hash) = doc {
-        hash.insert(
-            Yaml::String(key.to_string()),
-            Yaml::Integer(value as i64),
-        );
+        hash.insert(Yaml::String(key.to_string()), Yaml::Integer(value as i64));
         Ok(())
     } else {
-        Err(MihomoError::Config(
-            "Invalid YAML mapping".to_string(),
-        ))
+        Err(MihomoError::Config("Invalid YAML mapping".to_string()))
     }
 }
 
@@ -220,7 +208,12 @@ socks-port: 7891
         let mut doc = Yaml::Integer(42);
         let result = set_str(&mut doc, "name", "test");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid YAML mapping"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid YAML mapping")
+        );
     }
 
     #[test]
@@ -237,7 +230,12 @@ socks-port: 7891
         let mut doc = Yaml::Integer(42);
         let result = set_u16(&mut doc, "port", 9090);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid YAML mapping"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid YAML mapping")
+        );
     }
 
     #[test]

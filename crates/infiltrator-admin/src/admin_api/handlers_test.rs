@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::handlers::{parse_version, compare_versions_desc, sort_versions_desc, ensure_valid_profile_name};
+    use crate::handlers::{
+        compare_versions_desc, ensure_valid_profile_name, parse_version, sort_versions_desc,
+    };
 
     #[test]
     fn test_parse_version() {
@@ -13,7 +15,10 @@ mod tests {
     #[test]
     fn test_compare_versions_desc() {
         use std::cmp::Ordering;
-        assert_eq!(compare_versions_desc("v1.18.0", "v1.19.0"), Ordering::Greater);
+        assert_eq!(
+            compare_versions_desc("v1.18.0", "v1.19.0"),
+            Ordering::Greater
+        );
         assert_eq!(compare_versions_desc("v1.20.0", "v1.19.0"), Ordering::Less);
         assert_eq!(compare_versions_desc("v1.18.0", "v1.18.0"), Ordering::Equal);
     }
@@ -41,7 +46,10 @@ mod tests {
     fn test_compare_versions_with_invalid() {
         use std::cmp::Ordering;
         // Invalid versions should be sorted after valid ones
-        assert_eq!(compare_versions_desc("invalid", "v1.0.0"), Ordering::Greater);
+        assert_eq!(
+            compare_versions_desc("invalid", "v1.0.0"),
+            Ordering::Greater
+        );
         assert_eq!(compare_versions_desc("v1.0.0", "invalid"), Ordering::Less);
     }
 
@@ -54,10 +62,7 @@ mod tests {
 
     #[test]
     fn test_build_admin_url_edge_cases() {
-        let mut versions = vec![
-            "v1.18.0-alpha".into(),
-            "v1.18.0-beta".into(),
-        ];
+        let mut versions = vec!["v1.18.0-alpha".into(), "v1.18.0-beta".into()];
         sort_versions_desc(&mut versions);
         assert_eq!(versions.len(), 2);
     }

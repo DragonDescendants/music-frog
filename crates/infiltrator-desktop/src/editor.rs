@@ -6,16 +6,13 @@ use std::process::Command;
 use infiltrator_core::profiles;
 
 #[cfg(target_os = "windows")]
-use std::path::Path;
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use std::path::Path;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
-pub async fn open_profile_in_editor(
-    editor_path: Option<String>,
-    name: &str,
-) -> anyhow::Result<()> {
+pub async fn open_profile_in_editor(editor_path: Option<String>, name: &str) -> anyhow::Result<()> {
     let profile = profiles::load_profile_info(name).await?;
     let auto_detect = editor_path
         .as_ref()
@@ -26,13 +23,13 @@ pub async fn open_profile_in_editor(
     let mut final_args = args;
     final_args.push(profile_path.clone());
     if let Err(err) = open_in_editor(&editor, &final_args) {
-        if auto_detect
-            && let Some((fallback, mut fallback_args)) = fallback_editor_command(&editor) {
-                fallback_args.push(profile_path);
-                if open_in_editor(&fallback, &fallback_args).is_ok() {
-                    return Ok(());
-                }
+        if auto_detect && let Some((fallback, mut fallback_args)) = fallback_editor_command(&editor)
+        {
+            fallback_args.push(profile_path);
+            if open_in_editor(&fallback, &fallback_args).is_ok() {
+                return Ok(());
             }
+        }
         return Err(err);
     }
     Ok(())
@@ -80,9 +77,7 @@ fn resolve_editor_command(editor_path: Option<&str>) -> anyhow::Result<(String, 
         let expanded = expand_env_vars(trimmed);
         let (command, args) = parse_command_line(&expanded);
         if command.trim().is_empty() {
-            return Err(anyhow!(
-                "编辑器命令为空（可清空以自动使用 VSCode/记事本）"
-            ));
+            return Err(anyhow!("编辑器命令为空（可清空以自动使用 VSCode/记事本）"));
         }
         if is_path_like(&command) {
             let candidate = PathBuf::from(&command);
@@ -398,7 +393,8 @@ mod tests {
 
     #[test]
     fn test_split_quoted_command() {
-        let (cmd, args) = split_quoted_command("\"C:\\Program Files\\Editor.exe\" --file \"my file.txt\"");
+        let (cmd, args) =
+            split_quoted_command("\"C:\\Program Files\\Editor.exe\" --file \"my file.txt\"");
         assert_eq!(cmd, "C:\\Program Files\\Editor.exe");
         assert_eq!(args, vec!["--file", "my file.txt"]);
     }
@@ -408,7 +404,10 @@ mod tests {
     fn test_expand_env_vars() {
         unsafe { env::set_var("TEST_VAR", "value") };
         assert_eq!(expand_env_vars("%TEST_VAR%"), "value");
-        assert_eq!(expand_env_vars("prefix-%TEST_VAR%-suffix"), "prefix-value-suffix");
+        assert_eq!(
+            expand_env_vars("prefix-%TEST_VAR%-suffix"),
+            "prefix-value-suffix"
+        );
         assert_eq!(expand_env_vars("%%"), "%");
     }
 }

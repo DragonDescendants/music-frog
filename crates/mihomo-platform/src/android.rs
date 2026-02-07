@@ -3,7 +3,7 @@ use mihomo_api::{MihomoError, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::android_bridge::{get_android_bridge, AndroidBridge};
+use crate::android_bridge::{AndroidBridge, get_android_bridge};
 use crate::traits::{CoreController, CredentialStore, DataDirProvider};
 
 pub struct AndroidCoreController;
@@ -86,7 +86,6 @@ fn require_service_bridge(context: &str) -> Result<Arc<dyn AndroidBridge>> {
 }
 
 fn require_config_bridge(context: &str) -> Result<Arc<dyn AndroidBridge>> {
-    get_android_bridge().ok_or_else(|| {
-        MihomoError::Config(format!("Android bridge is not configured ({context})"))
-    })
+    get_android_bridge()
+        .ok_or_else(|| MihomoError::Config(format!("Android bridge is not configured ({context})")))
 }

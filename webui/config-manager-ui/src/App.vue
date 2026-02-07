@@ -104,8 +104,14 @@
             <CorePanel
               :core-versions="coreVersions"
               :core-current="coreCurrent"
+              :core-latest-stable="coreLatestStable"
+              :core-latest-stable-date="coreLatestStableDate"
+              :core-operation-text="coreOperationText"
               @refresh="refreshCoreVersions"
+              @refresh-latest="refreshCoreLatestStable"
               @activate="activateCore"
+              @download="downloadCoreVersion"
+              @update-stable="updateStableCore"
             />
             <div ref="tunSection" id="tun">
               <TunPanel
@@ -116,13 +122,58 @@
             </div>
           </section>
 
+          <section v-else-if="activeSection === 'runtime'" class="grid gap-6">
+            <RuntimePanel
+              :auto-refresh="runtimeAutoRefresh"
+              :closing-all="closingAllConnections"
+              :closing-connection-id="closingConnectionId"
+              :connection-filter="runtimeConnectionFilter"
+              :connections="runtimeConnections"
+              :delay-nodes="runtimeSortedDelayNodes"
+              :delay-sort="runtimeDelaySort"
+              :delay-test-url="runtimeDelayTestUrl"
+              :delay-timeout-ms="runtimeDelayTimeoutMs"
+              :download-total="runtimeDownloadTotal"
+              :filtered-connections="runtimeFilteredConnections"
+              :ip-info="runtimeIpInfo"
+              :loading-connections="runtimeLoadingConnections"
+              :loading-delays="runtimeLoadingDelayNodes"
+              :loading-overview="runtimeLoadingOverview"
+              :log-level="runtimeLogLevel"
+              :logs="runtimeLogs"
+              :memory="runtimeMemory"
+              :stream-connected="runtimeStreamConnected"
+              :testing-all-delays="runtimeTestingAllDelays"
+              :testing-delay-proxy="runtimeTestingDelayProxy"
+              :traffic="runtimeTraffic"
+              :upload-total="runtimeUploadTotal"
+              @update:auto-refresh="runtimeAutoRefresh = $event"
+              @update:connection-filter="runtimeConnectionFilter = $event"
+              @update:delay-sort="runtimeDelaySort = $event"
+              @update:log-level="runtimeLogLevel = $event"
+              @clear-logs="clearRuntimeLogs"
+              @refresh="refreshRuntimeData"
+              @refresh-connections="refreshRuntimeConnections"
+              @refresh-delays="refreshRuntimeProxyDelays"
+              @refresh-ip="refreshRuntimeIp"
+              @close-all="closeAllRuntimeConnections"
+              @close-one="closeRuntimeConnection"
+              @test-all-delays="testAllRuntimeProxyDelays"
+              @test-delay="testRuntimeProxyDelay"
+            />
+          </section>
+
           <section v-else-if="activeSection === 'rules'" class="grid gap-6">
             <div ref="rulesSection" id="rules">
               <RulesPanel
                 v-model:rules="rules"
                 v-model:providers-json="ruleProvidersJson"
+                v-model:proxy-providers-json="proxyProvidersJson"
+                v-model:sniffer-json="snifferJson"
                 @save-rules="saveRules"
                 @save-providers="saveRuleProviders"
+                @save-proxy-providers="saveProxyProviders"
+                @save-sniffer="saveSnifferConfig"
                 @refresh="refreshRulesAndProviders"
               />
             </div>
@@ -148,6 +199,7 @@ import { useEditorSettings } from './composables/useEditorSettings';
 import { usePanelNavigator } from './composables/usePanelNavigator';
 import { useProfileManager } from './composables/useProfileManager';
 import { useRebuildWatcher } from './composables/useRebuildWatcher';
+import { useRuntimeManager } from './composables/useRuntimeManager';
 import { useSettings } from './composables/useSettings';
 import { useToasts } from './composables/useToasts';
 import { useWebDavSync } from './composables/useWebDavSync';
@@ -163,6 +215,7 @@ import SyncSettingsPanel from './components/SyncSettingsPanel.vue';
 import DnsPanel from './components/DnsPanel.vue';
 import FakeIpPanel from './components/FakeIpPanel.vue';
 import RulesPanel from './components/RulesPanel.vue';
+import RuntimePanel from './components/RuntimePanel.vue';
 import TunPanel from './components/TunPanel.vue';
 import BusyOverlay from './components/BusyOverlay.vue';
 import ToastList from './components/ToastList.vue';
@@ -197,6 +250,7 @@ const navItems = computed(() => [
   { id: 'webdav', label: t('nav.webdav') },
   { id: 'network', label: t('nav.network') },
   { id: 'core', label: t('nav.core') },
+  { id: 'runtime', label: t('nav.runtime') },
   { id: 'rules', label: t('nav.rules') },
 ]);
 
@@ -275,17 +329,23 @@ const {
   scrollToEditor,
 });
 
-const { coreVersions, coreCurrent, refreshCoreVersions, activateCore } = useCoreManager(
-  setStatus,
-  pushToast,
-  waitForRebuild,
-  {
-    busy,
-    startBusy,
-    updateBusyDetail,
-    endBusy,
-  },
-);
+const {
+  coreVersions,
+  coreCurrent,
+  coreLatestStable,
+  coreLatestStableDate,
+  coreOperationText,
+  refreshCoreVersions,
+  refreshLatestStable: refreshCoreLatestStable,
+  activateCore,
+  downloadCoreVersion,
+  updateStableCore,
+} = useCoreManager(setStatus, pushToast, waitForRebuild, {
+  busy,
+  startBusy,
+  updateBusyDetail,
+  endBusy,
+});
 
 const { saveEditorConfig, pickEditorPath, resetEditorConfig } = useEditorSettings(
   editorPath,
@@ -307,6 +367,8 @@ const {
   tunConfig,
   rules,
   ruleProvidersJson,
+  proxyProvidersJson,
+  snifferJson,
   dirty: advancedDirty,
   refreshDnsConfig,
   refreshFakeIpConfig,
@@ -316,6 +378,8 @@ const {
   saveFakeIpConfig,
   flushFakeIpCache,
   saveRuleProviders,
+  saveProxyProviders,
+  saveSnifferConfig,
   saveRules,
   saveTunConfig,
 } = useAdvancedSettings(pushToast, {
@@ -323,6 +387,44 @@ const {
   startBusy,
   updateBusyDetail,
   endBusy,
+});
+
+  const {
+  autoRefresh: runtimeAutoRefresh,
+  delaySort: runtimeDelaySort,
+  delayTestUrl: runtimeDelayTestUrl,
+  delayTimeoutMs: runtimeDelayTimeoutMs,
+  loadingDelayNodes: runtimeLoadingDelayNodes,
+  testingDelayProxy: runtimeTestingDelayProxy,
+  testingAllDelays: runtimeTestingAllDelays,
+  closingAll: closingAllConnections,
+  closingConnectionId,
+  connectionFilter: runtimeConnectionFilter,
+  connections: runtimeConnections,
+  downloadTotal: runtimeDownloadTotal,
+  filteredConnections: runtimeFilteredConnections,
+  sortedDelayNodes: runtimeSortedDelayNodes,
+  ipInfo: runtimeIpInfo,
+  loadingConnections: runtimeLoadingConnections,
+  loadingOverview: runtimeLoadingOverview,
+  logLevel: runtimeLogLevel,
+  logs: runtimeLogs,
+  memory: runtimeMemory,
+  refreshConnections: refreshRuntimeConnections,
+  refreshIp: refreshRuntimeIp,
+  refreshProxyDelays: refreshRuntimeProxyDelays,
+  refreshRuntimeData,
+  clearLogs: clearRuntimeLogs,
+  closeAllConnections: closeAllRuntimeConnections,
+  closeConnection: closeRuntimeConnection,
+  testAllProxyDelays: testAllRuntimeProxyDelays,
+  testProxyDelay: testRuntimeProxyDelay,
+  streamConnected: runtimeStreamConnected,
+  traffic: runtimeTraffic,
+  uploadTotal: runtimeUploadTotal,
+} = useRuntimeManager({
+  activeSection,
+  pushToast,
 });
 
 function setStatus(message: string, detail = '') {
@@ -338,7 +440,9 @@ const hasUnsavedChanges = computed(() =>
   advancedDirty.fakeIp ||
   advancedDirty.tun ||
   advancedDirty.rules ||
-  advancedDirty.ruleProviders,
+  advancedDirty.ruleProviders ||
+  advancedDirty.proxyProviders ||
+  advancedDirty.sniffer,
 );
 
 const {
@@ -385,6 +489,7 @@ async function refreshAll(silent = false) {
     refreshProfiles(silent),
     refreshCoreVersions(silent),
     refreshSettings(),
+    refreshRuntimeData(silent || activeSection.value !== 'runtime'),
     refreshDnsConfig(silent),
     refreshFakeIpConfig(silent),
     refreshRulesAndProviders(silent),

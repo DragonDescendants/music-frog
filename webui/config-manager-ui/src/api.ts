@@ -1,15 +1,30 @@
-﻿import type {
+import type {
   AppSettings,
   CacheFlushResponse,
+  CoreDownloadResponse,
+  CoreLatestStableResponse,
+  CoreUpdateStableResponse,
   CoreVersionsResponse,
   DnsConfig,
   FakeIpConfig,
   ProfileActionResponse,
   ProfileDetail,
   ProfileInfo,
+  ProxyProvidersPayload,
   RebuildStatusResponse,
+  RuntimeConnectionsResponse,
+  RuntimeDelayBatchPayload,
+  RuntimeDelayBatchResponse,
+  RuntimeDelayTestPayload,
+  RuntimeDelayTestResponse,
+  RuntimeIpCheckResponse,
+  RuntimeLogLevel,
+  RuntimeMemoryData,
+  RuntimeProxyDelayNodesResponse,
+  RuntimeTrafficSnapshot,
   RuleProvidersPayload,
   RulesPayload,
+  SnifferConfig,
   SyncResult,
   TunConfig,
   WebDavConfig,
@@ -17,6 +32,8 @@
 
 const API_BASE = `${window.location.origin}/admin/api`;
 export const adminEventsUrl = `${API_BASE}/events`;
+export const runtimeLogsUrl = (level?: RuntimeLogLevel) =>
+  `${API_BASE}/runtime/logs${level ? `?level=${encodeURIComponent(level)}` : ''}`;
 
 type RequestOptions = {
   method?: string;
@@ -116,9 +133,43 @@ export const api = {
   pickEditor: () =>
     request<{ editor?: string | null }>('editor/pick', { method: 'POST', timeoutMs: 120000 }),
   listCoreVersions: () => request<CoreVersionsResponse>('core/versions'),
+  getLatestStableCore: () => request<CoreLatestStableResponse>('core/latest-stable'),
+  downloadCoreVersion: (version: string) =>
+    request<CoreDownloadResponse>('core/download', {
+      method: 'POST',
+      body: { version },
+      timeoutMs: 600000,
+    }),
+  updateStableCore: () =>
+    request<CoreUpdateStableResponse>('core/update-stable', {
+      method: 'POST',
+      timeoutMs: 600000,
+    }),
   activateCoreVersion: (version: string) =>
     request<void>('core/activate', { method: 'POST', body: { version } }),
   getRebuildStatus: () => request<RebuildStatusResponse>('rebuild/status', { timeoutMs: 10000 }),
+  listRuntimeConnections: () => request<RuntimeConnectionsResponse>('runtime/connections'),
+  closeAllRuntimeConnections: () =>
+    request<void>('runtime/connections', { method: 'DELETE' }),
+  closeRuntimeConnection: (id: string) =>
+    request<void>(`runtime/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getRuntimeTraffic: () => request<RuntimeTrafficSnapshot>('runtime/traffic'),
+  getRuntimeMemory: () => request<RuntimeMemoryData>('runtime/memory'),
+  getRuntimeIp: () => request<RuntimeIpCheckResponse>('runtime/ip'),
+  listRuntimeProxyDelayNodes: () =>
+    request<RuntimeProxyDelayNodesResponse>('runtime/proxies'),
+  testRuntimeProxyDelay: (payload: RuntimeDelayTestPayload) =>
+    request<RuntimeDelayTestResponse>('runtime/delay/test', {
+      method: 'POST',
+      body: payload,
+      timeoutMs: 90000,
+    }),
+  testAllRuntimeProxyDelays: (payload?: RuntimeDelayBatchPayload) =>
+    request<RuntimeDelayBatchResponse>('runtime/delay/test-all', {
+      method: 'POST',
+      body: payload || {},
+      timeoutMs: 180000,
+    }),
   getDnsConfig: () => request<DnsConfig>('dns'),
   saveDnsConfig: (config: DnsConfig) =>
     request<DnsConfig>('dns', { method: 'POST', body: config }),
@@ -129,6 +180,12 @@ export const api = {
   getRuleProviders: () => request<RuleProvidersPayload>('rule-providers'),
   saveRuleProviders: (payload: RuleProvidersPayload) =>
     request<RuleProvidersPayload>('rule-providers', { method: 'POST', body: payload }),
+  getProxyProviders: () => request<ProxyProvidersPayload>('proxy-providers'),
+  saveProxyProviders: (payload: ProxyProvidersPayload) =>
+    request<ProxyProvidersPayload>('proxy-providers', { method: 'POST', body: payload }),
+  getSnifferConfig: () => request<SnifferConfig>('sniffer'),
+  saveSnifferConfig: (payload: SnifferConfig) =>
+    request<SnifferConfig>('sniffer', { method: 'POST', body: payload }),
   getRules: () => request<RulesPayload>('rules'),
   saveRules: (payload: RulesPayload) =>
     request<RulesPayload>('rules', { method: 'POST', body: payload }),

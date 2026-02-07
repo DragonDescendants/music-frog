@@ -1,16 +1,16 @@
 use anyhow::anyhow;
-use infiltrator_desktop::MihomoRuntime;
+use async_trait::async_trait;
 use infiltrator_admin::{
     AdminEvent, EVENT_REBUILD_FAILED, EVENT_REBUILD_FINISHED, EVENT_REBUILD_STARTED,
 };
+use infiltrator_desktop::MihomoRuntime;
 use log::{info, warn};
 use mihomo_api::TrafficData;
 use mihomo_config::ConfigManager;
 use mihomo_version::VersionManager;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
-use tokio::time::{sleep, Duration, Instant};
-use async_trait::async_trait;
+use tokio::time::{Duration, Instant, sleep};
 
 use crate::{
     app_state::AppState,
@@ -70,7 +70,9 @@ pub trait BootstrapContext: Send + Sync {
     async fn on_success(&self);
 }
 
-pub(crate) async fn run_bootstrap_loop<C: BootstrapContext>(ctx: &C) -> anyhow::Result<Box<dyn RuntimeHandle>> {
+pub(crate) async fn run_bootstrap_loop<C: BootstrapContext>(
+    ctx: &C,
+) -> anyhow::Result<Box<dyn RuntimeHandle>> {
     let max_retries = 3;
     let mut last_err = anyhow!("unknown error");
 
@@ -83,13 +85,21 @@ pub(crate) async fn run_bootstrap_loop<C: BootstrapContext>(ctx: &C) -> anyhow::
                     return Ok(handle);
                 }
                 Err(err) => {
-                    warn!("startup attempt {}/{} failed during readiness check: {err:#}", attempt + 1, max_retries);
+                    warn!(
+                        "startup attempt {}/{} failed during readiness check: {err:#}",
+                        attempt + 1,
+                        max_retries
+                    );
                     last_err = err;
                     let _ = handle.shutdown().await;
                 }
             },
             Err(err) => {
-                warn!("startup attempt {}/{} failed during bootstrap: {err:#}", attempt + 1, max_retries);
+                warn!(
+                    "startup attempt {}/{} failed during bootstrap: {err:#}",
+                    attempt + 1,
+                    max_retries
+                );
                 last_err = err;
             }
         }
@@ -118,7 +128,7 @@ impl<'a> BootstrapContext for RealBootstrapContext<'a> {
         let bundled_candidates = bundled_core_candidates(self.app);
         let installed = vm.list_installed().await.unwrap_or_default();
         let use_bundled = self.state.use_bundled_core().await || installed.is_empty();
-        
+
         let r = MihomoRuntime::bootstrap(&vm, use_bundled, &bundled_candidates, &data_dir).await?;
         Ok(Box::new(RealRuntimeHandle(r)))
     }
@@ -140,7 +150,10 @@ impl<'a> BootstrapContext for RealBootstrapContext<'a> {
     }
 }
 
-pub(crate) async fn bootstrap_runtime(app: &AppHandle, state: &AppState) -> anyhow::Result<Box<dyn RuntimeHandle>> {
+pub(crate) async fn bootstrap_runtime(
+    app: &AppHandle,
+    state: &AppState,
+) -> anyhow::Result<Box<dyn RuntimeHandle>> {
     let ctx = RealBootstrapContext { app, state };
     run_bootstrap_loop(&ctx).await
 }
@@ -151,21 +164,25 @@ pub(crate) fn spawn_runtime(app: AppHandle, state: AppState) {
     let state_for_lock = state.clone();
     tauri::async_runtime::spawn(async move {
         let _guard = state_for_lock.rebuild_lock.lock().await;
-        
+
         match bootstrap_runtime(&app, &state).await {
             Ok(handle) => {
                 let runtime = handle.into_runtime();
                 register_runtime(&app, &state, runtime).await;
                 spawn_traffic_stream(app.clone(), state.clone());
                 spawn_config_monitor(state.clone());
-                if let Err(err) = refresh_tray_menu(&app_handle_for_refresh, &state_for_refresh).await {
+                if let Err(err) =
+                    refresh_tray_menu(&app_handle_for_refresh, &state_for_refresh).await
+                {
                     warn!("initial tray menu refresh failed: {err}");
                 }
             }
             Err(err) => {
                 log::error!("failed to bootstrap mihomo runtime: {err:#}");
                 crate::platform::show_error_dialog(format!("无法启动 mihomo 服务: {err:#}"));
-                state.update_controller_info_text(format!("控制接口: 启动失败 ({err})")).await;
+                state
+                    .update_controller_info_text(format!("控制接口: 启动失败 ({err})"))
+                    .await;
                 if let Err(e) = app.emit("mihomo://error", err.to_string()) {
                     warn!("failed to emit runtime error event: {e}");
                 }
@@ -186,17 +203,21 @@ fn spawn_config_monitor(state: AppState) {
 
             match runtime.client().get_config().await {
                 Ok(config) => {
-                    let current_tun = config.tun.as_ref()
+                    let current_tun = config
+                        .tun
+                        .as_ref()
                         .and_then(|t| t.get("enable"))
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
-                    
+
                     if Some(current_tun) != last_tun_enabled {
                         if last_tun_enabled.is_some() {
                             info!("detected external TUN state change: {}", current_tun);
                             state.set_tun_enabled(current_tun).await;
                             state.update_tun_checked(current_tun).await;
-                            state.emit_admin_event(infiltrator_admin::AdminEvent::new(infiltrator_admin::EVENT_TUN_CHANGED));
+                            state.emit_admin_event(infiltrator_admin::AdminEvent::new(
+                                infiltrator_admin::EVENT_TUN_CHANGED,
+                            ));
                         }
                         last_tun_enabled = Some(current_tun);
                     }
@@ -209,16 +230,20 @@ fn spawn_config_monitor(state: AppState) {
     });
 }
 
-pub(crate) async fn register_runtime(
-    app: &AppHandle,
-    state: &AppState,
-    runtime: MihomoRuntime,
-) {
+pub(crate) async fn register_runtime(app: &AppHandle, state: &AppState, runtime: MihomoRuntime) {
     let controller = runtime.controller_url.clone();
     let config_path = runtime.config_path.to_string_lossy().to_string();
     state.set_runtime(runtime).await;
-    state.update_controller_info_text(format!("控制接口: {controller}")).await;
-    if let Err(err) = app.emit("mihomo://ready", ReadyPayload { controller, config_path }) {
+    state
+        .update_controller_info_text(format!("控制接口: {controller}"))
+        .await;
+    if let Err(err) = app.emit(
+        "mihomo://ready",
+        ReadyPayload {
+            controller,
+            config_path,
+        },
+    ) {
         warn!("failed to emit ready event: {err}");
     }
 }
@@ -228,53 +253,59 @@ pub(crate) async fn rebuild_runtime(app: &AppHandle, state: &AppState) -> anyhow
     rebuild_runtime_without_lock(app, state).await
 }
 
-pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
+pub(crate) async fn rebuild_runtime_without_lock(
+    app: &AppHandle,
+    state: &AppState,
+) -> anyhow::Result<()> {
     state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_STARTED));
     info!("runtime rebuild start");
     let result: anyhow::Result<()> = async {
-    let previous_runtime = state.runtime().await.ok();
-    let previous_controller_port = previous_runtime
-        .as_ref()
-        .and_then(|runtime| extract_port_from_url(&runtime.controller_url));
-    let mut previous_proxy_port = None;
-    if let Some(runtime) = previous_runtime.as_ref()
-        && let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
+        let previous_runtime = state.runtime().await.ok();
+        let previous_controller_port = previous_runtime
+            .as_ref()
+            .and_then(|runtime| extract_port_from_url(&runtime.controller_url));
+        let mut previous_proxy_port = None;
+        if let Some(runtime) = previous_runtime.as_ref()
+            && let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await
+        {
             let endpoint = format!("http://{}", endpoint);
             previous_proxy_port = extract_port_from_url(&endpoint);
         }
-    if let Some(runtime) = previous_runtime
-        && let Err(err) = runtime.shutdown().await {
+        if let Some(runtime) = previous_runtime
+            && let Err(err) = runtime.shutdown().await
+        {
             warn!("failed to stop running mihomo instance: {err}");
         }
-    if let Some(port) = previous_controller_port {
-        wait_for_port_release(port, Duration::from_secs(5)).await;
-        if !is_port_available(port).await {
-            let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
-            let _ = manager.rotate_external_controller().await;
+        if let Some(port) = previous_controller_port {
+            wait_for_port_release(port, Duration::from_secs(5)).await;
+            if !is_port_available(port).await {
+                let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
+                let _ = manager.rotate_external_controller().await;
+            }
         }
-    }
-    if let Some(port) = previous_proxy_port {
-        wait_for_port_release(port, Duration::from_secs(5)).await;
-        if !is_port_available(port).await {
-            let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
-            let _ = manager.ensure_proxy_ports().await;
+        if let Some(port) = previous_proxy_port {
+            wait_for_port_release(port, Duration::from_secs(5)).await;
+            if !is_port_available(port).await {
+                let manager = ConfigManager::new().map_err(|e| anyhow!(e.to_string()))?;
+                let _ = manager.ensure_proxy_ports().await;
+            }
         }
-    }
-    let handle = bootstrap_runtime(app, state).await?;
-    let runtime = handle.into_runtime();
-    register_runtime(app, state, runtime).await;
-    
-    if state.is_system_proxy_enabled().await
-        && let Ok(runtime) = state.runtime().await
-        && let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await {
+        let handle = bootstrap_runtime(app, state).await?;
+        let runtime = handle.into_runtime();
+        register_runtime(app, state, runtime).await;
+
+        if state.is_system_proxy_enabled().await
+            && let Ok(runtime) = state.runtime().await
+            && let Ok(Some(endpoint)) = runtime.http_proxy_endpoint().await
+        {
             if apply_system_proxy(Some(&endpoint)).is_err() {
             } else {
                 state.set_system_proxy_state(true, Some(endpoint)).await;
             }
         }
-    let _ = refresh_profile_switch_submenu(app, state).await;
-    let _ = refresh_proxy_groups_submenu(app, state).await;
-    Ok(())
+        let _ = refresh_profile_switch_submenu(app, state).await;
+        let _ = refresh_proxy_groups_submenu(app, state).await;
+        Ok(())
     }
     .await;
 
@@ -283,9 +314,8 @@ pub(crate) async fn rebuild_runtime_without_lock(app: &AppHandle, state: &AppSta
             info!("runtime rebuild finished");
             state.emit_admin_event(AdminEvent::new(EVENT_REBUILD_FINISHED));
         }
-        Err(err) => state.emit_admin_event(
-            AdminEvent::new(EVENT_REBUILD_FAILED).with_detail(err.to_string()),
-        ),
+        Err(err) => state
+            .emit_admin_event(AdminEvent::new(EVENT_REBUILD_FAILED).with_detail(err.to_string())),
     }
 
     result
@@ -307,7 +337,10 @@ async fn wait_for_controller_ready(runtime: &MihomoRuntime) -> anyhow::Result<()
             }
         }
     }
-    Err(anyhow!("控制接口未就绪: {}", last_err.map(|e| e.to_string()).unwrap_or_default()))
+    Err(anyhow!(
+        "控制接口未就绪: {}",
+        last_err.map(|e| e.to_string()).unwrap_or_default()
+    ))
 }
 
 fn spawn_traffic_stream(app: AppHandle, state: AppState) {
@@ -346,7 +379,11 @@ mod tests {
     #[async_trait]
     impl RuntimeHandle for MockHandle {
         async fn wait_for_ready(&self) -> anyhow::Result<()> {
-            if self.ready_res { Ok(()) } else { Err(anyhow!("not ready")) }
+            if self.ready_res {
+                Ok(())
+            } else {
+                Err(anyhow!("not ready"))
+            }
         }
         async fn shutdown(&self) -> anyhow::Result<()> {
             *self.shutdown_called.lock().await = true;
@@ -368,7 +405,10 @@ mod tests {
         async fn bootstrap_attempt(&self) -> anyhow::Result<Box<dyn RuntimeHandle>> {
             let res = self.bootstrap_results.lock().await.remove(0);
             match res {
-                Ok(ready) => Ok(Box::new(MockHandle { ready_res: ready, shutdown_called: Arc::new(Mutex::new(false)) })),
+                Ok(ready) => Ok(Box::new(MockHandle {
+                    ready_res: ready,
+                    shutdown_called: Arc::new(Mutex::new(false)),
+                })),
                 Err(e) => Err(e),
             }
         }
@@ -397,7 +437,11 @@ mod tests {
     #[tokio::test]
     async fn test_bootstrap_loop_retry_and_success() {
         let ctx = MockCtx {
-            bootstrap_results: Arc::new(Mutex::new(vec![Err(anyhow!("fail")), Ok(false), Ok(true)])),
+            bootstrap_results: Arc::new(Mutex::new(vec![
+                Err(anyhow!("fail")),
+                Ok(false),
+                Ok(true),
+            ])),
             rotate_called: Arc::new(Mutex::new(0)),
             success_called: Arc::new(Mutex::new(false)),
         };
@@ -410,7 +454,11 @@ mod tests {
     #[tokio::test]
     async fn test_bootstrap_loop_all_fail() {
         let ctx = MockCtx {
-            bootstrap_results: Arc::new(Mutex::new(vec![Err(anyhow!("1")), Err(anyhow!("2")), Err(anyhow!("3"))])),
+            bootstrap_results: Arc::new(Mutex::new(vec![
+                Err(anyhow!("1")),
+                Err(anyhow!("2")),
+                Err(anyhow!("3")),
+            ])),
             rotate_called: Arc::new(Mutex::new(0)),
             success_called: Arc::new(Mutex::new(false)),
         };

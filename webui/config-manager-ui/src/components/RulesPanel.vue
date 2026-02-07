@@ -21,6 +21,34 @@
           <p class="help-text mt-2">{{ t('rules.providers_hint') }}</p>
         </div>
 
+        <div class="form-control w-full">
+          <label class="label py-1">
+            <span class="label-text font-medium">{{ t('rules.proxy_providers_title') }}</span>
+          </label>
+          <textarea
+            class="textarea textarea-bordered w-full textarea-sm focus:textarea-primary font-mono"
+            rows="6"
+            :placeholder="t('rules.proxy_providers_placeholder')"
+            :value="proxyProvidersJson"
+            @input="emit('update:proxyProvidersJson', ($event.target as HTMLTextAreaElement).value)"
+          />
+          <p class="help-text mt-2">{{ t('rules.proxy_providers_hint') }}</p>
+        </div>
+
+        <div class="form-control w-full">
+          <label class="label py-1">
+            <span class="label-text font-medium">{{ t('rules.sniffer_title') }}</span>
+          </label>
+          <textarea
+            class="textarea textarea-bordered w-full textarea-sm focus:textarea-primary font-mono"
+            rows="6"
+            :placeholder="t('rules.sniffer_placeholder')"
+            :value="snifferJson"
+            @input="emit('update:snifferJson', ($event.target as HTMLTextAreaElement).value)"
+          />
+          <p class="help-text mt-2">{{ t('rules.sniffer_hint') }}</p>
+        </div>
+
         <div class="divider my-0"></div>
 
       <div>
@@ -86,6 +114,12 @@
         <button class="btn btn-secondary btn-sm gap-2" @click="$emit('save-providers')">
           {{ t('rules.save_providers') }}
         </button>
+        <button class="btn btn-secondary btn-sm gap-2" @click="$emit('save-proxy-providers')">
+          {{ t('rules.save_proxy_providers') }}
+        </button>
+        <button class="btn btn-secondary btn-sm gap-2" @click="$emit('save-sniffer')">
+          {{ t('rules.save_sniffer') }}
+        </button>
         <button class="btn btn-primary btn-sm gap-2" @click="$emit('save-rules')">
           {{ t('rules.save_rules') }}
         </button>
@@ -108,13 +142,19 @@ const { t } = useI18n();
 const props = defineProps<{
   rules: RuleEntry[];
   providersJson: string;
+  proxyProvidersJson: string;
+  snifferJson: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:rules', value: RuleEntry[]): void;
   (e: 'update:providersJson', value: string): void;
+  (e: 'update:proxyProvidersJson', value: string): void;
+  (e: 'update:snifferJson', value: string): void;
   (e: 'save-rules'): void;
   (e: 'save-providers'): void;
+  (e: 'save-proxy-providers'): void;
+  (e: 'save-sniffer'): void;
   (e: 'refresh'): void;
 }>();
 

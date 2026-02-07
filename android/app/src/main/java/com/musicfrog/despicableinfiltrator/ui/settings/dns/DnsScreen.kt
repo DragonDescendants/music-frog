@@ -38,6 +38,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
     var showNameserverDialog by remember { mutableStateOf(false) }
     var showDefaultDialog by remember { mutableStateOf(false) }
     var showFallbackDialog by remember { mutableStateOf(false) }
+    var showFallbackFilterGeoipDialog by remember { mutableStateOf(false) }
+    var showFallbackFilterGeoipCodeDialog by remember { mutableStateOf(false) }
+    var showFallbackFilterIpcidrDialog by remember { mutableStateOf(false) }
+    var showFallbackFilterDomainDialog by remember { mutableStateOf(false) }
+    var showFallbackFilterDomainSuffixDialog by remember { mutableStateOf(false) }
 
     if (showModeDialog) {
         SelectionDialog(
@@ -90,6 +95,74 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
             onConfirm = {
                 viewModel.updateFallback(it)
                 showFallbackDialog = false
+            },
+            singleLine = false
+        )
+    }
+
+    if (showFallbackFilterGeoipDialog) {
+        SelectionDialog(
+            title = stringResource(R.string.label_fallback_filter_geoip),
+            options = listOf(
+                "" to stringResource(R.string.option_auto),
+                "true" to stringResource(R.string.option_enabled),
+                "false" to stringResource(R.string.option_disabled)
+            ),
+            selectedOption = state.fallbackFilterGeoip,
+            onDismiss = { showFallbackFilterGeoipDialog = false },
+            onSelect = {
+                viewModel.updateFallbackFilterGeoip(it)
+                showFallbackFilterGeoipDialog = false
+            }
+        )
+    }
+
+    if (showFallbackFilterGeoipCodeDialog) {
+        InputDialog(
+            title = stringResource(R.string.label_fallback_filter_geoip_code),
+            initialValue = state.fallbackFilterGeoipCode,
+            onDismiss = { showFallbackFilterGeoipCodeDialog = false },
+            onConfirm = {
+                viewModel.updateFallbackFilterGeoipCode(it)
+                showFallbackFilterGeoipCodeDialog = false
+            }
+        )
+    }
+
+    if (showFallbackFilterIpcidrDialog) {
+        InputDialog(
+            title = stringResource(R.string.label_fallback_filter_ipcidr),
+            initialValue = state.fallbackFilterIpcidr,
+            onDismiss = { showFallbackFilterIpcidrDialog = false },
+            onConfirm = {
+                viewModel.updateFallbackFilterIpcidr(it)
+                showFallbackFilterIpcidrDialog = false
+            },
+            singleLine = false
+        )
+    }
+
+    if (showFallbackFilterDomainDialog) {
+        InputDialog(
+            title = stringResource(R.string.label_fallback_filter_domain),
+            initialValue = state.fallbackFilterDomain,
+            onDismiss = { showFallbackFilterDomainDialog = false },
+            onConfirm = {
+                viewModel.updateFallbackFilterDomain(it)
+                showFallbackFilterDomainDialog = false
+            },
+            singleLine = false
+        )
+    }
+
+    if (showFallbackFilterDomainSuffixDialog) {
+        InputDialog(
+            title = stringResource(R.string.label_fallback_filter_domain_suffix),
+            initialValue = state.fallbackFilterDomainSuffix,
+            onDismiss = { showFallbackFilterDomainSuffixDialog = false },
+            onConfirm = {
+                viewModel.updateFallbackFilterDomainSuffix(it)
+                showFallbackFilterDomainSuffixDialog = false
             },
             singleLine = false
         )
@@ -196,6 +269,55 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                         headline = stringResource(R.string.label_fallback),
                         supporting = state.fallback.replace("\n", ", "),
                         onClick = { if (!state.isLoading) showFallbackDialog = true }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.label_fallback_filter_geoip),
+                        supporting = when (state.fallbackFilterGeoip) {
+                            "true" -> stringResource(R.string.option_enabled)
+                            "false" -> stringResource(R.string.option_disabled)
+                            else -> stringResource(R.string.option_auto)
+                        },
+                        onClick = { if (!state.isLoading) showFallbackFilterGeoipDialog = true }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.label_fallback_filter_geoip_code),
+                        supporting = state.fallbackFilterGeoipCode,
+                        onClick = { if (!state.isLoading) showFallbackFilterGeoipCodeDialog = true }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.label_fallback_filter_ipcidr),
+                        supporting = state.fallbackFilterIpcidr.replace("\n", ", "),
+                        onClick = { if (!state.isLoading) showFallbackFilterIpcidrDialog = true }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.label_fallback_filter_domain),
+                        supporting = state.fallbackFilterDomain.replace("\n", ", "),
+                        onClick = { if (!state.isLoading) showFallbackFilterDomainDialog = true }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.label_fallback_filter_domain_suffix),
+                        supporting = state.fallbackFilterDomainSuffix.replace("\n", ", "),
+                        onClick = { if (!state.isLoading) showFallbackFilterDomainSuffixDialog = true }
                     )
                     HorizontalDivider()
                 }

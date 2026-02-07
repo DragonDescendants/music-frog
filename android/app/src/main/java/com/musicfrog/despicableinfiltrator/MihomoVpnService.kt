@@ -10,8 +10,10 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import infiltrator_android.AppRoutingMode
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.VpnTunSettings
+import infiltrator_android.appRoutingLoad
 import infiltrator_android.startVpn
 import infiltrator_android.stopVpn as stopTun2Proxy
 import infiltrator_android.vpnTunSettings
@@ -28,12 +30,6 @@ class MihomoVpnService : VpnService() {
     private val TAG = "MihomoVpnService"
     private val CHANNEL_ID = "vpn_service_channel"
     private val NOTIFICATION_ID = 1
-    private val PREFS_NAME = "app_routing"
-    private val PREF_SELECTED_PACKAGES = "selected_packages"
-    private val PREF_ROUTING_MODE = "routing_mode"
-    private val ROUTING_MODE_PROXY_ALL = "proxy_all"
-    private val ROUTING_MODE_PROXY_SELECTED = "proxy_selected"
-    private val ROUTING_MODE_BYPASS_SELECTED = "bypass_selected"
     private val DEFAULT_MTU = 1500
     private val IPV6_ADDRESS = "fd00:fd00:fd00::1"
 
@@ -122,14 +118,12 @@ class MihomoVpnService : VpnService() {
             builder.setSession("MusicFrog Infiltrator")
 
             // Apply Per-App Routing
-            val prefs = getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val routingMode = prefs.getString(PREF_ROUTING_MODE, ROUTING_MODE_PROXY_ALL)
-            val selectedPackages = prefs.getStringSet(PREF_SELECTED_PACKAGES, emptySet()) ?: emptySet()
+            val (routingMode, selectedPackages) = loadRoutingConfig()
 
             Log.i(TAG, "Routing mode: ${'$'}routingMode, apps: ${'$'}{selectedPackages.size}")
 
             when (routingMode) {
-                ROUTING_MODE_PROXY_SELECTED -> {
+                AppRoutingMode.PROXY_SELECTED -> {
                     if (selectedPackages.isNotEmpty()) {
                         for (pkg in selectedPackages) {
                             // Prevent adding self to allowlist (would cause loop)
@@ -142,7 +136,7 @@ class MihomoVpnService : VpnService() {
                         }
                     }
                 }
-                ROUTING_MODE_BYPASS_SELECTED -> {
+                AppRoutingMode.BYPASS_SELECTED -> {
                     // Always exclude self to prevent loop
                     try { builder.addDisallowedApplication(packageName) } catch (e: Exception) { Log.w(TAG, "Failed to exclude self", e) }
 
@@ -157,7 +151,7 @@ class MihomoVpnService : VpnService() {
                         }
                     }
                 }
-                else -> {
+                AppRoutingMode.PROXY_ALL -> {
                     Log.i(TAG, "Proxy All mode active")
                     // Always exclude self to prevent loop
                     try {
@@ -228,6 +222,25 @@ class MihomoVpnService : VpnService() {
             return mtu.toInt()
         }
         return DEFAULT_MTU
+    }
+
+    private fun loadRoutingConfig(): Pair<AppRoutingMode, Set<String>> {
+        return try {
+            val result = appRoutingLoad()
+            val config = result.config
+            if (result.status.code == FfiErrorCode.OK && config != null) {
+                config.mode to config.packages.toSet()
+            } else {
+                Log.w(
+                    TAG,
+                    "Failed to load app routing config: ${result.status.code} ${result.status.message.orEmpty()}",
+                )
+                AppRoutingMode.PROXY_ALL to emptySet()
+            }
+        } catch (err: Exception) {
+            Log.w(TAG, "Failed to load app routing config: ${err.message}", err)
+            AppRoutingMode.PROXY_ALL to emptySet()
+        }
     }
 
     private fun filterDnsServers(servers: List<String>): List<String> {

@@ -86,7 +86,7 @@ impl ProxyManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use mockito::Server;
 
     #[test]
@@ -112,11 +112,13 @@ mod tests {
                 }
             }
         });
-        
-        let mock = server.mock("GET", "/proxies")
+
+        let mock = server
+            .mock("GET", "/proxies")
             .with_status(200)
             .with_body(serde_json::to_string(&body).unwrap())
-            .create_async().await;
+            .create_async()
+            .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
         let manager = ProxyManager::new(client);
@@ -142,11 +144,13 @@ mod tests {
                 }
             }
         });
-        
-        let mock = server.mock("GET", "/proxies")
+
+        let mock = server
+            .mock("GET", "/proxies")
             .with_status(200)
             .with_body(serde_json::to_string(&body).unwrap())
-            .create_async().await;
+            .create_async()
+            .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
         let manager = ProxyManager::new(client);

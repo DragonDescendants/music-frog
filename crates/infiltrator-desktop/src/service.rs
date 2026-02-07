@@ -95,7 +95,8 @@ mod tests {
         let config_path = temp_dir.path().join("config.yaml");
         let home = temp_dir.path().join("home");
 
-        let _manager = ServiceManager::with_home(binary_path.clone(), config_path.clone(), home.clone());
+        let _manager =
+            ServiceManager::with_home(binary_path.clone(), config_path.clone(), home.clone());
     }
 
     #[test]

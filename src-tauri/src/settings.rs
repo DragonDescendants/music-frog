@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::anyhow;
-use infiltrator_core::{settings as core_settings, AppSettings};
+use infiltrator_core::{AppSettings, settings as core_settings};
 
 use crate::{app_state::AppState, paths::app_data_dir};
 

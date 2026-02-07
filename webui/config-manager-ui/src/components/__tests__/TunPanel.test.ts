@@ -1,18 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createI18n } from 'vue-i18n';
 import TunPanel from '../TunPanel.vue';
+import { createTestI18n } from '../../test-utils/i18n';
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: {
-    en: {
-      tun: { title: 'TUN' },
-      common: { save: 'Save', refresh: 'Refresh' }
-    }
-  }
-});
+const i18n = createTestI18n();
 
 describe('TunPanel', () => {
   it('renders tun config values', () => {

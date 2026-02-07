@@ -1,42 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createI18n } from 'vue-i18n';
 import ProfilesPanel from '../ProfilesPanel.vue';
+import { createTestI18n } from '../../test-utils/i18n';
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: {
-    en: {
-      profiles: {
-        title: 'Profiles',
-        count: '{active} / {total}',
-        current: 'Current',
-        available: 'Available',
-        set_active: 'Set Active',
-        active: 'Active',
-        delete: 'Delete',
-        edit: 'Edit',
-        external_edit: 'External Edit',
-        update_now: 'Update Now',
-        refresh: 'Refresh',
-        clear: 'Clear',
-        time_not_set: 'Not set',
-        settings: 'Settings',
-        save_settings: 'Save Settings',
-        enable_auto_update: 'Auto Update',
-        hours_48: '48 Hours',
-        sub_url: '{url}',
-        collapse: 'Collapse',
-        hours_12: '12h',
-        hours_24: '24h',
-        days_7: '7d',
-        subscription: 'Sub',
-        next_update: 'Next: {time}'
-      }
-    }
-  }
-});
+const i18n = createTestI18n();
 
 const mockProfiles = [
   {
@@ -150,7 +117,7 @@ describe('ProfilesPanel', () => {
     await refreshBtn?.trigger('click');
     expect(wrapper.emitted('refresh')).toBeTruthy();
 
-    const clearBtn = wrapper.findAll('button').find(b => b.text() === 'Clear');
+    const clearBtn = wrapper.findAll('button').find(b => b.text().includes('Clear'));
     expect(clearBtn).toBeDefined();
     await clearBtn?.trigger('click');
     expect(wrapper.emitted('clear')).toBeTruthy();

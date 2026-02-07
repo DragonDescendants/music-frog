@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
@@ -30,8 +30,14 @@ pub async fn load_rule_providers() -> Result<RuleProviders> {
 
 pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProviders> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
 
     apply_rule_providers(&mut doc, &providers)?;
@@ -52,8 +58,14 @@ pub async fn load_rules() -> Result<Vec<RuleEntry>> {
 pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
     validate_rules(&rules)?;
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
 
     apply_rules(&mut doc, &rules)?;
@@ -68,8 +80,14 @@ pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
 
 async fn load_profile_doc() -> Result<Value> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     serde_yaml::from_str(&content).context("parse profile yaml")
 }
 
@@ -142,10 +160,7 @@ fn apply_rules(doc: &mut Value, rules: &[RuleEntry]) -> Result<()> {
         .iter()
         .map(|entry| Value::String(format_rule_entry(entry)))
         .collect();
-    map.insert(
-        Value::String("rules".to_string()),
-        Value::Sequence(entries),
-    );
+    map.insert(Value::String("rules".to_string()), Value::Sequence(entries));
     Ok(())
 }
 
@@ -224,8 +239,14 @@ mod tests {
     fn test_apply_rules_preserves_order() {
         let mut doc: Value = serde_yaml::from_str("rules:\n  - OLD\n").expect("yaml");
         let rules = vec![
-            RuleEntry { rule: "FIRST".into(), enabled: true },
-            RuleEntry { rule: "SECOND".into(), enabled: false },
+            RuleEntry {
+                rule: "FIRST".into(),
+                enabled: true,
+            },
+            RuleEntry {
+                rule: "SECOND".into(),
+                enabled: false,
+            },
         ];
         apply_rules(&mut doc, &rules).expect("apply");
         let seq = doc.get("rules").unwrap().as_sequence().unwrap();
@@ -239,9 +260,10 @@ mod tests {
         let providers = RuleProviders::new();
         apply_rule_providers(&mut doc, &providers).expect("apply providers");
         let map = doc.as_mapping().expect("mapping");
-        assert!(map
-            .get(Value::String("rule-providers".to_string()))
-            .is_none());
+        assert!(
+            map.get(Value::String("rule-providers".to_string()))
+                .is_none()
+        );
     }
 
     #[test]

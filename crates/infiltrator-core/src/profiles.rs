@@ -1,11 +1,11 @@
+use crate::{config as core_config, subscription as core_subscription};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mihomo_config::{port::find_available_port, ConfigManager, Profile as MihomoProfile};
+use infiltrator_http::{build_http_client, build_raw_http_client};
+use mihomo_config::{ConfigManager, Profile as MihomoProfile, port::find_available_port};
 use mihomo_platform::get_home_dir;
 use serde::Serialize;
 use tokio::fs;
-use crate::{config as core_config, subscription as core_subscription};
-use infiltrator_http::{build_http_client, build_raw_http_client};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProfileInfo {
@@ -169,9 +169,7 @@ pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
         .chars()
         .any(|ch| matches!(ch, '/' | '\\' | ':' | '*' | '?' | '\"' | '<' | '>' | '|'))
     {
-        return Err(anyhow!(
-            "配置名称不能包含特殊字符 / \\\\ : * ? \\\" < > |"
-        ));
+        return Err(anyhow!("配置名称不能包含特殊字符 / \\\\ : * ? \\\" < > |"));
     }
     Ok(trimmed.to_string())
 }
@@ -191,9 +189,8 @@ pub async fn reset_profiles_to_default() -> anyhow::Result<ProfileInfo> {
 }
 
 fn build_default_config() -> anyhow::Result<String> {
-    let port = find_available_port(9090).ok_or_else(|| {
-        anyhow!("无法找到可用的控制接口端口（9090-9190）")
-    })?;
+    let port = find_available_port(9090)
+        .ok_or_else(|| anyhow!("无法找到可用的控制接口端口（9090-9190）"))?;
     Ok(format!(
         r#"# mihomo configuration
 port: 7890
@@ -213,7 +210,10 @@ mod tests {
 
     #[test]
     fn test_sanitize_profile_name_valid() {
-        assert_eq!(sanitize_profile_name("  valid_name  ").unwrap(), "valid_name");
+        assert_eq!(
+            sanitize_profile_name("  valid_name  ").unwrap(),
+            "valid_name"
+        );
         assert_eq!(sanitize_profile_name("config-1").unwrap(), "config-1");
     }
 

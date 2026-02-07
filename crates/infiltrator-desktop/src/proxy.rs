@@ -1,8 +1,8 @@
 use anyhow::anyhow;
 #[cfg(target_os = "windows")]
-use std::process::Command;
-#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+use std::process::Command;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
@@ -43,8 +43,8 @@ pub fn read_system_proxy_state() -> anyhow::Result<SystemProxyState> {
 
 #[cfg(target_os = "windows")]
 fn set_windows_system_proxy(endpoint: Option<&str>) -> anyhow::Result<()> {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
     use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu
@@ -68,8 +68,8 @@ fn set_windows_system_proxy(endpoint: Option<&str>) -> anyhow::Result<()> {
 
 #[cfg(target_os = "windows")]
 fn read_windows_system_proxy_state() -> anyhow::Result<SystemProxyState> {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
     use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu
@@ -80,13 +80,10 @@ fn read_windows_system_proxy_state() -> anyhow::Result<SystemProxyState> {
         .map_err(|e| anyhow!(e.to_string()))?;
 
     let enabled: u32 = key.get_value("ProxyEnable").unwrap_or(0);
-    let endpoint: Option<String> = key.get_value("ProxyServer").ok().and_then(|v: String| {
-        if v.trim().is_empty() {
-            None
-        } else {
-            Some(v)
-        }
-    });
+    let endpoint: Option<String> = key
+        .get_value("ProxyServer")
+        .ok()
+        .and_then(|v: String| if v.trim().is_empty() { None } else { Some(v) });
 
     Ok(SystemProxyState {
         enabled: enabled != 0,

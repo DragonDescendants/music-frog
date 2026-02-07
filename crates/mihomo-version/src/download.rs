@@ -1,5 +1,5 @@
-use mihomo_api::{MihomoError, Result};
 use futures_util::StreamExt;
+use mihomo_api::{MihomoError, Result};
 use std::path::Path;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
@@ -22,7 +22,8 @@ impl Downloader {
     }
 
     pub async fn download_version(&self, version: &str, dest: &Path) -> Result<()> {
-        self.download_version_with_progress(version, dest, |_| {}).await
+        self.download_version_with_progress(version, dest, |_| {})
+            .await
     }
 
     pub async fn download_version_with_progress<F>(
@@ -223,8 +224,8 @@ mod tests {
 
     #[test]
     fn test_decompress_gz() {
-        use flate2::write::GzEncoder;
         use flate2::Compression;
+        use flate2::write::GzEncoder;
         use std::io::Write;
 
         // Create test data
@@ -243,8 +244,8 @@ mod tests {
     #[test]
     fn test_decompress_zip() {
         use std::io::{Cursor, Write};
-        use zip::write::SimpleFileOptions;
         use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
 
         // Create test data
         let test_data = b"Hello, this is test data for zip compression!";
@@ -272,8 +273,8 @@ mod tests {
     #[test]
     fn test_decompress_zip_with_multiple_files_fails() {
         use std::io::{Cursor, Write};
-        use zip::write::SimpleFileOptions;
         use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
 
         // Create a zip file with multiple entries
         let mut zip_buffer = Cursor::new(Vec::new());
@@ -298,10 +299,12 @@ mod tests {
         // Test that decompression fails with multiple files
         let result = Downloader::decompress_zip(&compressed);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Expected 1 file in zip archive, found 2"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Expected 1 file in zip archive, found 2")
+        );
     }
 
     #[test]

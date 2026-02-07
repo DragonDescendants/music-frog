@@ -1,8 +1,8 @@
 use super::{profile::Profile, yaml};
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
-use mihomo_api::{MihomoError, Result};
-use mihomo_platform::{get_home_dir, CredentialStore, DefaultCredentialStore};
 use chrono::{DateTime, Utc};
+use mihomo_api::{MihomoError, Result};
+use mihomo_platform::{CredentialStore, DefaultCredentialStore, get_home_dir};
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -77,14 +77,11 @@ impl<S: CredentialStore> ConfigManager<S> {
                 let active = current.as_ref() == Some(&name);
                 let mut profile = Profile::new(name.clone(), path, active);
                 if let Some(table) = metadata_table.and_then(|table| table.get(&name))
-                    && let Some(profile_table) = table.as_table() {
-                        apply_profile_metadata(
-                            &self.credential_store,
-                            &mut profile,
-                            profile_table,
-                        )
+                    && let Some(profile_table) = table.as_table()
+                {
+                    apply_profile_metadata(&self.credential_store, &mut profile, profile_table)
                         .await;
-                    }
+                }
                 profiles.push(profile);
             }
         }
@@ -131,11 +128,7 @@ impl<S: CredentialStore> ConfigManager<S> {
         Ok(profile_info)
     }
 
-    pub async fn update_profile_metadata(
-        &self,
-        profile: &str,
-        metadata: &Profile,
-    ) -> Result<()> {
+    pub async fn update_profile_metadata(&self, profile: &str, metadata: &Profile) -> Result<()> {
         let mut settings = self.read_settings_value().await?;
         let root_table = ensure_table(&mut settings)?;
         let profiles_value = root_table
@@ -230,8 +223,7 @@ impl<S: CredentialStore> ConfigManager<S> {
             return Ok(toml::Value::Table(toml::map::Map::new()));
         }
         let content = fs::read_to_string(&self.settings_file).await?;
-        toml::from_str(&content)
-            .map_err(|e| MihomoError::Config(format!("Invalid config: {}", e)))
+        toml::from_str(&content).map_err(|e| MihomoError::Config(format!("Invalid config: {}", e)))
     }
 
     async fn remove_profile_metadata(&self, profile: &str) -> Result<()> {
@@ -240,9 +232,10 @@ impl<S: CredentialStore> ConfigManager<S> {
         }
         let mut settings = self.read_settings_value().await?;
         if let toml::Value::Table(ref mut root) = settings
-            && let Some(toml::Value::Table(profiles)) = root.get_mut("profiles") {
-                profiles.remove(profile);
-            }
+            && let Some(toml::Value::Table(profiles)) = root.get_mut("profiles")
+        {
+            profiles.remove(profile);
+        }
         let content = toml::to_string(&settings)
             .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
         fs::write(&self.settings_file, content).await?;
@@ -454,17 +447,13 @@ impl ConfigManager<DefaultCredentialStore> {
     }
 }
 
-fn ensure_table(
-    value: &mut toml::Value,
-) -> Result<&mut toml::map::Map<String, toml::Value>> {
+fn ensure_table(value: &mut toml::Value) -> Result<&mut toml::map::Map<String, toml::Value>> {
     if !matches!(value, toml::Value::Table(_)) {
         *value = toml::Value::Table(toml::map::Map::new());
     }
     match value {
         toml::Value::Table(table) => Ok(table),
-        _ => Err(MihomoError::Config(
-            "Invalid settings table".to_string(),
-        )),
+        _ => Err(MihomoError::Config("Invalid settings table".to_string())),
     }
 }
 
@@ -484,18 +473,16 @@ async fn apply_profile_metadata<S: CredentialStore>(
     if key.is_none() && fallback_url.is_some() {
         key = Some(subscription_key(&profile.name));
     }
-    let mut resolved =
-        load_subscription_url(credential_store, &profile.name, key.as_deref()).await;
+    let mut resolved = load_subscription_url(credential_store, &profile.name, key.as_deref()).await;
     if resolved.is_none()
-        && let Some(url) = fallback_url.as_ref() {
-            if let Err(err) =
-                store_subscription_url(credential_store, &profile.name, url).await
-            {
-                log::warn!("failed to restore subscription url to store: {err}");
-            } else {
-                resolved = Some(url.clone());
-            }
+        && let Some(url) = fallback_url.as_ref()
+    {
+        if let Err(err) = store_subscription_url(credential_store, &profile.name, url).await {
+            log::warn!("failed to restore subscription url to store: {err}");
+        } else {
+            resolved = Some(url.clone());
         }
+    }
     profile.subscription_url = resolved.or(fallback_url);
     profile.auto_update_enabled = table
         .get("auto_update_enabled")
@@ -564,9 +551,7 @@ async fn delete_subscription_url<S: CredentialStore>(
     profile: &str,
 ) -> Result<()> {
     let key = subscription_key(profile);
-    credential_store
-        .delete(SUBSCRIPTION_SERVICE, &key)
-        .await?;
+    credential_store.delete(SUBSCRIPTION_SERVICE, &key).await?;
     Ok(())
 }
 
@@ -765,7 +750,12 @@ mod tests {
 
         let result = manager.delete_profile("active-profile").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot delete the active profile"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Cannot delete the active profile")
+        );
     }
 
     #[tokio::test]
@@ -822,7 +812,12 @@ mod tests {
         assert!(result.is_ok());
 
         let current = manager.get_current().await.unwrap();
-        assert!(manager.config_dir.join(format!("{}.yaml", current)).exists());
+        assert!(
+            manager
+                .config_dir
+                .join(format!("{}.yaml", current))
+                .exists()
+        );
     }
 
     #[tokio::test]
@@ -915,7 +910,9 @@ external-controller: http://127.0.0.1:9090
             next_update: None,
         };
 
-        let result = manager.update_profile_metadata("test-profile", &metadata).await;
+        let result = manager
+            .update_profile_metadata("test-profile", &metadata)
+            .await;
         assert!(result.is_ok());
 
         let retrieved = manager.get_profile_metadata("test-profile").await.unwrap();
@@ -935,9 +932,9 @@ external-controller: http://127.0.0.1:9090
 
     #[tokio::test]
     async fn test_secured_storage_integration() {
+        use async_trait::async_trait;
         use std::collections::HashMap;
         use std::sync::{Arc, Mutex};
-        use async_trait::async_trait;
 
         #[derive(Default, Clone)]
         struct MockStore {
@@ -950,7 +947,10 @@ external-controller: http://127.0.0.1:9090
                 Ok(self.data.lock().unwrap().get(key).cloned())
             }
             async fn set(&self, _svc: &str, key: &str, val: &str) -> mihomo_api::Result<()> {
-                self.data.lock().unwrap().insert(key.to_string(), val.to_string());
+                self.data
+                    .lock()
+                    .unwrap()
+                    .insert(key.to_string(), val.to_string());
                 Ok(())
             }
             async fn delete(&self, _svc: &str, key: &str) -> mihomo_api::Result<()> {
@@ -961,20 +961,31 @@ external-controller: http://127.0.0.1:9090
 
         let temp_dir = TempDir::new().unwrap();
         let store = MockStore::default();
-        let manager = ConfigManager::with_home_and_store(temp_dir.path().to_path_buf(), store.clone()).unwrap();
+        let manager =
+            ConfigManager::with_home_and_store(temp_dir.path().to_path_buf(), store.clone())
+                .unwrap();
 
         let mut metadata = Profile::new("test".to_string(), PathBuf::new(), false);
         metadata.subscription_url = Some("https://secret.url/sub".to_string());
-        
+
         // 1. Save metadata
-        manager.update_profile_metadata("test", &metadata).await.unwrap();
+        manager
+            .update_profile_metadata("test", &metadata)
+            .await
+            .unwrap();
 
         // 2. Verify store has the secret
         let key = "subscription:test".to_string();
-        assert_eq!(store.data.lock().unwrap().get(&key).unwrap(), "https://secret.url/sub");
+        assert_eq!(
+            store.data.lock().unwrap().get(&key).unwrap(),
+            "https://secret.url/sub"
+        );
 
         // 3. Load metadata and verify url is recovered
         let loaded = manager.get_profile_metadata("test").await.unwrap();
-        assert_eq!(loaded.subscription_url, Some("https://secret.url/sub".to_string()));
+        assert_eq!(
+            loaded.subscription_url,
+            Some("https://secret.url/sub".to_string())
+        );
     }
 }

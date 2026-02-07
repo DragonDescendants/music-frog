@@ -1,23 +1,23 @@
 pub mod api;
 pub mod ffi;
-pub mod runtime;
 #[cfg(target_os = "android")]
 mod jni_bridge;
+pub mod runtime;
 mod tls;
 mod uniffi_api;
 
 pub use api::AndroidApi;
 pub use ffi::{FfiApi, FfiBoolResult, FfiErrorCode, FfiStatus, FfiStringResult};
-pub use uniffi_api::{
-    DnsSettings, DnsSettingsPatch, DnsSettingsResult, FakeIpSettings,
-    FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult, IpResult,
-    ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult,
-    RuleEntryRecord, RuleProvidersResult, RulesResult, TrafficResult,
-    TrafficSnapshot, TunStatusResult, VpnTunSettings, VpnTunSettingsPatch,
-    VpnTunSettingsResult, WebDavSettings, WebDavSettingsResult, WebDavSyncResult,
-};
 pub use mihomo_platform::{clear_android_bridge, get_android_bridge, set_android_bridge};
-pub use runtime::{android_bridge_adapter, AndroidBridge, AndroidBridgeAdapter, AndroidRuntime};
+pub use runtime::{AndroidBridge, AndroidBridgeAdapter, AndroidRuntime, android_bridge_adapter};
+pub use uniffi_api::{
+    ConnectionRecord, ConnectionsResult, DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch,
+    DnsSettingsResult, FakeIpSettings, FakeIpSettingsPatch, FakeIpSettingsResult, IpCheckResult,
+    IpResult, ProfileSummary, ProfilesResult, ProxyGroupSummary, ProxyGroupsResult,
+    RuleEntryRecord, RuleProvidersResult, RulesResult, TrafficResult, TrafficSnapshot,
+    TunStatusResult, VpnTunSettings, VpnTunSettingsPatch, VpnTunSettingsResult, WebDavSettings,
+    WebDavSettingsResult, WebDavSyncResult,
+};
 
 uniffi::setup_scaffolding!("infiltrator_android");
 

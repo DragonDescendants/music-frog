@@ -22,30 +22,53 @@
     <string name="action_start">Start</string>
     <string name="action_stop">Stop</string>
     <string name="action_restart">Restart</string>
+    <string name="action_refresh_ip">Refresh IP</string>
     
     <string name="status_proxy_mode">Proxy Mode</string>
     <string name="action_change_mode">Change Mode</string>
     <string name="mode_rule">Rule</string>
     <string name="mode_global">Global</string>
     <string name="mode_direct">Direct</string>
+    <string name="mode_script">Script</string>
 
     <string name="card_traffic">Traffic</string>
+    <string name="card_network_diagnostics">Network Diagnostics</string>
     <string name="label_upload">Upload</string>
     <string name="label_download">Download</string>
     <string name="label_total">Total: %1$s ↑ / %2$s ↓</string>
     <string name="label_connections">%1$s conn</string>
+    <string name="label_exit_ip">Egress IP: %1$s</string>
+    <string name="label_ip_location">Location: %1$s</string>
 
     <string name="card_recent_logs">Recent Logs</string>
     <string name="text_no_logs">No logs yet</string>
     <string name="text_loading">Loading...</string>
+    <string name="text_no_connections">No active connections</string>
+    <string name="text_connections_total">%1$d active connections</string>
+    <string name="text_ip_unavailable">IP information unavailable</string>
 
     <!-- Profiles -->
     <string name="title_add_profile">Add Profile</string>
+    <string name="title_edit_profile">Edit Profile</string>
+    <string name="title_import_local_profile">Import Local Profile</string>
+    <string name="title_delete_profile">Delete Profile</string>
     <string name="label_name">Name</string>
     <string name="label_url">URL</string>
+    <string name="label_profile_content">Profile Content</string>
+    <string name="label_activate_after_save">Activate after save</string>
+    <string name="label_subscription_url">Subscription URL</string>
+    <string name="label_auto_update">Auto Update</string>
+    <string name="label_update_interval_hours">Update interval (hours)</string>
     <string name="action_add">Add</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_import_local">Import Local</string>
+    <string name="action_update_now">Update Now</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_subscription_settings">Subscription Settings</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_clear_subscription">Clear Subscription</string>
     <string name="text_updated_at">Updated: %1$s</string>
+    <string name="text_delete_profile_confirm">Delete profile "%1$s"? This action cannot be undone.</string>
     <string name="error_load_profiles">Failed to load profiles</string>
 
     <!-- Proxies -->
@@ -69,6 +92,8 @@
     <string name="setting_fakeip_desc">Manage Fake-IP pool and filters</string>
     <string name="setting_rules_title">Rule Sets</string>
     <string name="setting_rules_desc">Manage rule providers and priorities</string>
+    <string name="setting_connections_title">Connections</string>
+    <string name="setting_connections_desc">Manage active connections and disconnect stale sessions</string>
     <string name="setting_logs_title">Logs</string>
     <string name="setting_logs_desc">View core runtime logs</string>
 
@@ -85,17 +110,34 @@
     <!-- TUN Settings -->
     <string name="tun_settings_title">TUN Settings</string>
     <string name="label_mtu">MTU</string>
+    <string name="label_stack">Stack</string>
+    <string name="option_stack_auto">Auto</string>
+    <string name="option_stack_system">system</string>
+    <string name="option_stack_gvisor">gvisor</string>
     <string name="tun_auto_route">Auto Route</string>
     <string name="tun_auto_route_desc">Automatically route traffic through TUN</string>
     <string name="tun_strict_route">Strict Route</string>
     <string name="tun_strict_route_desc">Strictly enforce routing rules</string>
+    <string name="tun_auto_detect_interface">Auto Detect Interface</string>
+    <string name="tun_auto_detect_interface_desc">Automatically detect the outbound interface</string>
     <string name="label_ipv6">IPv6</string>
     <string name="tun_ipv6_desc">Enable IPv6 support</string>
     <string name="label_dns_servers">DNS Servers</string>
     <string name="desc_one_per_line">One server per line</string>
     <string name="action_save">Save</string>
     <string name="action_reload">Reload</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_close_all">Close All</string>
     <string name="text_saved">Settings Saved</string>
+
+    <!-- Connections -->
+    <string name="label_host_filter">Host Filter</string>
+    <string name="label_process_filter">Process Filter</string>
+    <string name="text_connection_rule">Rule: %1$s</string>
+    <string name="text_connection_process">Process: %1$s</string>
+    <string name="text_connection_traffic">Up %1$s / Down %2$s</string>
+    <string name="text_connection_chains">Chains: %1$s</string>
 
     <!-- DNS Settings -->
     <string name="dns_settings_title">DNS Settings</string>
@@ -103,9 +145,17 @@
     <string name="dns_enable_desc">Enable internal DNS server</string>
     <string name="label_enhanced_mode">Enhanced Mode</string>
     <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="option_auto">Auto</string>
+    <string name="option_enabled">Enabled</string>
+    <string name="option_disabled">Disabled</string>
     <string name="label_nameserver">Nameserver</string>
     <string name="label_default_nameserver">Default Nameserver</string>
     <string name="label_fallback">Fallback</string>
+    <string name="label_fallback_filter_geoip">Fallback Filter GeoIP</string>
+    <string name="label_fallback_filter_geoip_code">Fallback Filter GeoIP Code</string>
+    <string name="label_fallback_filter_ipcidr">Fallback Filter IPCIDR</string>
+    <string name="label_fallback_filter_domain">Fallback Filter Domain</string>
+    <string name="label_fallback_filter_domain_suffix">Fallback Filter Domain Suffix</string>
 
     <!-- Fake-IP Settings -->
     <string name="fakeip_settings_title">Fake-IP Settings</string>

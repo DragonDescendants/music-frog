@@ -49,7 +49,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "starting" => "启动中...".into(),
         "initializing" => "初始化中".into(),
         "stopped" => "已停止".into(),
-        
+
         // Privilege Group
         "admin_privilege" => "管理员权限".into(),
         "checking" => "检测中...".into(),
@@ -58,7 +58,9 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "restart_admin" => "以管理员身份重启".into(),
         "factory_reset" => "恢复出厂设置".into(),
         "factory_reset_confirm_title" => "恢复出厂设置".into(),
-        "factory_reset_confirm_msg" => "恢复出厂设置会清空所有配置、已下载内核、日志与应用设置，并重启服务。是否继续？".into(),
+        "factory_reset_confirm_msg" => {
+            "恢复出厂设置会清空所有配置、已下载内核、日志与应用设置，并重启服务。是否继续？".into()
+        }
         "factory_reset_failed" => "恢复出厂设置失败".into(),
         "admin_restart_failed" => "以管理员身份重启失败".into(),
         "already_admin" => "当前已是管理员权限，无需重启".into(),
@@ -82,7 +84,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "fake_ip_flush" => "清理 Fake-IP 缓存".into(),
         "rules_settings" => "规则集设置".into(),
         "tun_settings" => "TUN 高级设置".into(),
-        
+
         // Core Group
         "core_manager" => "内核管理".into(),
         "current_core" => "当前内核".into(),
@@ -100,7 +102,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "delete" => "删除".into(),
         "delete_confirm_title" => "删除内核版本".into(),
         "delete_confirm_msg" => "确定删除内核版本 {0} 吗？该操作无法撤销。".into(),
-        
+
         // Runtime/Proxy Group
         "proxy_mode" => "代理模式".into(),
         "mode_rule" => "规则模式".into(),
@@ -187,7 +189,9 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "restart_admin" => "Restart as Admin".into(),
         "factory_reset" => "Factory Reset".into(),
         "factory_reset_confirm_title" => "Factory Reset".into(),
-        "factory_reset_confirm_msg" => "This will clear all configs, downloaded cores, logs and settings. Continue?".into(),
+        "factory_reset_confirm_msg" => {
+            "This will clear all configs, downloaded cores, logs and settings. Continue?".into()
+        }
         "factory_reset_failed" => "Factory Reset Failed".into(),
         "admin_restart_failed" => "Restart as Admin Failed".into(),
         "already_admin" => "Already running as admin".into(),

@@ -1,37 +1,39 @@
 use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
-use dav_client::client::WebDavClient;
+use chrono::{Duration as ChronoDuration, Utc};
 use dav_client::DavClient;
+use dav_client::client::WebDavClient;
 use infiltrator_core::app_routing::{
+    AppRoutingConfig as CoreAppRoutingConfig, AppRoutingMode as CoreAppRoutingMode,
     load_app_routing, save_app_routing, set_routing_mode as core_set_routing_mode,
-    toggle_package as core_toggle_package, AppRoutingConfig as CoreAppRoutingConfig,
-    AppRoutingMode as CoreAppRoutingMode,
+    toggle_package as core_toggle_package,
 };
 use infiltrator_core::dns::{
-    load_dns_config, save_dns_config, DnsConfig as CoreDnsConfig,
-    DnsConfigPatch as CoreDnsConfigPatch,
+    DnsConfig as CoreDnsConfig, DnsConfigPatch as CoreDnsConfigPatch,
+    DnsFallbackFilter as CoreDnsFallbackFilter, load_dns_config, save_dns_config,
 };
 use infiltrator_core::fake_ip::{
-    clear_fake_ip_cache, load_fake_ip_config, save_fake_ip_config,
     FakeIpConfig as CoreFakeIpConfig, FakeIpConfigPatch as CoreFakeIpConfigPatch,
+    clear_fake_ip_cache, load_fake_ip_config, save_fake_ip_config,
 };
 use infiltrator_core::profiles::{
-    create_profile_from_url, list_profile_infos, select_profile as core_select_profile,
-    update_profile as core_update_profile, ProfileInfo,
+    ProfileDetail as CoreProfileDetail, ProfileInfo, create_profile_from_url, list_profile_infos,
+    load_profile_detail, sanitize_profile_name, select_profile as core_select_profile,
+    update_profile as core_update_profile,
 };
+use infiltrator_core::{config as core_config, profiles as core_profiles};
 use infiltrator_core::rules::{
-    load_rule_providers, load_rules, save_rule_providers, save_rules,
-    RuleEntry as CoreRuleEntry, RuleProviders as CoreRuleProviders,
+    RuleEntry as CoreRuleEntry, RuleProviders as CoreRuleProviders, load_rule_providers,
+    load_rules, save_rule_providers, save_rules,
 };
 use infiltrator_core::settings::{
-    load_settings, save_settings, settings_path, AppSettings,
-    WebDavConfig as CoreWebDavConfig,
+    AppSettings, WebDavConfig as CoreWebDavConfig, load_settings, save_settings, settings_path,
 };
 use infiltrator_core::tun::{
-    load_tun_config, save_tun_config, TunConfig as CoreTunConfig,
-    TunConfigPatch as CoreTunConfigPatch,
+    TunConfig as CoreTunConfig, TunConfigPatch as CoreTunConfigPatch, load_tun_config,
+    save_tun_config,
 };
+use mihomo_api::{Connection as MihomoConnection, MihomoClient, MihomoError};
 use mihomo_config::ConfigManager;
-use mihomo_api::{MihomoClient, MihomoError};
 use mihomo_platform::{clear_android_bridge, get_android_bridge, get_home_dir};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
@@ -40,9 +42,9 @@ use serde_yaml::Value;
 use state_store::StateStore;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use sync_engine::{executor::SyncExecutor, SyncPlanner};
-use tokio::runtime::Runtime;
 use std::{collections::BTreeMap, path::PathBuf};
+use sync_engine::{SyncPlanner, executor::SyncExecutor};
+use tokio::runtime::Runtime;
 
 fn get_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -144,6 +146,24 @@ pub struct ProfilesResult {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+pub struct ProfileDetail {
+    pub name: String,
+    pub active: bool,
+    pub content: String,
+    pub subscription_url: Option<String>,
+    pub auto_update_enabled: bool,
+    pub update_interval_hours: Option<u32>,
+    pub last_updated: Option<String>,
+    pub next_update: Option<String>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ProfileDetailResult {
+    pub status: FfiStatus,
+    pub profile: Option<ProfileDetail>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct ProxyGroupSummary {
     pub name: String,
     pub group_type: String,
@@ -175,6 +195,27 @@ pub struct TrafficResult {
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
+pub struct ConnectionRecord {
+    pub id: String,
+    pub host: String,
+    pub process_path: String,
+    pub network: String,
+    pub connection_type: String,
+    pub rule: String,
+    pub upload: u64,
+    pub download: u64,
+    pub chains: Vec<String>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ConnectionsResult {
+    pub status: FfiStatus,
+    pub connections: Vec<ConnectionRecord>,
+    pub upload_total: u64,
+    pub download_total: u64,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct IpCheckResult {
     pub ip: String,
     pub country: Option<String>,
@@ -201,6 +242,8 @@ pub struct VpnTunSettings {
     pub strict_route: Option<bool>,
     pub dns_servers: Vec<String>,
     pub ipv6: Option<bool>,
+    pub stack: Option<String>,
+    pub auto_detect_interface: Option<bool>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -210,6 +253,8 @@ pub struct VpnTunSettingsPatch {
     pub strict_route: Option<bool>,
     pub dns_servers: Option<Vec<String>>,
     pub ipv6: Option<bool>,
+    pub stack: Option<String>,
+    pub auto_detect_interface: Option<bool>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -226,6 +271,7 @@ pub struct DnsSettings {
     pub nameserver: Vec<String>,
     pub default_nameserver: Vec<String>,
     pub fallback: Vec<String>,
+    pub fallback_filter: Option<DnsFallbackFilterSettings>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -236,6 +282,16 @@ pub struct DnsSettingsPatch {
     pub nameserver: Option<Vec<String>>,
     pub default_nameserver: Option<Vec<String>>,
     pub fallback: Option<Vec<String>>,
+    pub fallback_filter: Option<DnsFallbackFilterSettings>,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct DnsFallbackFilterSettings {
+    pub geoip: Option<bool>,
+    pub geoip_code: Option<String>,
+    pub ipcidr: Vec<String>,
+    pub domain: Vec<String>,
+    pub domain_suffix: Vec<String>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -424,7 +480,7 @@ pub async fn logs_start_streaming() -> FfiStatus {
                     return FfiStatus::ok();
                 }
             }
-            
+
             // Set streaming flag
             {
                 let mut buffer = log_buffer().lock().unwrap_or_else(|p| p.into_inner());
@@ -552,13 +608,7 @@ pub async fn profile_select(name: String) -> FfiStatus {
         .spawn(async move {
             match core_select_profile(&name).await {
                 Ok(_) => {
-                    // After switching profiles, we should restart the core if it's running
-                    // to apply the new config.
-                    if let Some(bridge) = get_android_bridge()
-                        && let Ok(true) = bridge.core_is_running().await {
-                            let _ = bridge.core_stop().await;
-                            let _ = bridge.core_start().await;
-                        }
+                    restart_runtime_if_running().await;
                     FfiStatus::ok()
                 }
                 Err(err) => map_anyhow_error(err),
@@ -575,9 +625,193 @@ pub async fn profile_update(name: String) -> FfiStatus {
     get_runtime()
         .spawn(async move {
             match core_update_profile(&name).await {
-                Ok(_) => FfiStatus::ok(),
+                Ok(profile) => {
+                    if profile.active {
+                        restart_runtime_if_running().await;
+                    }
+                    FfiStatus::ok()
+                }
                 Err(err) => map_anyhow_error(err),
             }
+        })
+        .await
+        .unwrap_or_else(|e| {
+            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
+        })
+}
+
+#[uniffi::export]
+pub async fn profile_detail(name: String) -> ProfileDetailResult {
+    get_runtime()
+        .spawn(async move {
+            match load_profile_detail(&name).await {
+                Ok(profile) => ProfileDetailResult {
+                    status: FfiStatus::ok(),
+                    profile: Some(profile_detail_to_record(profile)),
+                },
+                Err(err) => ProfileDetailResult {
+                    status: map_anyhow_error(err),
+                    profile: None,
+                },
+            }
+        })
+        .await
+        .unwrap_or_else(|e| ProfileDetailResult {
+            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
+            profile: None,
+        })
+}
+
+#[uniffi::export]
+pub async fn profile_save(name: String, content: String, activate: bool) -> FfiStatus {
+    get_runtime()
+        .spawn(async move {
+            let profile_name = match sanitize_profile_name(&name) {
+                Ok(value) => value,
+                Err(err) => return map_anyhow_error(err),
+            };
+            if let Err(err) = core_config::validate_yaml(&content) {
+                return map_anyhow_error(err);
+            }
+
+            let manager = match ConfigManager::new() {
+                Ok(value) => value,
+                Err(err) => return map_mihomo_error(err),
+            };
+            if let Err(err) = manager.save(&profile_name, &content).await {
+                return map_mihomo_error(err);
+            }
+
+            let current = manager.get_current().await.ok();
+            let should_restart = activate || current.as_deref() == Some(profile_name.as_str());
+            if activate && let Err(err) = manager.set_current(&profile_name).await {
+                return map_mihomo_error(err);
+            }
+            if should_restart {
+                restart_runtime_if_running().await;
+            }
+            FfiStatus::ok()
+        })
+        .await
+        .unwrap_or_else(|e| {
+            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
+        })
+}
+
+#[uniffi::export]
+pub async fn profile_delete(name: String) -> FfiStatus {
+    get_runtime()
+        .spawn(async move {
+            let profile_name = match sanitize_profile_name(&name) {
+                Ok(value) => value,
+                Err(err) => return map_anyhow_error(err),
+            };
+            let manager = match ConfigManager::new() {
+                Ok(value) => value,
+                Err(err) => return map_mihomo_error(err),
+            };
+            manager
+                .delete_profile(&profile_name)
+                .await
+                .map(|_| FfiStatus::ok())
+                .unwrap_or_else(map_mihomo_error)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
+        })
+}
+
+#[uniffi::export]
+pub async fn profile_subscription_save(
+    name: String,
+    url: String,
+    auto_update_enabled: bool,
+    update_interval_hours: Option<u32>,
+) -> FfiStatus {
+    get_runtime()
+        .spawn(async move {
+            let profile_name = match core_profiles::sanitize_profile_name(&name) {
+                Ok(value) => value,
+                Err(err) => return map_anyhow_error(err),
+            };
+            let source_url = url.trim();
+            if source_url.is_empty() {
+                return FfiStatus::err(FfiErrorCode::InvalidInput, "subscription url is empty");
+            }
+            if auto_update_enabled && update_interval_hours.unwrap_or(0) == 0 {
+                return FfiStatus::err(
+                    FfiErrorCode::InvalidInput,
+                    "update_interval_hours must be set when auto update is enabled",
+                );
+            }
+
+            let manager = match ConfigManager::new() {
+                Ok(value) => value,
+                Err(err) => return map_mihomo_error(err),
+            };
+
+            if let Err(err) = manager.load(&profile_name).await {
+                return map_mihomo_error(err);
+            }
+
+            let mut metadata = match manager.get_profile_metadata(&profile_name).await {
+                Ok(value) => value,
+                Err(err) => return map_mihomo_error(err),
+            };
+            metadata.subscription_url = Some(source_url.to_string());
+            metadata.auto_update_enabled = auto_update_enabled;
+            metadata.update_interval_hours = update_interval_hours;
+            if auto_update_enabled {
+                metadata.next_update = metadata
+                    .update_interval_hours
+                    .map(|hours| Utc::now() + ChronoDuration::hours(hours as i64));
+            } else {
+                metadata.next_update = None;
+            }
+            manager
+                .update_profile_metadata(&profile_name, &metadata)
+                .await
+                .map(|_| FfiStatus::ok())
+                .unwrap_or_else(map_mihomo_error)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
+        })
+}
+
+#[uniffi::export]
+pub async fn profile_subscription_clear(name: String) -> FfiStatus {
+    get_runtime()
+        .spawn(async move {
+            let profile_name = match core_profiles::sanitize_profile_name(&name) {
+                Ok(value) => value,
+                Err(err) => return map_anyhow_error(err),
+            };
+            let manager = match ConfigManager::new() {
+                Ok(value) => value,
+                Err(err) => return map_mihomo_error(err),
+            };
+
+            if let Err(err) = manager.load(&profile_name).await {
+                return map_mihomo_error(err);
+            }
+
+            let mut metadata = match manager.get_profile_metadata(&profile_name).await {
+                Ok(value) => value,
+                Err(err) => return map_mihomo_error(err),
+            };
+            metadata.subscription_url = None;
+            metadata.auto_update_enabled = false;
+            metadata.update_interval_hours = None;
+            metadata.last_updated = None;
+            metadata.next_update = None;
+            manager
+                .update_profile_metadata(&profile_name, &metadata)
+                .await
+                .map(|_| FfiStatus::ok())
+                .unwrap_or_else(map_mihomo_error)
         })
         .await
         .unwrap_or_else(|e| {
@@ -674,13 +908,103 @@ pub async fn ip_check() -> IpResult {
                     status: FfiStatus::ok(),
                     value: Some(value),
                 },
-                Err(status) => IpResult { status, value: None },
+                Err(status) => IpResult {
+                    status,
+                    value: None,
+                },
             }
         })
         .await
         .unwrap_or_else(|e| IpResult {
             status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
             value: None,
+        })
+}
+
+#[uniffi::export]
+pub async fn connections_list() -> ConnectionsResult {
+    get_runtime()
+        .spawn(async move {
+            let client = match build_controller_client().await {
+                Ok(client) => client,
+                Err(status) => {
+                    return ConnectionsResult {
+                        status,
+                        connections: Vec::new(),
+                        upload_total: 0,
+                        download_total: 0,
+                    };
+                }
+            };
+            match client.get_connections().await.map_err(map_mihomo_error) {
+                Ok(response) => ConnectionsResult {
+                    status: FfiStatus::ok(),
+                    connections: response
+                        .connections
+                        .into_iter()
+                        .map(connection_to_record)
+                        .collect(),
+                    upload_total: response.upload_total,
+                    download_total: response.download_total,
+                },
+                Err(status) => ConnectionsResult {
+                    status,
+                    connections: Vec::new(),
+                    upload_total: 0,
+                    download_total: 0,
+                },
+            }
+        })
+        .await
+        .unwrap_or_else(|e| ConnectionsResult {
+            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
+            connections: Vec::new(),
+            upload_total: 0,
+            download_total: 0,
+        })
+}
+
+#[uniffi::export]
+pub async fn connection_close(id: String) -> FfiStatus {
+    get_runtime()
+        .spawn(async move {
+            let connection_id = id.trim().to_string();
+            if connection_id.is_empty() {
+                return FfiStatus::err(FfiErrorCode::InvalidInput, "connection id is empty");
+            }
+            let client = match build_controller_client().await {
+                Ok(client) => client,
+                Err(status) => return status,
+            };
+            client
+                .close_connection(&connection_id)
+                .await
+                .map(|_| FfiStatus::ok())
+                .unwrap_or_else(map_mihomo_error)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
+        })
+}
+
+#[uniffi::export]
+pub async fn connections_close_all() -> FfiStatus {
+    get_runtime()
+        .spawn(async move {
+            let client = match build_controller_client().await {
+                Ok(client) => client,
+                Err(status) => return status,
+            };
+            client
+                .close_all_connections()
+                .await
+                .map(|_| FfiStatus::ok())
+                .unwrap_or_else(map_mihomo_error)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
         })
 }
 
@@ -888,8 +1212,7 @@ pub async fn rules_list() -> RulesResult {
 pub async fn rules_save(rules: Vec<RuleEntryRecord>) -> RulesResult {
     get_runtime()
         .spawn(async move {
-            let core_rules: Vec<CoreRuleEntry> =
-                rules.iter().map(record_to_core_rule).collect();
+            let core_rules: Vec<CoreRuleEntry> = rules.iter().map(record_to_core_rule).collect();
             match save_rules(core_rules).await.map_err(map_anyhow_error) {
                 Ok(rules) => RulesResult {
                     status: FfiStatus::ok(),
@@ -940,10 +1263,13 @@ pub async fn rule_providers_save(json: String) -> RuleProvidersResult {
                     return RuleProvidersResult {
                         status,
                         json: "{}".to_string(),
-                    }
+                    };
                 }
             };
-            match save_rule_providers(providers).await.map_err(map_anyhow_error) {
+            match save_rule_providers(providers)
+                .await
+                .map_err(map_anyhow_error)
+            {
                 Ok(providers) => RuleProvidersResult {
                     status: FfiStatus::ok(),
                     json: rule_providers_to_json(&providers),
@@ -1077,18 +1403,12 @@ async fn config_patch_mode_internal(mode: &str) -> Result<(), FfiStatus> {
     let client = build_controller_client().await?;
     // We create a partial config JSON to patch just the mode
     let patch = serde_json::json!({ "mode": mode });
-    client
-        .patch_config(patch)
-        .await
-        .map_err(map_mihomo_error)
+    client.patch_config(patch).await.map_err(map_mihomo_error)
 }
 
 async fn traffic_snapshot_internal() -> Result<TrafficSnapshot, FfiStatus> {
     let client = build_controller_client().await?;
-    let snapshot = client
-        .get_connections()
-        .await
-        .map_err(map_mihomo_error)?;
+    let snapshot = client.get_connections().await.map_err(map_mihomo_error)?;
     Ok(build_traffic_snapshot(
         snapshot.upload_total,
         snapshot.download_total,
@@ -1097,35 +1417,26 @@ async fn traffic_snapshot_internal() -> Result<TrafficSnapshot, FfiStatus> {
 }
 
 async fn tun_status_internal() -> Result<bool, FfiStatus> {
-    let bridge = get_android_bridge().ok_or_else(|| {
-        FfiStatus::err(FfiErrorCode::NotReady, "android bridge not ready")
-    })?;
-    let enabled = bridge
-        .tun_is_enabled()
-        .await
-        .map_err(map_mihomo_error)?;
+    let bridge = get_android_bridge()
+        .ok_or_else(|| FfiStatus::err(FfiErrorCode::NotReady, "android bridge not ready"))?;
+    let enabled = bridge.tun_is_enabled().await.map_err(map_mihomo_error)?;
     Ok(enabled)
 }
 
 // Android-only helpers for tun2proxy URL resolution
 #[cfg(target_os = "android")]
 fn resolve_proxy_url() -> Option<String> {
-    get_runtime().block_on(async {
-        let manager = ConfigManager::new().map_err(map_mihomo_error)?;
-        let profile = manager
-            .get_current()
-            .await
-            .map_err(map_mihomo_error)?;
-        let content = manager
-            .load(&profile)
-            .await
-            .map_err(map_mihomo_error)?;
-        let doc: Value = serde_yaml::from_str(&content)
-            .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
-        Ok::<Option<String>, FfiStatus>(build_proxy_url(&doc))
-    })
-    .ok()
-    .flatten()
+    get_runtime()
+        .block_on(async {
+            let manager = ConfigManager::new().map_err(map_mihomo_error)?;
+            let profile = manager.get_current().await.map_err(map_mihomo_error)?;
+            let content = manager.load(&profile).await.map_err(map_mihomo_error)?;
+            let doc: Value = serde_yaml::from_str(&content)
+                .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
+            Ok::<Option<String>, FfiStatus>(build_proxy_url(&doc))
+        })
+        .ok()
+        .flatten()
 }
 
 #[cfg(target_os = "android")]
@@ -1152,11 +1463,7 @@ fn port_from_value(value: &Value) -> Option<u16> {
             .as_u64()
             .and_then(|v| u16::try_from(v).ok())
             .filter(|v| *v > 0),
-        Value::String(raw) => raw
-            .trim()
-            .parse::<u16>()
-            .ok()
-            .filter(|v| *v > 0),
+        Value::String(raw) => raw.trim().parse::<u16>().ok().filter(|v| *v > 0),
         _ => None,
     }
 }
@@ -1172,9 +1479,7 @@ async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus> {
     Ok(build_vpn_tun_settings(tun_config, dns_config))
 }
 
-async fn save_vpn_tun_settings(
-    patch: VpnTunSettingsPatch,
-) -> Result<VpnTunSettings, FfiStatus> {
+async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSettings, FfiStatus> {
     let (tun_patch, has_tun) = build_tun_patch(&patch);
     let has_dns = patch.dns_servers.is_some() || patch.ipv6.is_some();
 
@@ -1194,10 +1499,7 @@ async fn save_vpn_tun_settings(
     Ok(build_vpn_tun_settings(tun_config, dns_config))
 }
 
-fn build_vpn_tun_settings(
-    tun_config: CoreTunConfig,
-    dns_config: CoreDnsConfig,
-) -> VpnTunSettings {
+fn build_vpn_tun_settings(tun_config: CoreTunConfig, dns_config: CoreDnsConfig) -> VpnTunSettings {
     let dns_servers = dns_config
         .nameserver
         .or(dns_config.default_nameserver)
@@ -1208,6 +1510,8 @@ fn build_vpn_tun_settings(
         strict_route: tun_config.strict_route,
         dns_servers,
         ipv6: dns_config.ipv6,
+        stack: tun_config.stack,
+        auto_detect_interface: tun_config.auto_detect_interface,
     }
 }
 
@@ -1226,13 +1530,18 @@ fn build_tun_patch(patch: &VpnTunSettingsPatch) -> (CoreTunConfigPatch, bool) {
         core_patch.strict_route = Some(value);
         has_patch = true;
     }
+    if let Some(value) = normalize_optional_string(patch.stack.clone()) {
+        core_patch.stack = Some(value);
+        has_patch = true;
+    }
+    if let Some(value) = patch.auto_detect_interface {
+        core_patch.auto_detect_interface = Some(value);
+        has_patch = true;
+    }
     (core_patch, has_patch)
 }
 
-fn build_dns_patch(
-    patch: &VpnTunSettingsPatch,
-    current: &CoreDnsConfig,
-) -> CoreDnsConfigPatch {
+fn build_dns_patch(patch: &VpnTunSettingsPatch, current: &CoreDnsConfig) -> CoreDnsConfigPatch {
     let mut core_patch = CoreDnsConfigPatch::default();
     if let Some(value) = patch.ipv6 {
         core_patch.ipv6 = Some(value);
@@ -1254,7 +1563,9 @@ async fn load_dns_settings() -> Result<DnsSettings, FfiStatus> {
 
 async fn save_dns_settings(patch: DnsSettingsPatch) -> Result<DnsSettings, FfiStatus> {
     let core_patch = build_dns_settings_patch(patch);
-    let config = save_dns_config(core_patch).await.map_err(map_anyhow_error)?;
+    let config = save_dns_config(core_patch)
+        .await
+        .map_err(map_anyhow_error)?;
     Ok(build_dns_settings(config))
 }
 
@@ -1266,6 +1577,7 @@ fn build_dns_settings(config: CoreDnsConfig) -> DnsSettings {
         nameserver: config.nameserver.unwrap_or_default(),
         default_nameserver: config.default_nameserver.unwrap_or_default(),
         fallback: config.fallback.unwrap_or_default(),
+        fallback_filter: config.fallback_filter.map(core_dns_fallback_filter_to_record),
     }
 }
 
@@ -1277,7 +1589,30 @@ fn build_dns_settings_patch(patch: DnsSettingsPatch) -> CoreDnsConfigPatch {
         nameserver: sanitize_list(patch.nameserver),
         default_nameserver: sanitize_list(patch.default_nameserver),
         fallback: sanitize_list(patch.fallback),
+        fallback_filter: patch
+            .fallback_filter
+            .map(record_to_core_dns_fallback_filter),
         ..CoreDnsConfigPatch::default()
+    }
+}
+
+fn core_dns_fallback_filter_to_record(filter: CoreDnsFallbackFilter) -> DnsFallbackFilterSettings {
+    DnsFallbackFilterSettings {
+        geoip: filter.geoip,
+        geoip_code: filter.geoip_code,
+        ipcidr: filter.ipcidr.unwrap_or_default(),
+        domain: filter.domain.unwrap_or_default(),
+        domain_suffix: filter.domain_suffix.unwrap_or_default(),
+    }
+}
+
+fn record_to_core_dns_fallback_filter(filter: DnsFallbackFilterSettings) -> CoreDnsFallbackFilter {
+    CoreDnsFallbackFilter {
+        geoip: filter.geoip,
+        geoip_code: normalize_optional_string(filter.geoip_code),
+        ipcidr: sanitize_list(Some(filter.ipcidr)),
+        domain: sanitize_list(Some(filter.domain)),
+        domain_suffix: sanitize_list(Some(filter.domain_suffix)),
     }
 }
 
@@ -1288,7 +1623,9 @@ async fn load_fake_ip_settings() -> Result<FakeIpSettings, FfiStatus> {
 
 async fn save_fake_ip_settings(patch: FakeIpSettingsPatch) -> Result<FakeIpSettings, FfiStatus> {
     let core_patch = build_fake_ip_settings_patch(patch);
-    let config = save_fake_ip_config(core_patch).await.map_err(map_anyhow_error)?;
+    let config = save_fake_ip_config(core_patch)
+        .await
+        .map_err(map_anyhow_error)?;
     Ok(build_fake_ip_settings(config))
 }
 
@@ -1375,7 +1712,7 @@ async fn test_webdav_settings(settings: WebDavSettings) -> FfiStatus {
             return FfiStatus::err(
                 FfiErrorCode::InvalidInput,
                 format!("invalid WebDAV config: {err}"),
-            )
+            );
         }
     };
     match dav.list("/").await {
@@ -1405,8 +1742,8 @@ async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
 
 async fn run_webdav_sync(config: &CoreWebDavConfig) -> Result<WebDavSyncSummary, FfiStatus> {
     validate_webdav_config(config)?;
-    let dav = WebDavClient::new(&config.url, &config.username, &config.password)
-        .map_err(|err| {
+    let dav =
+        WebDavClient::new(&config.url, &config.username, &config.password).map_err(|err| {
             FfiStatus::err(
                 FfiErrorCode::InvalidInput,
                 format!("invalid WebDAV config: {err}"),
@@ -1421,15 +1758,10 @@ async fn run_webdav_sync(config: &CoreWebDavConfig) -> Result<WebDavSyncSummary,
             .map_err(|e| FfiStatus::err(FfiErrorCode::Io, e.to_string()))?;
     }
     let db_path = home.join("sync_state.db").to_string_lossy().to_string();
-    let store = StateStore::new(&db_path)
-        .await
-        .map_err(map_anyhow_error)?;
+    let store = StateStore::new(&db_path).await.map_err(map_anyhow_error)?;
 
     let planner = SyncPlanner::new(local_root, "/".to_string(), &dav, &store);
-    let actions = planner
-        .build_plan()
-        .await
-        .map_err(map_anyhow_error)?;
+    let actions = planner.build_plan().await.map_err(map_anyhow_error)?;
 
     if actions.is_empty() {
         return Ok(WebDavSyncSummary::default());
@@ -1632,13 +1964,47 @@ fn profile_to_summary(profile: ProfileInfo) -> ProfileSummary {
     }
 }
 
-fn build_traffic_snapshot(
-    up_total: u64,
-    down_total: u64,
-    connections: usize,
-) -> TrafficSnapshot {
+fn connection_to_record(connection: MihomoConnection) -> ConnectionRecord {
+    ConnectionRecord {
+        id: connection.id,
+        host: connection.metadata.host,
+        process_path: connection.metadata.process_path,
+        network: connection.metadata.network,
+        connection_type: connection.metadata.connection_type,
+        rule: connection.rule,
+        upload: connection.upload,
+        download: connection.download,
+        chains: connection.chains,
+    }
+}
+
+fn profile_detail_to_record(profile: CoreProfileDetail) -> ProfileDetail {
+    ProfileDetail {
+        name: profile.name,
+        active: profile.active,
+        content: profile.content,
+        subscription_url: profile.subscription_url,
+        auto_update_enabled: profile.auto_update_enabled,
+        update_interval_hours: profile.update_interval_hours,
+        last_updated: profile.last_updated.map(|value| value.to_rfc3339()),
+        next_update: profile.next_update.map(|value| value.to_rfc3339()),
+    }
+}
+
+async fn restart_runtime_if_running() {
+    if let Some(bridge) = get_android_bridge()
+        && let Ok(true) = bridge.core_is_running().await
+    {
+        let _ = bridge.core_stop().await;
+        let _ = bridge.core_start().await;
+    }
+}
+
+fn build_traffic_snapshot(up_total: u64, down_total: u64, connections: usize) -> TrafficSnapshot {
     let state = traffic_state();
-    let mut guard = state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut guard = state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let now = Instant::now();
     let elapsed = now.duration_since(guard.last_at);
     let elapsed_secs = elapsed.as_secs_f64();
@@ -1691,9 +2057,9 @@ async fn fetch_ip_check() -> Result<IpCheckResult, FfiStatus> {
         .json()
         .await
         .map_err(|err| map_reqwest_error("decode ip response", err))?;
-    let ip = body.ip.ok_or_else(|| {
-        FfiStatus::err(FfiErrorCode::InvalidState, "ip missing from response")
-    })?;
+    let ip = body
+        .ip
+        .ok_or_else(|| FfiStatus::err(FfiErrorCode::InvalidState, "ip missing from response"))?;
     Ok(IpCheckResult {
         ip,
         country: body.country_name,
@@ -1713,9 +2079,10 @@ async fn build_controller_client() -> Result<MihomoClient, FfiStatus> {
         Ok(url) => url,
         Err(err) => {
             if let Some(bridge) = get_android_bridge()
-                && let Some(url) = bridge.core_controller_url() {
-                    return MihomoClient::new(&url, None).map_err(map_mihomo_error);
-                }
+                && let Some(url) = bridge.core_controller_url()
+            {
+                return MihomoClient::new(&url, None).map_err(map_mihomo_error);
+            }
             return Err(map_mihomo_error(err));
         }
     };
@@ -1737,9 +2104,7 @@ fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
     match err {
         MihomoError::Http(_) => FfiStatus::err(FfiErrorCode::Network, err.to_string()),
         MihomoError::Io(_) => FfiStatus::err(FfiErrorCode::Io, err.to_string()),
-        MihomoError::Json(_)
-        | MihomoError::Yaml(_)
-        | MihomoError::YamlEmit(_) => {
+        MihomoError::Json(_) | MihomoError::Yaml(_) | MihomoError::YamlEmit(_) => {
             FfiStatus::err(FfiErrorCode::InvalidState, err.to_string())
         }
         MihomoError::UrlParse(_) => FfiStatus::err(FfiErrorCode::InvalidInput, err.to_string()),
@@ -1756,4 +2121,189 @@ fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
 fn map_reqwest_error(context: &str, err: reqwest::Error) -> FfiStatus {
     let message = format!("{context}: {err}");
     FfiStatus::err(FfiErrorCode::Network, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mihomo_platform::set_home_dir_override;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn routing_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn make_test_home(tag: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("infiltrator-android-{tag}-{unique}"));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("create test home dir");
+        path
+    }
+
+    #[test]
+    fn test_app_routing_load_defaults() {
+        let _guard = routing_test_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let home = make_test_home("routing-default");
+        set_home_dir_override(home.clone());
+
+        let result = app_routing_load();
+        assert_eq!(result.status.code, FfiErrorCode::Ok);
+        let config = result.config.expect("config should be present");
+        assert_eq!(config.mode, AppRoutingMode::ProxyAll);
+        assert!(config.packages.is_empty());
+
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn test_app_routing_set_mode_and_toggle_package() {
+        let _guard = routing_test_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let home = make_test_home("routing-toggle");
+        set_home_dir_override(home.clone());
+
+        let set_status = app_routing_set_mode(AppRoutingMode::ProxySelected);
+        assert_eq!(set_status.code, FfiErrorCode::Ok);
+
+        let toggle_first = app_routing_toggle_package("com.example.app".to_string());
+        assert_eq!(toggle_first.status.code, FfiErrorCode::Ok);
+        assert!(toggle_first.is_selected);
+
+        let loaded = app_routing_load();
+        assert_eq!(loaded.status.code, FfiErrorCode::Ok);
+        let config = loaded.config.expect("config should be present");
+        assert_eq!(config.mode, AppRoutingMode::ProxySelected);
+        assert!(config.packages.contains(&"com.example.app".to_string()));
+
+        let toggle_second = app_routing_toggle_package("com.example.app".to_string());
+        assert_eq!(toggle_second.status.code, FfiErrorCode::Ok);
+        assert!(!toggle_second.is_selected);
+
+        let loaded_again = app_routing_load();
+        assert_eq!(loaded_again.status.code, FfiErrorCode::Ok);
+        let config_again = loaded_again.config.expect("config should be present");
+        assert!(!config_again.packages.contains(&"com.example.app".to_string()));
+
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn test_app_routing_save_deduplicates_packages() {
+        let _guard = routing_test_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let home = make_test_home("routing-save");
+        set_home_dir_override(home.clone());
+
+        let status = app_routing_save(
+            AppRoutingMode::BypassSelected,
+            vec![
+                "com.alpha".to_string(),
+                "com.alpha".to_string(),
+                "com.beta".to_string(),
+            ],
+        );
+        assert_eq!(status.code, FfiErrorCode::Ok);
+
+        let loaded = app_routing_load();
+        assert_eq!(loaded.status.code, FfiErrorCode::Ok);
+        let config = loaded.config.expect("config should be present");
+        assert_eq!(config.mode, AppRoutingMode::BypassSelected);
+        assert_eq!(config.packages.len(), 2);
+        assert!(config.packages.contains(&"com.alpha".to_string()));
+        assert!(config.packages.contains(&"com.beta".to_string()));
+
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn test_build_tun_patch_includes_stack_and_auto_detect_interface() {
+        let patch = VpnTunSettingsPatch {
+            mtu: None,
+            auto_route: None,
+            strict_route: None,
+            dns_servers: None,
+            ipv6: None,
+            stack: Some(" gvisor ".to_string()),
+            auto_detect_interface: Some(true),
+        };
+
+        let (core_patch, has_patch) = build_tun_patch(&patch);
+        assert!(has_patch);
+        assert_eq!(core_patch.stack, Some("gvisor".to_string()));
+        assert_eq!(core_patch.auto_detect_interface, Some(true));
+    }
+
+    #[test]
+    fn test_build_dns_settings_patch_maps_fallback_filter() {
+        let patch = DnsSettingsPatch {
+            enable: Some(true),
+            ipv6: Some(false),
+            enhanced_mode: Some(" fake-ip ".to_string()),
+            nameserver: Some(vec![" 1.1.1.1 ".to_string(), " ".to_string()]),
+            default_nameserver: Some(vec!["".to_string()]),
+            fallback: Some(vec!["https://dns.example/dns-query".to_string()]),
+            fallback_filter: Some(DnsFallbackFilterSettings {
+                geoip: Some(true),
+                geoip_code: Some(" CN ".to_string()),
+                ipcidr: vec![" 240.0.0.0/4 ".to_string(), "".to_string()],
+                domain: vec!["example.com".to_string()],
+                domain_suffix: vec![" internal ".to_string()],
+            }),
+        };
+
+        let core_patch = build_dns_settings_patch(patch);
+        assert_eq!(core_patch.enable, Some(true));
+        assert_eq!(core_patch.ipv6, Some(false));
+        assert_eq!(core_patch.enhanced_mode, Some("fake-ip".to_string()));
+        assert_eq!(core_patch.nameserver, Some(vec!["1.1.1.1".to_string()]));
+        assert_eq!(core_patch.default_nameserver, Some(Vec::new()));
+        assert_eq!(
+            core_patch.fallback,
+            Some(vec!["https://dns.example/dns-query".to_string()])
+        );
+
+        let filter = core_patch.fallback_filter.expect("fallback_filter should exist");
+        assert_eq!(filter.geoip, Some(true));
+        assert_eq!(filter.geoip_code, Some("CN".to_string()));
+        assert_eq!(filter.ipcidr, Some(vec!["240.0.0.0/4".to_string()]));
+        assert_eq!(filter.domain, Some(vec!["example.com".to_string()]));
+        assert_eq!(filter.domain_suffix, Some(vec!["internal".to_string()]));
+    }
+
+    #[test]
+    fn test_dns_fallback_filter_roundtrip_record_conversion() {
+        let core = CoreDnsFallbackFilter {
+            geoip: Some(false),
+            geoip_code: Some("US".to_string()),
+            ipcidr: Some(vec!["198.18.0.0/16".to_string()]),
+            domain: Some(vec!["example.org".to_string()]),
+            domain_suffix: Some(vec!["local".to_string()]),
+        };
+
+        let record = core_dns_fallback_filter_to_record(core.clone());
+        assert_eq!(record.geoip, Some(false));
+        assert_eq!(record.geoip_code, Some("US".to_string()));
+        assert_eq!(record.ipcidr, vec!["198.18.0.0/16".to_string()]);
+        assert_eq!(record.domain, vec!["example.org".to_string()]);
+        assert_eq!(record.domain_suffix, vec!["local".to_string()]);
+
+        let converted = record_to_core_dns_fallback_filter(record);
+        assert_eq!(converted.geoip, core.geoip);
+        assert_eq!(converted.geoip_code, core.geoip_code);
+        assert_eq!(converted.ipcidr, core.ipcidr);
+        assert_eq!(converted.domain, core.domain);
+        assert_eq!(converted.domain_suffix, core.domain_suffix);
+    }
 }

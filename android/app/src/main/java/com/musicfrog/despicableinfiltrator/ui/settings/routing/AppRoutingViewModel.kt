@@ -1,12 +1,17 @@
 package com.musicfrog.despicableinfiltrator.ui.settings.routing
 
 import android.app.Application
-import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import infiltrator_android.AppRoutingMode
+import infiltrator_android.FfiErrorCode
+import infiltrator_android.appRoutingLoad
+import infiltrator_android.appRoutingSetMode
+import infiltrator_android.appRoutingTogglePackage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,17 +35,18 @@ enum class RoutingMode(val value: String) {
     BypassSelected("bypass_selected")
 }
 
-private const val PREFS_NAME = "app_routing"
-private const val PREF_SELECTED_PACKAGES = "selected_packages"
-private const val PREF_ROUTING_MODE = "routing_mode"
+private data class RoutingState(
+    val mode: RoutingMode,
+    val selectedPackages: Set<String>,
+)
+
+private const val TAG = "AppRoutingViewModel"
 
 class AppRoutingViewModel(application: Application) : AndroidViewModel(application) {
     private val _apps = MutableStateFlow<List<AppItem>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
     private val _routingMode = MutableStateFlow(RoutingMode.ProxyAll)
     private val _isLoading = MutableStateFlow(true)
-    
-    private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     val isLoading: StateFlow<Boolean> = _isLoading
 
@@ -53,22 +59,18 @@ class AppRoutingViewModel(application: Application) : AndroidViewModel(applicati
     val routingMode: StateFlow<RoutingMode> = _routingMode
 
     init {
-        loadSettings()
         loadApps()
-    }
-
-    private fun loadSettings() {
-        val modeStr = prefs.getString(PREF_ROUTING_MODE, RoutingMode.ProxyAll.value)
-        _routingMode.value = RoutingMode.values().find { it.value == modeStr } ?: RoutingMode.ProxyAll
     }
 
     fun loadApps() {
         viewModelScope.launch {
             _isLoading.value = true
+            val routingState = loadRoutingState()
+            _routingMode.value = routingState.mode
             val installedApps = withContext(Dispatchers.IO) {
                 val pm = getApplication<Application>().packageManager
                 val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                val selectedSet = getSelectedPackages()
+                val selectedSet = routingState.selectedPackages
                 
                 packages.map { appInfo ->
                         AppItem(
@@ -86,37 +88,87 @@ class AppRoutingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun toggleApp(packageName: String) {
-        val currentList = _apps.value.toMutableList()
-        val index = currentList.indexOfFirst { it.packageName == packageName }
-        if (index != -1) {
-            val item = currentList[index]
-            val newItem = item.copy(isSelected = !item.isSelected)
-            currentList[index] = newItem
-            _apps.value = currentList
-            saveSelection(packageName, newItem.isSelected)
+        if (_routingMode.value == RoutingMode.ProxyAll) {
+            return
+        }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                appRoutingTogglePackage(packageName)
+            }
+            if (result.status.code != FfiErrorCode.OK) {
+                Log.w(
+                    TAG,
+                    "toggle package failed: ${result.status.code} ${result.status.message.orEmpty()}",
+                )
+                loadApps()
+                return@launch
+            }
+
+            val currentList = _apps.value.toMutableList()
+            val index = currentList.indexOfFirst { it.packageName == packageName }
+            if (index >= 0) {
+                currentList[index] = currentList[index].copy(isSelected = result.isSelected)
+                _apps.value = currentList
+            }
         }
     }
 
     fun setRoutingMode(mode: RoutingMode) {
-        _routingMode.value = mode
-        prefs.edit().putString(PREF_ROUTING_MODE, mode.value).apply()
-    }
+        viewModelScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                appRoutingSetMode(mode.toFfiMode())
+            }
+            if (status.code == FfiErrorCode.OK) {
+                _routingMode.value = mode
+                return@launch
+            }
 
-    private fun getSelectedPackages(): Set<String> {
-        return prefs.getStringSet(PREF_SELECTED_PACKAGES, emptySet()) ?: emptySet()
-    }
-
-    private fun saveSelection(packageName: String, isSelected: Boolean) {
-        val currentSet = getSelectedPackages().toMutableSet()
-        if (isSelected) {
-            currentSet.add(packageName)
-        } else {
-            currentSet.remove(packageName)
+            Log.w(
+                TAG,
+                "set routing mode failed: ${status.code} ${status.message.orEmpty()}",
+            )
+            _routingMode.value = loadRoutingState().mode
         }
-        prefs.edit().putStringSet(PREF_SELECTED_PACKAGES, currentSet).apply()
     }
 
     fun search(query: String) {
         _searchQuery.value = query
+    }
+
+    private suspend fun loadRoutingState(): RoutingState {
+        return withContext(Dispatchers.IO) {
+            try {
+                val result = appRoutingLoad()
+                val config = result.config
+                if (result.status.code == FfiErrorCode.OK && config != null) {
+                    RoutingState(config.mode.toUiMode(), config.packages.toSet())
+                } else {
+                    Log.w(
+                        TAG,
+                        "load routing config failed: ${result.status.code} ${result.status.message.orEmpty()}",
+                    )
+                    RoutingState(RoutingMode.ProxyAll, emptySet())
+                }
+            } catch (err: Exception) {
+                Log.w(TAG, "load routing config exception: ${err.message}", err)
+                RoutingState(RoutingMode.ProxyAll, emptySet())
+            }
+        }
+    }
+}
+
+private fun AppRoutingMode.toUiMode(): RoutingMode {
+    return when (this) {
+        AppRoutingMode.PROXY_ALL -> RoutingMode.ProxyAll
+        AppRoutingMode.PROXY_SELECTED -> RoutingMode.ProxySelected
+        AppRoutingMode.BYPASS_SELECTED -> RoutingMode.BypassSelected
+    }
+}
+
+private fun RoutingMode.toFfiMode(): AppRoutingMode {
+    return when (this) {
+        RoutingMode.ProxyAll -> AppRoutingMode.PROXY_ALL
+        RoutingMode.ProxySelected -> AppRoutingMode.PROXY_SELECTED
+        RoutingMode.BypassSelected -> AppRoutingMode.BYPASS_SELECTED
     }
 }

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
@@ -36,16 +36,28 @@ impl FakeIpConfig {
 
 pub async fn load_fake_ip_config() -> Result<FakeIpConfig> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
     extract_fake_ip_config(&doc)
 }
 
 pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfig> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
 
     let mut config = extract_fake_ip_config(&doc)?;
@@ -63,12 +75,18 @@ pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfi
 
 pub async fn clear_fake_ip_cache() -> Result<bool> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile_path = manager.get_current_path().await.context("load current profile path")?;
+    let profile_path = manager
+        .get_current_path()
+        .await
+        .context("load current profile path")?;
     let config_dir = profile_path
         .parent()
         .ok_or_else(|| anyhow!("profile path has no parent directory"))?;
     let cache_path = config_dir.join("fake-ip-cache");
-    if fs::try_exists(&cache_path).await.context("check fake-ip cache")? {
+    if fs::try_exists(&cache_path)
+        .await
+        .context("check fake-ip cache")?
+    {
         fs::remove_file(&cache_path)
             .await
             .context("remove fake-ip cache")?;
@@ -118,9 +136,10 @@ fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<()> {
 
 fn validate_fake_ip_config(config: &FakeIpConfig) -> Result<()> {
     if let Some(range) = config.fake_ip_range.as_ref()
-        && range.trim().is_empty() {
-            return Err(anyhow!("fake-ip-range is empty"));
-        }
+        && range.trim().is_empty()
+    {
+        return Err(anyhow!("fake-ip-range is empty"));
+    }
     if let Some(filter) = config.fake_ip_filter.as_ref() {
         for entry in filter {
             if entry.trim().is_empty() {
@@ -192,17 +211,22 @@ mod tests {
 
     #[test]
     fn test_apply_fake_ip_preserves_other_dns_settings() {
-        let mut doc: Value = serde_yaml::from_str("dns:\n  enable: true\n  nameserver:\n    - 8.8.8.8\n").expect("yaml");
+        let mut doc: Value =
+            serde_yaml::from_str("dns:\n  enable: true\n  nameserver:\n    - 8.8.8.8\n")
+                .expect("yaml");
         let config = FakeIpConfig {
             fake_ip_range: Some("198.18.0.1/16".to_string()),
             ..FakeIpConfig::default()
         };
         apply_fake_ip_config(&mut doc, &config).expect("apply fake ip");
-        
+
         let dns = doc.get("dns").expect("dns should exist");
         assert_eq!(dns.get("enable"), Some(&Value::Bool(true)));
         assert!(dns.get("nameserver").is_some());
-        assert_eq!(dns.get("fake-ip-range"), Some(&Value::String("198.18.0.1/16".to_string())));
+        assert_eq!(
+            dns.get("fake-ip-range"),
+            Some(&Value::String("198.18.0.1/16".to_string()))
+        );
     }
 
     #[test]

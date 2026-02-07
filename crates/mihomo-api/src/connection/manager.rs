@@ -166,18 +166,20 @@ mod tests {
             "uploadTotal": 0
         });
 
-        let mock = server.mock("GET", "/connections")
+        let mock = server
+            .mock("GET", "/connections")
             .with_status(200)
             .with_body(serde_json::to_string(&body).unwrap())
-            .create_async().await;
+            .create_async()
+            .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
         let manager = ConnectionManager::new(client);
-        
+
         let filtered = manager.filter_by_host("google").await.unwrap();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].id, "1");
-        
+
         mock.assert_async().await;
     }
 
@@ -194,14 +196,16 @@ mod tests {
             "uploadTotal": 0
         });
 
-        let _mock = server.mock("GET", "/connections")
+        let _mock = server
+            .mock("GET", "/connections")
             .with_status(200)
             .with_body(serde_json::to_string(&body).unwrap())
-            .create_async().await;
+            .create_async()
+            .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
         let manager = ConnectionManager::new(client);
-        
+
         let filtered = manager.filter_by_process("chrome").await.unwrap();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].id, "1");
@@ -210,13 +214,15 @@ mod tests {
     #[tokio::test]
     async fn test_close_connection() {
         let mut server = mockito::Server::new_async().await;
-        let mock = server.mock("DELETE", "/connections/test-id")
+        let mock = server
+            .mock("DELETE", "/connections/test-id")
             .with_status(204)
-            .create_async().await;
+            .create_async()
+            .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
         let manager = ConnectionManager::new(client);
-        
+
         manager.close("test-id").await.unwrap();
         mock.assert_async().await;
     }
@@ -234,14 +240,16 @@ mod tests {
             "uploadTotal": 200
         });
 
-        let _m = server.mock("GET", "/connections")
+        let _m = server
+            .mock("GET", "/connections")
             .with_status(200)
             .with_body(serde_json::to_string(&body).unwrap())
-            .create_async().await;
+            .create_async()
+            .await;
 
         let client = MihomoClient::new(&server.url(), None).unwrap();
         let manager = ConnectionManager::new(client);
-        
+
         // 1. Match all
         let all = manager.filter_by_host("").await.unwrap();
         assert_eq!(all.len(), 2);

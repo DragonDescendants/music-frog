@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use log::warn;
 use serde::{Deserialize, Serialize};
@@ -57,10 +57,120 @@ pub struct CoreVersionsResponse {
 }
 
 #[derive(Serialize)]
+pub struct CoreLatestStableResponse {
+    pub version: String,
+    pub release_date: String,
+}
+
+#[derive(Deserialize)]
+pub struct CoreDownloadPayload {
+    pub version: String,
+}
+
+#[derive(Serialize)]
+pub struct CoreDownloadResponse {
+    pub version: String,
+    pub downloaded: bool,
+    pub already_installed: bool,
+}
+
+#[derive(Serialize)]
+pub struct CoreUpdateStableResponse {
+    pub version: String,
+    pub downloaded: bool,
+    pub already_installed: bool,
+    pub rebuild_scheduled: bool,
+}
+
+#[derive(Serialize)]
 pub struct RebuildStatusResponse {
     pub in_progress: bool,
     pub last_error: Option<String>,
     pub last_reason: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+pub struct RuntimeLogsQuery {
+    pub level: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct RuntimeLogEvent {
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeTrafficSnapshotResponse {
+    pub up_rate: u64,
+    pub down_rate: u64,
+    pub up_total: u64,
+    pub down_total: u64,
+    pub up_peak: u64,
+    pub down_peak: u64,
+    pub connections: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeIpCheckResponse {
+    pub ip: String,
+    pub country: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeProxyDelayNode {
+    pub name: String,
+    pub proxy_type: String,
+    pub delay_ms: Option<u32>,
+    pub tested_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeProxyDelayNodesResponse {
+    pub nodes: Vec<RuntimeProxyDelayNode>,
+    pub default_test_url: String,
+    pub default_timeout_ms: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RuntimeDelayTestPayload {
+    pub proxy: String,
+    pub test_url: Option<String>,
+    pub timeout_ms: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RuntimeDelayBatchPayload {
+    pub proxies: Option<Vec<String>>,
+    pub test_url: Option<String>,
+    pub timeout_ms: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeDelayTestResponse {
+    pub proxy: String,
+    pub delay_ms: u32,
+    pub tested_at: String,
+    pub test_url: String,
+    pub timeout_ms: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeDelayBatchResult {
+    pub proxy: String,
+    pub delay_ms: Option<u32>,
+    pub tested_at: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeDelayBatchResponse {
+    pub results: Vec<RuntimeDelayBatchResult>,
+    pub success_count: usize,
+    pub failed_count: usize,
+    pub test_url: String,
+    pub timeout_ms: u32,
 }
 
 #[derive(Serialize)]

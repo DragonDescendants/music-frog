@@ -1,23 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createI18n } from 'vue-i18n';
 import RulesPanel from '../RulesPanel.vue';
+import { createTestI18n } from '../../test-utils/i18n';
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: {
-    en: {
-      rules: { 
-        title: 'Rules', 
-        add_rule: 'Add',
-        save_rules: 'Save Rules',
-        save_providers: 'Save Providers'
-      },
-      common: { refresh: 'Refresh' }
-    }
-  }
-});
+const i18n = createTestI18n();
 
 describe('RulesPanel', () => {
   it('renders rules list and providers JSON', () => {
@@ -29,6 +15,8 @@ describe('RulesPanel', () => {
       props: {
         rules,
         providersJson: providers,
+        proxyProvidersJson: '{}',
+        snifferJson: '{}',
       },
     });
 
@@ -40,7 +28,7 @@ describe('RulesPanel', () => {
     const rules = [{ rule: 'r1', enabled: true }];
     const wrapper = mount(RulesPanel, {
       global: { plugins: [i18n] },
-      props: { rules, providersJson: '{}' },
+      props: { rules, providersJson: '{}', proxyProvidersJson: '{}', snifferJson: '{}' },
     });
 
     await wrapper.find('button.btn-outline').trigger('click');
@@ -52,7 +40,7 @@ describe('RulesPanel', () => {
     const rules = [{ rule: 'r1', enabled: true }, { rule: 'r2', enabled: true }];
     const wrapper = mount(RulesPanel, {
       global: { plugins: [i18n] },
-      props: { rules, providersJson: '{}' },
+      props: { rules, providersJson: '{}', proxyProvidersJson: '{}', snifferJson: '{}' },
     });
 
     // Move r2 up (index 1, direction -1)
@@ -66,7 +54,7 @@ describe('RulesPanel', () => {
     const rules = [{ rule: 'r1', enabled: true }];
     const wrapper = mount(RulesPanel, {
       global: { plugins: [i18n] },
-      props: { rules, providersJson: '{}' },
+      props: { rules, providersJson: '{}', proxyProvidersJson: '{}', snifferJson: '{}' },
     });
 
     await wrapper.find('button.btn-danger').trigger('click');
@@ -78,7 +66,7 @@ describe('RulesPanel', () => {
     const rules = Array.from({ length: 100 }, (_, i) => ({ rule: `r${i}`, enabled: true }));
     const wrapper = mount(RulesPanel, {
       global: { plugins: [i18n] },
-      props: { rules, providersJson: '{}' },
+      props: { rules, providersJson: '{}', proxyProvidersJson: '{}', snifferJson: '{}' },
     });
 
     const container = wrapper.find({ ref: 'listContainer' });

@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.musicfrog.despicableinfiltrator.MihomoHost
 import com.musicfrog.despicableinfiltrator.R
+import com.musicfrog.despicableinfiltrator.ui.connections.ConnectionsScreen
 import com.musicfrog.despicableinfiltrator.ui.logs.LogsScreen
 import com.musicfrog.despicableinfiltrator.ui.overview.OverviewScreen
 import com.musicfrog.despicableinfiltrator.ui.profiles.ProfilesScreen
@@ -172,6 +173,7 @@ fun InfiltratorApp(
                                 onNavigateToDns = { settingsSubScreen = "DNS" },
                                 onNavigateToFakeIp = { settingsSubScreen = "Fake-IP" },
                                 onNavigateToRules = { settingsSubScreen = "Rules" },
+                                onNavigateToConnections = { settingsSubScreen = "Connections" },
                                 onNavigateToLogs = { settingsSubScreen = "Logs" }
                             )
                         } else {
@@ -181,6 +183,7 @@ fun InfiltratorApp(
                                 "DNS" -> DnsScreen()
                                 "Fake-IP" -> FakeIpScreen()
                                 "Rules" -> RulesScreen()
+                                "Connections" -> ConnectionsScreen()
                                 "Logs" -> LogsScreen()
                             }
                         }

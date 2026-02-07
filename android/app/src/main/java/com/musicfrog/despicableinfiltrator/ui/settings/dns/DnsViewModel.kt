@@ -7,6 +7,7 @@ import com.musicfrog.despicableinfiltrator.ui.common.LONG_FFI_TIMEOUT_MS
 import com.musicfrog.despicableinfiltrator.ui.common.runFfiCall
 import com.musicfrog.despicableinfiltrator.ui.common.userMessage
 import infiltrator_android.DnsSettings
+import infiltrator_android.DnsFallbackFilterSettings
 import infiltrator_android.DnsSettingsPatch
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.dnsSettings
@@ -23,6 +24,11 @@ data class DnsUiState(
     val nameserver: String = "",
     val defaultNameserver: String = "",
     val fallback: String = "",
+    val fallbackFilterGeoip: String = "",
+    val fallbackFilterGeoipCode: String = "",
+    val fallbackFilterIpcidr: String = "",
+    val fallbackFilterDomain: String = "",
+    val fallbackFilterDomainSuffix: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
     val saved: Boolean = false
@@ -81,6 +87,26 @@ class DnsViewModel : ViewModel() {
         _state.value = _state.value.copy(fallback = value, saved = false)
     }
 
+    fun updateFallbackFilterGeoip(value: String) {
+        _state.value = _state.value.copy(fallbackFilterGeoip = value, saved = false)
+    }
+
+    fun updateFallbackFilterGeoipCode(value: String) {
+        _state.value = _state.value.copy(fallbackFilterGeoipCode = value, saved = false)
+    }
+
+    fun updateFallbackFilterIpcidr(value: String) {
+        _state.value = _state.value.copy(fallbackFilterIpcidr = value, saved = false)
+    }
+
+    fun updateFallbackFilterDomain(value: String) {
+        _state.value = _state.value.copy(fallbackFilterDomain = value, saved = false)
+    }
+
+    fun updateFallbackFilterDomainSuffix(value: String) {
+        _state.value = _state.value.copy(fallbackFilterDomainSuffix = value, saved = false)
+    }
+
     fun save() {
         viewModelScope.launch {
             val current = _state.value
@@ -92,7 +118,8 @@ class DnsViewModel : ViewModel() {
                 current.enhancedMode.trim().ifBlank { null },
                 parseList(current.nameserver),
                 parseList(current.defaultNameserver),
-                parseList(current.fallback)
+                parseList(current.fallback),
+                buildFallbackFilter(current)
             )
 
             val call = runFfiCall(timeoutMs = LONG_FFI_TIMEOUT_MS) { dnsSettingsSave(patch) }
@@ -119,6 +146,7 @@ class DnsViewModel : ViewModel() {
     }
 
     private fun applySettings(settings: DnsSettings) {
+        val fallbackFilter = settings.fallbackFilter
         _state.value = DnsUiState(
             enabled = settings.enable ?: false,
             ipv6 = settings.ipv6 ?: false,
@@ -126,9 +154,47 @@ class DnsViewModel : ViewModel() {
             nameserver = settings.nameserver.joinToString(separator = "\n"),
             defaultNameserver = settings.defaultNameserver.joinToString(separator = "\n"),
             fallback = settings.fallback.joinToString(separator = "\n"),
+            fallbackFilterGeoip = when (fallbackFilter?.geoip) {
+                true -> "true"
+                false -> "false"
+                null -> ""
+            },
+            fallbackFilterGeoipCode = fallbackFilter?.geoipCode ?: "",
+            fallbackFilterIpcidr = fallbackFilter?.ipcidr?.joinToString(separator = "\n") ?: "",
+            fallbackFilterDomain = fallbackFilter?.domain?.joinToString(separator = "\n") ?: "",
+            fallbackFilterDomainSuffix = fallbackFilter?.domainSuffix?.joinToString(separator = "\n") ?: "",
             isLoading = false,
             error = null,
             saved = false
+        )
+    }
+
+    private fun buildFallbackFilter(state: DnsUiState): DnsFallbackFilterSettings? {
+        val geoipCode = state.fallbackFilterGeoipCode.trim().ifBlank { null }
+        val ipcidr = parseList(state.fallbackFilterIpcidr)
+        val domain = parseList(state.fallbackFilterDomain)
+        val domainSuffix = parseList(state.fallbackFilterDomainSuffix)
+        val geoip = when (state.fallbackFilterGeoip) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+
+        if (geoip == null &&
+            geoipCode == null &&
+            ipcidr.isEmpty() &&
+            domain.isEmpty() &&
+            domainSuffix.isEmpty()
+        ) {
+            return null
+        }
+
+        return DnsFallbackFilterSettings(
+            geoip = geoip,
+            geoipCode = geoipCode,
+            ipcidr = ipcidr,
+            domain = domain,
+            domainSuffix = domainSuffix
         )
     }
 

@@ -1,13 +1,16 @@
 use anyhow::anyhow;
-use mihomo_version::{channel::fetch_latest, download::DownloadProgress, Channel, VersionManager};
+use mihomo_version::{Channel, VersionManager, channel::fetch_latest, download::DownloadProgress};
 use tokio::{
     sync::mpsc,
-    time::{timeout, Duration},
+    time::{Duration, timeout},
 };
 
 use crate::{app_state::AppState, runtime::rebuild_runtime};
 
-pub(crate) async fn update_mihomo_core(app: &tauri::AppHandle, state: &AppState) -> anyhow::Result<()> {
+pub(crate) async fn update_mihomo_core(
+    app: &tauri::AppHandle,
+    state: &AppState,
+) -> anyhow::Result<()> {
     let vm = VersionManager::new()?;
     let current = vm.get_default().await.ok();
     state
@@ -116,9 +119,10 @@ pub(crate) async fn update_mihomo_core(app: &tauri::AppHandle, state: &AppState)
     let installed_after = vm.list_installed().await?;
     for version in installed_after {
         if version.version != latest
-            && let Err(err) = vm.uninstall(&version.version).await {
-                log::warn!("failed to remove old version {}: {err}", version.version);
-            }
+            && let Err(err) = vm.uninstall(&version.version).await
+        {
+            log::warn!("failed to remove old version {}: {err}", version.version);
+        }
     }
 
     state

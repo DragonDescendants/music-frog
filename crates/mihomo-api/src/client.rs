@@ -2,7 +2,7 @@ use crate::error::Result;
 use crate::types::*;
 use futures_util::StreamExt;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -200,9 +200,10 @@ impl MihomoClient {
                     match msg {
                         Ok(Message::Text(text)) => {
                             if let Ok(traffic) = serde_json::from_str::<TrafficData>(text.as_ref())
-                                && tx.send(traffic).is_err() {
-                                    break;
-                                }
+                                && tx.send(traffic).is_err()
+                            {
+                                break;
+                            }
                         }
                         Ok(Message::Close(_)) => break,
                         Err(_) => break,
@@ -278,9 +279,10 @@ impl MihomoClient {
                         Ok(Message::Text(text)) => {
                             if let Ok(snapshot) =
                                 serde_json::from_str::<ConnectionSnapshot>(text.as_ref())
-                                && tx.send(snapshot).is_err() {
-                                    break;
-                                }
+                                && tx.send(snapshot).is_err()
+                            {
+                                break;
+                            }
                         }
                         Ok(Message::Close(_)) => break,
                         Err(_) => break,

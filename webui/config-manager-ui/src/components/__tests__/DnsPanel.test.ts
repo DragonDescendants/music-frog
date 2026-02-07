@@ -1,18 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createI18n } from 'vue-i18n';
 import DnsPanel from '../DnsPanel.vue';
+import { createTestI18n } from '../../test-utils/i18n';
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: {
-    en: {
-      dns: { title: 'DNS' },
-      common: { save: 'Save', refresh: 'Refresh' }
-    }
-  }
-});
+const i18n = createTestI18n();
 
 describe('DnsPanel', () => {
   it('renders dns config values', () => {

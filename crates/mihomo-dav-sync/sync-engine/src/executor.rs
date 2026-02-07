@@ -1,11 +1,11 @@
 use anyhow::Result;
-use tokio::fs;
 use chrono::Utc;
+use tokio::fs;
 use tracing::{info, warn};
 
+use crate::SyncAction;
 use dav_client::DavClient;
 use state_store::{StateStore, SyncStateRow};
-use crate::SyncAction;
 
 pub struct SyncExecutor<'a> {
     dav: &'a dyn DavClient,
@@ -19,27 +19,40 @@ impl<'a> SyncExecutor<'a> {
 
     pub async fn execute(&self, action: SyncAction) -> Result<()> {
         match action {
-            SyncAction::Upload { local, remote_path, last_etag } => {
+            SyncAction::Upload {
+                local,
+                remote_path,
+                last_etag,
+            } => {
                 info!("Uploading: {:?}", local);
                 let content = fs::read(&local).await?;
                 let hash = format!("{:x}", md5::compute(&content));
-                
-                let new_etag = self.dav.put(&remote_path, &content, last_etag.as_deref()).await?;
-                
-                self.store.upsert_state(SyncStateRow {
-                    path: remote_path,
-                    last_etag: new_etag,
-                    last_hash: hash,
-                    last_sync_at: Utc::now(),
-                    is_tombstone: 0,
-                }).await?;
+
+                let new_etag = self
+                    .dav
+                    .put(&remote_path, &content, last_etag.as_deref())
+                    .await?;
+
+                self.store
+                    .upsert_state(SyncStateRow {
+                        path: remote_path,
+                        last_etag: new_etag,
+                        last_hash: hash,
+                        last_sync_at: Utc::now(),
+                        is_tombstone: 0,
+                    })
+                    .await?;
             }
-            
-            SyncAction::Download { remote_path, local, remote_etag } => {
+
+            SyncAction::Download {
+                remote_path,
+                local,
+                remote_etag,
+            } => {
                 info!("Downloading: {}", remote_path);
                 let content = self.dav.get(&remote_path).await?;
                 let hash = format!("{:x}", md5::compute(&content));
-                
+
                 let tmp_path = local.with_extension("sync-tmp");
                 if let Some(parent) = local.parent() {
                     fs::create_dir_all(parent).await?;
@@ -49,15 +62,18 @@ impl<'a> SyncExecutor<'a> {
                     fs::write(&tmp_path, &content).await?;
                     fs::rename(&tmp_path, &local).await?;
 
-                    self.store.upsert_state(SyncStateRow {
-                        path: remote_path,
-                        last_etag: remote_etag,
-                        last_hash: hash,
-                        last_sync_at: Utc::now(),
-                        is_tombstone: 0,
-                    }).await?;
+                    self.store
+                        .upsert_state(SyncStateRow {
+                            path: remote_path,
+                            last_etag: remote_etag,
+                            last_hash: hash,
+                            last_sync_at: Utc::now(),
+                            is_tombstone: 0,
+                        })
+                        .await?;
                     Ok(())
-                }.await;
+                }
+                .await;
 
                 if let Err(err) = result {
                     if tmp_path.exists() {
@@ -70,7 +86,8 @@ impl<'a> SyncExecutor<'a> {
             SyncAction::Conflict { local, remote_path } => {
                 warn!("Conflict detected for: {}", remote_path);
                 let content = self.dav.get(&remote_path).await?;
-                let bak_path = local.with_extension(format!("remote-bak-{}", Utc::now().format("%Y%m%d%H%M%S")));
+                let bak_path = local
+                    .with_extension(format!("remote-bak-{}", Utc::now().format("%Y%m%d%H%M%S")));
                 fs::write(&bak_path, &content).await?;
                 info!("Saved remote version to: {:?}", bak_path);
             }

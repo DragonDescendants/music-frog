@@ -114,15 +114,15 @@ mod tests {
     async fn test_save_and_load_settings() {
         let temp_dir = tempfile::tempdir().unwrap();
         let settings_file = temp_dir.path().join("settings.toml");
-        
+
         let mut settings = AppSettings {
             language: "en-US".to_string(),
             ..AppSettings::default()
         };
         settings.webdav.enabled = true;
-        
+
         save_settings(&settings_file, &settings).await.unwrap();
-        
+
         let loaded = load_settings(&settings_file).await.unwrap();
         assert_eq!(loaded.language, "en-US");
         assert!(loaded.webdav.enabled);

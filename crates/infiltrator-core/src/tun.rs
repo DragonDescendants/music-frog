@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
@@ -70,8 +70,14 @@ pub async fn load_tun_config() -> Result<TunConfig> {
 
 pub async fn save_tun_config(patch: TunConfigPatch) -> Result<TunConfig> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
 
     let mut config = extract_tun_config(&doc)?;
@@ -89,8 +95,14 @@ pub async fn save_tun_config(patch: TunConfigPatch) -> Result<TunConfig> {
 
 async fn load_profile_doc() -> Result<Value> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     serde_yaml::from_str(&content).context("parse profile yaml")
 }
 
@@ -131,9 +143,10 @@ fn validate_tun_config(config: &TunConfig) -> Result<()> {
         }
     }
     if let Some(mtu) = config.mtu
-        && mtu == 0 {
-            return Err(anyhow!("mtu must be greater than 0"));
-        }
+        && mtu == 0
+    {
+        return Err(anyhow!("mtu must be greater than 0"));
+    }
     Ok(())
 }
 
@@ -189,15 +202,15 @@ mod tests {
             mtu: Some(1400),
             ..TunConfig::default()
         };
-        
+
         let patch = TunConfigPatch {
             enable: Some(false),
             // stack and mtu are None in patch
             ..TunConfigPatch::default()
         };
-        
+
         config.apply_patch(patch);
-        
+
         assert_eq!(config.enable, Some(false));
         // Should preserve existing values
         assert_eq!(config.stack, Some("system".to_string()));
@@ -207,15 +220,24 @@ mod tests {
     #[test]
     fn test_validate_tun_config_errors() {
         // Invalid stack
-        let config = TunConfig { stack: Some("lwip".to_string()), ..TunConfig::default() };
+        let config = TunConfig {
+            stack: Some("lwip".to_string()),
+            ..TunConfig::default()
+        };
         assert!(validate_tun_config(&config).is_err());
 
         // Zero MTU
-        let config = TunConfig { mtu: Some(0), ..TunConfig::default() };
+        let config = TunConfig {
+            mtu: Some(0),
+            ..TunConfig::default()
+        };
         assert!(validate_tun_config(&config).is_err());
 
         // Empty dns_hijack
-        let config = TunConfig { dns_hijack: Some(vec![" ".to_string()]), ..TunConfig::default() };
+        let config = TunConfig {
+            dns_hijack: Some(vec![" ".to_string()]),
+            ..TunConfig::default()
+        };
         assert!(validate_tun_config(&config).is_err());
     }
 }

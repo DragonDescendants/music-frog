@@ -1,7 +1,7 @@
 use std::{env, path::PathBuf};
 
 use anyhow::anyhow;
-use tauri::{path::BaseDirectory, AppHandle, Manager};
+use tauri::{AppHandle, Manager, path::BaseDirectory};
 
 pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     let dev_main = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../webui/mihomo-manager-ui");
@@ -14,21 +14,23 @@ pub(crate) fn resolve_main_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
             return Ok(path);
         }
     }
-    
+
     // 2. Check development dist path
     if dev_main_dist.exists() {
         return Ok(dev_main_dist);
     }
-    
+
     // 3. Check development root path (fallback)
     if dev_main.exists() {
         return Ok(dev_main);
     }
 
     // 4. Resolve bundled resource path
-    let resource_path = app.path().resolve("bin/mihomo-manager-ui", BaseDirectory::Resource)?;
+    let resource_path = app
+        .path()
+        .resolve("bin/mihomo-manager-ui", BaseDirectory::Resource)?;
     let resource_dist = resource_path.join("dist");
-    
+
     if resource_dist.exists() {
         Ok(resource_dist)
     } else if resource_path.exists() {
@@ -87,7 +89,8 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
     #[cfg(target_os = "windows")]
     {
         let mut candidates = Vec::new();
-        let project_resource = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/mihomo.exe");
+        let project_resource =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/mihomo.exe");
         if project_resource.exists() {
             candidates.push(project_resource);
         }
@@ -98,17 +101,18 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
         }
 
         if let Ok(exe_path) = std::env::current_exe()
-            && let Some(exe_dir) = exe_path.parent() {
-                let install_dir = exe_dir.join("bin").join("mihomo");
-                let install_path = install_dir.join("mihomo.exe");
-                if install_path.exists() {
-                    candidates.push(install_path);
-                }
-                let install_path_legacy = install_dir.join("mihomo-windows-amd64-v3.exe");
-                if install_path_legacy.exists() {
-                    candidates.push(install_path_legacy);
-                }
+            && let Some(exe_dir) = exe_path.parent()
+        {
+            let install_dir = exe_dir.join("bin").join("mihomo");
+            let install_path = install_dir.join("mihomo.exe");
+            if install_path.exists() {
+                candidates.push(install_path);
             }
+            let install_path_legacy = install_dir.join("mihomo-windows-amd64-v3.exe");
+            if install_path_legacy.exists() {
+                candidates.push(install_path_legacy);
+            }
+        }
 
         if let Ok(resource_dir) = app.path().resource_dir() {
             let resource_dir = resource_dir.join("bin").join("mihomo");
@@ -125,15 +129,17 @@ pub(crate) fn bundled_core_candidates(app: &AppHandle) -> Vec<PathBuf> {
         if let Ok(resource_path) = app
             .path()
             .resolve("bin/mihomo/mihomo.exe", BaseDirectory::Resource)
-            && resource_path.exists() {
-                candidates.push(resource_path);
-            }
-        if let Ok(resource_path) = app
-            .path()
-            .resolve("bin/mihomo/mihomo-windows-amd64-v3.exe", BaseDirectory::Resource)
-            && resource_path.exists() {
-                candidates.push(resource_path);
-            }
+            && resource_path.exists()
+        {
+            candidates.push(resource_path);
+        }
+        if let Ok(resource_path) = app.path().resolve(
+            "bin/mihomo/mihomo-windows-amd64-v3.exe",
+            BaseDirectory::Resource,
+        ) && resource_path.exists()
+        {
+            candidates.push(resource_path);
+        }
 
         candidates
     }

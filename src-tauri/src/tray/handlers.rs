@@ -1,10 +1,10 @@
 use anyhow::anyhow;
-use log::warn;
-use mihomo_config::ConfigManager;
-use tauri::{menu::MenuEvent, AppHandle, Manager};
-use tokio::time::Duration;
 use chrono::{Duration as ChronoDuration, Utc};
 use infiltrator_core::profiles as core_profiles;
+use log::warn;
+use mihomo_config::ConfigManager;
+use tauri::{AppHandle, Manager, menu::MenuEvent};
+use tokio::time::Duration;
 
 use crate::{
     app_state::AppState,
@@ -19,16 +19,11 @@ use crate::{
     utils::wait_for_port_release,
 };
 use infiltrator_admin::{
-    AdminEvent,
-    EVENT_PROFILES_CHANGED,
-    EVENT_TUN_CHANGED,
-    EVENT_WEBDAV_SYNCED,
+    AdminEvent, EVENT_PROFILES_CHANGED, EVENT_TUN_CHANGED, EVENT_WEBDAV_SYNCED,
 };
 
 use super::menu::{
-    refresh_core_versions_submenu,
-    refresh_profile_switch_submenu,
-    refresh_proxy_groups_submenu,
+    refresh_core_versions_submenu, refresh_profile_switch_submenu, refresh_proxy_groups_submenu,
 };
 
 pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
@@ -107,11 +102,13 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                 match result {
                     Ok(summary) => {
                         // Notify summary
-                        state.notify_subscription_update_summary(
-                            summary.updated,
-                            summary.failed,
-                            summary.skipped
-                        ).await;
+                        state
+                            .notify_subscription_update_summary(
+                                summary.updated,
+                                summary.failed,
+                                summary.skipped,
+                            )
+                            .await;
 
                         // Only emit event if there were successful updates
                         if summary.updated > 0 {
@@ -122,7 +119,13 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     }
                     Err(err) => {
                         log::error!("failed to update subscriptions: {err}");
-                        state.notify_subscription_update("All Subscriptions", false, Some(err.to_string())).await;
+                        state
+                            .notify_subscription_update(
+                                "All Subscriptions",
+                                false,
+                                Some(err.to_string()),
+                            )
+                            .await;
                     }
                 }
             });
@@ -245,13 +248,19 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         return;
                     }
                 };
-                match infiltrator_admin::scheduler::sync::run_sync_tick(&ctx, &settings.webdav).await {
+                match infiltrator_admin::scheduler::sync::run_sync_tick(&ctx, &settings.webdav)
+                    .await
+                {
                     Ok(summary) => {
-                        state_clone.notify_webdav_sync_result(true, summary.success_count, None).await;
+                        state_clone
+                            .notify_webdav_sync_result(true, summary.success_count, None)
+                            .await;
                         state_clone.emit_admin_event(AdminEvent::new(EVENT_WEBDAV_SYNCED));
                     }
                     Err(err) => {
-                        state_clone.notify_webdav_sync_result(false, 0, Some(err.to_string())).await;
+                        state_clone
+                            .notify_webdav_sync_result(false, 0, Some(err.to_string()))
+                            .await;
                         state_clone.emit_admin_event(AdminEvent::new(EVENT_WEBDAV_SYNCED));
                     }
                 }
@@ -285,7 +294,9 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                     if let Err(err) = handle_auto_update_toggle(profile_name.to_string()).await {
                         show_error_dialog(format!("切换自动更新失败: {err:#}"));
                     }
-                    if let Err(err) = refresh_profile_switch_submenu(&app_handle, &state_clone).await {
+                    if let Err(err) =
+                        refresh_profile_switch_submenu(&app_handle, &state_clone).await
+                    {
                         warn!("failed to refresh profile switch submenu: {err:#}");
                     }
                     return;
@@ -308,7 +319,9 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         Ok(runtime) => runtime,
                         Err(_) => {
                             // Retry refresh if runtime not ready/proxy map outdated
-                            if let Err(err) = refresh_proxy_groups_submenu(&app_handle, &state_clone).await {
+                            if let Err(err) =
+                                refresh_proxy_groups_submenu(&app_handle, &state_clone).await
+                            {
                                 warn!("failed to refresh proxy groups submenu: {err:#}");
                             }
                             return;
@@ -318,7 +331,8 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         show_error_dialog(format!("切换代理失败: {err:#}"));
                         return;
                     }
-                    if let Err(err) = refresh_proxy_groups_submenu(&app_handle, &state_clone).await {
+                    if let Err(err) = refresh_proxy_groups_submenu(&app_handle, &state_clone).await
+                    {
                         warn!("failed to refresh proxy groups submenu: {err:#}");
                     }
                     return;
@@ -344,7 +358,8 @@ pub fn handle_menu_event(app: &AppHandle, event: MenuEvent, state: &AppState) {
                         show_error_dialog(format!("删除内核版本失败: {err:#}"));
                         return;
                     }
-                    if let Err(err) = refresh_core_versions_submenu(&app_handle, &state_clone).await {
+                    if let Err(err) = refresh_core_versions_submenu(&app_handle, &state_clone).await
+                    {
                         warn!("failed to refresh core versions submenu: {err:#}");
                     }
                     state_clone.refresh_core_version_info().await;

@@ -54,7 +54,9 @@ mod tests {
         let _guard = TEST_LOCK.lock().await;
         struct NoneProvider;
         impl DataDirProvider for NoneProvider {
-            fn data_dir(&self) -> Option<PathBuf> { None }
+            fn data_dir(&self) -> Option<PathBuf> {
+                None
+            }
         }
         let provider = NoneProvider;
         paths::clear_home_dir_override();

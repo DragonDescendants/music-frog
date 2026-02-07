@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     convert::Infallible,
     sync::Arc,
     time::{Duration, Instant},
@@ -6,47 +7,56 @@ use std::{
 
 use anyhow::anyhow;
 use axum::{
+    Json,
     body::Body,
-    extract::{Path as AxumPath, State as AxumState},
+    extract::{Path as AxumPath, Query as AxumQuery, State as AxumState},
     http::{Request, StatusCode},
     middleware::Next,
-    response::{sse::{Event, KeepAlive, Sse}, Response},
-    Json,
+    response::{
+        Response,
+        sse::{Event, KeepAlive, Sse},
+    },
 };
 use chrono::Utc;
+use infiltrator_http::{HttpClient, reqwest};
 use log::{info, warn};
-use infiltrator_http::HttpClient;
-use tokio_stream::{wrappers::BroadcastStream, StreamExt};
+use mihomo_api::{ConnectionsResponse, MemoryData};
+use serde::Deserialize;
+use tokio_stream::{
+    StreamExt,
+    wrappers::{BroadcastStream, UnboundedReceiverStream},
+};
 
 use infiltrator_core::{
-    config as core_config,
-    dns,
-    fake_ip,
-    profiles as core_profiles,
-    rules,
-    settings::WebDavConfig,
-    subscription as core_subscription,
+    ProfileDetail, ProfileInfo, config as core_config, dns, fake_ip, profiles as core_profiles,
+    proxy_providers, rules, settings::WebDavConfig, sniffer, subscription as core_subscription,
     tun,
-    ProfileDetail,
-    ProfileInfo,
 };
 use mihomo_config::ConfigManager;
 use mihomo_version::VersionManager;
 
 use super::events::{
-    AdminEvent,
-    EVENT_CORE_CHANGED,
-    EVENT_DNS_CHANGED,
-    EVENT_FAKE_IP_CHANGED,
-    EVENT_PROFILES_CHANGED,
-    EVENT_RULE_PROVIDERS_CHANGED,
-    EVENT_RULES_CHANGED,
-    EVENT_SETTINGS_CHANGED,
-    EVENT_TUN_CHANGED,
+    AdminEvent, EVENT_CORE_CHANGED, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED,
+    EVENT_PROFILES_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED, EVENT_RULE_PROVIDERS_CHANGED,
+    EVENT_RULES_CHANGED, EVENT_SETTINGS_CHANGED, EVENT_SNIFFER_CHANGED, EVENT_TUN_CHANGED,
     EVENT_WEBDAV_SYNCED,
 };
 use super::models::*;
 use super::state::{AdminApiContext, AdminApiState, RebuildStatus};
+
+#[derive(Deserialize)]
+struct IpApiResponse {
+    ip: Option<String>,
+    #[serde(rename = "country_name")]
+    country_name: Option<String>,
+    region: Option<String>,
+    city: Option<String>,
+}
+
+const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
+const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
+const MIN_DELAY_TIMEOUT_MS: u32 = 100;
+const MAX_DELAY_TIMEOUT_MS: u32 = 60_000;
 
 pub async fn list_profiles_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
@@ -90,6 +100,260 @@ pub async fn stream_admin_events_http<C: AdminApiContext>(
     )
 }
 
+pub async fn list_runtime_connections_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<ConnectionsResponse>, ApiError> {
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let data = client
+        .get_connections()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(data))
+}
+
+pub async fn close_all_runtime_connections_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<StatusCode, ApiError> {
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    client
+        .close_all_connections()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn close_runtime_connection_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<StatusCode, ApiError> {
+    let connection_id = id.trim();
+    if connection_id.is_empty() {
+        return Err(ApiError::bad_request("连接 ID 不能为空"));
+    }
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    client
+        .close_connection(connection_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn stream_runtime_logs_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    AxumQuery(query): AxumQuery<RuntimeLogsQuery>,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    let level = normalize_log_level(query.level.as_deref())?;
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let receiver = client
+        .stream_logs(level.as_deref())
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let stream = UnboundedReceiverStream::new(receiver).filter_map(|message| {
+        let payload = match serde_json::to_string(&RuntimeLogEvent { message }) {
+            Ok(payload) => payload,
+            Err(err) => {
+                warn!("failed to serialize runtime log event: {err}");
+                return None;
+            }
+        };
+        Some(Ok(Event::default().data(payload)))
+    });
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keepalive"),
+    ))
+}
+
+pub async fn get_runtime_traffic_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeTrafficSnapshotResponse>, ApiError> {
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let connections = client
+        .get_connections()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let snapshot = state.traffic_snapshot(
+        connections.upload_total,
+        connections.download_total,
+        connections.connections.len(),
+    );
+    Ok(Json(snapshot))
+}
+
+pub async fn get_runtime_memory_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<MemoryData>, ApiError> {
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let memory = client
+        .get_memory()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(memory))
+}
+
+pub async fn get_runtime_ip_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeIpCheckResponse>, ApiError> {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(6))
+        .build()
+        .map_err(|e| ApiError::internal(format!("build ip client failed: {e}")))?;
+    let response = client
+        .get("https://ipapi.co/json/")
+        .send()
+        .await
+        .map_err(|e| ApiError::internal(format!("ip check request failed: {e}")))?;
+    if !response.status().is_success() {
+        return Err(ApiError::internal(format!(
+            "ip check failed: {}",
+            response.status()
+        )));
+    }
+    let payload: IpApiResponse = response
+        .json()
+        .await
+        .map_err(|e| ApiError::internal(format!("decode ip response failed: {e}")))?;
+    let ip = payload
+        .ip
+        .ok_or_else(|| ApiError::internal("ip missing from response"))?;
+
+    Ok(Json(RuntimeIpCheckResponse {
+        ip,
+        country: payload.country_name,
+        region: payload.region,
+        city: payload.city,
+    }))
+}
+
+pub async fn list_runtime_proxy_delays_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<RuntimeProxyDelayNodesResponse>, ApiError> {
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let proxies = client
+        .get_proxies()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let nodes = build_runtime_proxy_delay_nodes(proxies);
+
+    Ok(Json(RuntimeProxyDelayNodesResponse {
+        nodes,
+        default_test_url: DEFAULT_DELAY_TEST_URL.to_string(),
+        default_timeout_ms: DEFAULT_DELAY_TIMEOUT_MS,
+    }))
+}
+
+pub async fn test_runtime_proxy_delay_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<RuntimeDelayTestPayload>,
+) -> Result<Json<RuntimeDelayTestResponse>, ApiError> {
+    let proxy = payload.proxy.trim();
+    if proxy.is_empty() {
+        return Err(ApiError::bad_request("代理节点不能为空"));
+    }
+
+    let test_url = normalize_delay_test_url(payload.test_url.as_deref())?;
+    let timeout_ms = normalize_delay_timeout_ms(payload.timeout_ms);
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let delay_ms = client
+        .test_delay(proxy, &test_url, timeout_ms)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    Ok(Json(RuntimeDelayTestResponse {
+        proxy: proxy.to_string(),
+        delay_ms,
+        tested_at: Utc::now().to_rfc3339(),
+        test_url,
+        timeout_ms,
+    }))
+}
+
+pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<RuntimeDelayBatchPayload>,
+) -> Result<Json<RuntimeDelayBatchResponse>, ApiError> {
+    let test_url = normalize_delay_test_url(payload.test_url.as_deref())?;
+    let timeout_ms = normalize_delay_timeout_ms(payload.timeout_ms);
+    let client = state
+        .ctx
+        .runtime_client()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let proxies = client
+        .get_proxies()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let mut results = Vec::new();
+    let candidates =
+        collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
+
+    for proxy in candidates {
+        match client.test_delay(&proxy, &test_url, timeout_ms).await {
+            Ok(delay_ms) => results.push(RuntimeDelayBatchResult {
+                proxy,
+                delay_ms: Some(delay_ms),
+                tested_at: Some(Utc::now().to_rfc3339()),
+                error: None,
+            }),
+            Err(err) => results.push(RuntimeDelayBatchResult {
+                proxy,
+                delay_ms: None,
+                tested_at: None,
+                error: Some(err.to_string()),
+            }),
+        }
+    }
+
+    let success_count = results
+        .iter()
+        .filter(|item| item.delay_ms.is_some())
+        .count();
+    let failed_count = results.len().saturating_sub(success_count);
+
+    Ok(Json(RuntimeDelayBatchResponse {
+        results,
+        success_count,
+        failed_count,
+        test_url,
+        timeout_ms,
+    }))
+}
+
 pub async fn get_profile_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     AxumPath(name): AxumPath<String>,
@@ -106,7 +370,9 @@ pub async fn switch_profile_http<C: AdminApiContext>(
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
     let profile = switch_profile_internal(&state.ctx, &state.rebuild_status, &name).await?;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile,
         rebuild_scheduled: true,
@@ -119,9 +385,7 @@ pub async fn import_profile_http<C: AdminApiContext>(
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let profile_name = ensure_valid_profile_name(&payload.name)?;
     if payload.url.trim().is_empty() {
-        return Err(ApiError::bad_request(
-            "订阅链接不能为空",
-        ));
+        return Err(ApiError::bad_request("订阅链接不能为空"));
     }
     let (profile, rebuild_scheduled) = import_profile_from_url_internal(
         &state.ctx,
@@ -133,7 +397,9 @@ pub async fn import_profile_http<C: AdminApiContext>(
         payload.activate.unwrap_or(false),
     )
     .await?;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile,
         rebuild_scheduled,
@@ -187,7 +453,9 @@ pub async fn save_profile_http<C: AdminApiContext>(
     let mut info = core_profiles::load_profile_info(&name).await?;
     info.controller_url = controller_url;
     info.controller_changed = controller_changed;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile: info,
         rebuild_scheduled,
@@ -204,7 +472,9 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
     let mut info = profile;
     info.controller_url = manager.get_external_controller().await.ok();
     schedule_rebuild(&state.ctx, &state.rebuild_status, "profiles-clear");
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile: info,
         rebuild_scheduled: true,
@@ -221,7 +491,9 @@ pub async fn delete_profile_http<C: AdminApiContext>(
         .delete_profile(&profile_name)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -262,7 +534,9 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let info = core_profiles::load_profile_info(&profile_name).await?;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(info))
 }
 
@@ -289,7 +563,9 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let info = core_profiles::load_profile_info(&profile_name).await?;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(info))
 }
 
@@ -338,17 +614,14 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    let rebuild_scheduled = manager
-        .get_current()
-        .await
-        .ok()
-        .as_deref()
-        == Some(&profile_name);
+    let rebuild_scheduled = manager.get_current().await.ok().as_deref() == Some(&profile_name);
     if rebuild_scheduled {
         schedule_rebuild(&state.ctx, &state.rebuild_status, "subscription-update-now");
     }
     let profile = core_profiles::load_profile_info(&profile_name).await?;
-    state.events.publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
     Ok(Json(ProfileActionResponse {
         profile,
         rebuild_scheduled,
@@ -375,7 +648,9 @@ pub async fn set_editor_config_http<C: AdminApiContext>(
         }
     });
     state.ctx.set_editor_path(editor).await;
-    state.events.publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -416,15 +691,72 @@ pub async fn list_core_versions_http<C: AdminApiContext>(
     }))
 }
 
+pub async fn get_latest_stable_core_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<CoreLatestStableResponse>, ApiError> {
+    let (version, release_date) = state
+        .ctx
+        .latest_stable_core()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(CoreLatestStableResponse {
+        version,
+        release_date,
+    }))
+}
+
+pub async fn download_core_version_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<CoreDownloadPayload>,
+) -> Result<Json<CoreDownloadResponse>, ApiError> {
+    let version = payload.version.trim().to_string();
+    if version.is_empty() {
+        return Err(ApiError::bad_request("版本不能为空"));
+    }
+    let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let outcome = ensure_core_version_installed(&vm, &version).await?;
+    state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
+    Ok(Json(CoreDownloadResponse {
+        version,
+        downloaded: outcome.downloaded,
+        already_installed: outcome.already_installed,
+    }))
+}
+
+pub async fn update_stable_core_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+) -> Result<Json<CoreUpdateStableResponse>, ApiError> {
+    let (version, _release_date) = state
+        .ctx
+        .latest_stable_core()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
+    let outcome = ensure_core_version_installed(&vm, &version).await?;
+
+    state.ctx.set_use_bundled_core(false).await;
+    vm.set_default(&version)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "core-update-stable");
+    state.ctx.refresh_core_version_info().await;
+    state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
+
+    Ok(Json(CoreUpdateStableResponse {
+        version,
+        downloaded: outcome.downloaded,
+        already_installed: outcome.already_installed,
+        rebuild_scheduled: true,
+    }))
+}
+
 pub async fn activate_core_version_http<C: AdminApiContext>(
     AxumState(state): AxumState<AdminApiState<C>>,
     Json(payload): Json<CoreActivatePayload>,
 ) -> Result<StatusCode, ApiError> {
     let version = payload.version.trim();
     if version.is_empty() {
-        return Err(ApiError::bad_request(
-            "版本不能为空",
-        ));
+        return Err(ApiError::bad_request("版本不能为空"));
     }
     let vm = VersionManager::new().map_err(|e| ApiError::internal(e.to_string()))?;
     state.ctx.set_use_bundled_core(false).await;
@@ -456,13 +788,17 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
     Json(payload): Json<AppSettingsPayload>,
 ) -> Result<StatusCode, ApiError> {
     let mut settings = state.ctx.get_app_settings().await;
-    
+
     if let Some(val) = payload.open_webui_on_startup {
         settings.open_webui_on_startup = val;
     }
     if let Some(val) = payload.editor_path {
         let trimmed = val.trim().to_string();
-        settings.editor_path = if trimmed.is_empty() { None } else { Some(trimmed) };
+        settings.editor_path = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        };
     }
     if let Some(val) = payload.use_bundled_core {
         settings.use_bundled_core = val;
@@ -477,8 +813,14 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
         settings.webdav = val;
     }
 
-    state.ctx.save_app_settings(settings).await.map_err(|e| ApiError::internal(e.to_string()))?;
-    state.events.publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
+    state
+        .ctx
+        .save_app_settings(settings)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -536,8 +878,46 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
 ) -> Result<Json<rules::RuleProvidersPayload>, ApiError> {
     let providers = rules::save_rule_providers(payload.providers).await?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
-    state.events.publish(AdminEvent::new(EVENT_RULE_PROVIDERS_CHANGED));
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_RULE_PROVIDERS_CHANGED));
     Ok(Json(rules::RuleProvidersPayload { providers }))
+}
+
+pub async fn get_proxy_providers_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
+    let providers = proxy_providers::load_proxy_providers().await?;
+    Ok(Json(proxy_providers::ProxyProvidersPayload { providers }))
+}
+
+pub async fn save_proxy_providers_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<proxy_providers::ProxyProvidersPayload>,
+) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
+    let providers = proxy_providers::save_proxy_providers(payload.providers).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "proxy-providers-update");
+    state
+        .events
+        .publish(AdminEvent::new(EVENT_PROXY_PROVIDERS_CHANGED));
+    Ok(Json(proxy_providers::ProxyProvidersPayload { providers }))
+}
+
+pub async fn get_sniffer_config_http<C: AdminApiContext>(
+    AxumState(_state): AxumState<AdminApiState<C>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let config = sniffer::load_sniffer_config().await?;
+    Ok(Json(config))
+}
+
+pub async fn save_sniffer_config_http<C: AdminApiContext>(
+    AxumState(state): AxumState<AdminApiState<C>>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let config = sniffer::save_sniffer_config(payload).await?;
+    schedule_rebuild(&state.ctx, &state.rebuild_status, "sniffer-update");
+    state.events.publish(AdminEvent::new(EVENT_SNIFFER_CHANGED));
+    Ok(Json(config))
 }
 
 pub async fn get_rules_http<C: AdminApiContext>(
@@ -581,14 +961,14 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
     if !settings.webdav.enabled {
         return Err(ApiError::bad_request("WebDAV 同步未开启"));
     }
-    
+
     // 手动触发同步逻辑
     let summary = crate::scheduler::sync::run_sync_tick(&state.ctx, &settings.webdav)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
     state.events.publish(AdminEvent::new(EVENT_WEBDAV_SYNCED));
-        
+
     Ok(Json(serde_json::json!({
         "success_count": summary.success_count,
         "failed_count": summary.failed_count,
@@ -600,16 +980,191 @@ pub async fn test_webdav_conn_http<C: AdminApiContext>(
     AxumState(_state): AxumState<AdminApiState<C>>,
     Json(payload): Json<WebDavConfig>,
 ) -> Result<StatusCode, ApiError> {
-    use dav_client::client::WebDavClient;
     use dav_client::DavClient;
+    use dav_client::client::WebDavClient;
 
     let dav = WebDavClient::new(&payload.url, &payload.username, &payload.password)
         .map_err(|e| ApiError::bad_request(format!("无效的配置: {e}")))?;
-    
+
     // 尝试 list 根目录来测试连接
-    dav.list("/").await.map_err(|e| ApiError::bad_request(format!("连接测试失败: {e}")))?;
-    
+    dav.list("/")
+        .await
+        .map_err(|e| ApiError::bad_request(format!("连接测试失败: {e}")))?;
+
     Ok(StatusCode::OK)
+}
+
+fn normalize_log_level(level: Option<&str>) -> Result<Option<String>, ApiError> {
+    let Some(level) = level else {
+        return Ok(None);
+    };
+    let trimmed = level.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let mut normalized = trimmed.to_ascii_lowercase();
+    if normalized == "warn" {
+        normalized = "warning".to_string();
+    }
+    if matches!(
+        normalized.as_str(),
+        "debug" | "info" | "warning" | "error" | "silent"
+    ) {
+        return Ok(Some(normalized));
+    }
+
+    Err(ApiError::bad_request(
+        "日志级别仅支持 debug/info/warning/error/silent",
+    ))
+}
+
+fn normalize_delay_test_url(test_url: Option<&str>) -> Result<String, ApiError> {
+    let candidate = test_url.unwrap_or(DEFAULT_DELAY_TEST_URL).trim();
+    if candidate.is_empty() {
+        return Err(ApiError::bad_request("测速地址不能为空"));
+    }
+    Ok(candidate.to_string())
+}
+
+fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
+    timeout_ms
+        .unwrap_or(DEFAULT_DELAY_TIMEOUT_MS)
+        .clamp(MIN_DELAY_TIMEOUT_MS, MAX_DELAY_TIMEOUT_MS)
+}
+
+fn is_proxy_group_type(proxy_type: &str) -> bool {
+    matches!(
+        proxy_type,
+        "Selector"
+            | "URLTest"
+            | "Fallback"
+            | "LoadBalance"
+            | "Relay"
+            | "Direct"
+            | "Reject"
+            | "Pass"
+            | "Compatible"
+            | "RejectDrop"
+    )
+}
+
+fn build_runtime_proxy_delay_nodes(
+    proxies: std::collections::HashMap<String, mihomo_api::ProxyInfo>,
+) -> Vec<RuntimeProxyDelayNode> {
+    let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
+        .into_iter()
+        .filter_map(|(name, info)| {
+            if is_proxy_group_type(&info.proxy_type) {
+                return None;
+            }
+            let latest = info.history.last();
+            Some(RuntimeProxyDelayNode {
+                name,
+                proxy_type: info.proxy_type,
+                delay_ms: latest.map(|item| item.delay),
+                tested_at: latest.map(|item| item.time.clone()),
+            })
+        })
+        .collect();
+    nodes.sort_by(|left, right| left.name.cmp(&right.name));
+    nodes
+}
+
+fn collect_delay_test_candidates(
+    requested: Option<&[String]>,
+    proxies: &std::collections::HashMap<String, mihomo_api::ProxyInfo>,
+    results: &mut Vec<RuntimeDelayBatchResult>,
+) -> Vec<String> {
+    match requested {
+        Some(requested_list) => {
+            let mut candidates = Vec::new();
+            let mut seen = HashSet::new();
+            for raw_name in requested_list {
+                let trimmed = raw_name.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                let name = trimmed.to_string();
+                if !seen.insert(name.clone()) {
+                    continue;
+                }
+                let Some(info) = proxies.get(trimmed) else {
+                    results.push(RuntimeDelayBatchResult {
+                        proxy: name,
+                        delay_ms: None,
+                        tested_at: None,
+                        error: Some("节点不存在".to_string()),
+                    });
+                    continue;
+                };
+                if is_proxy_group_type(&info.proxy_type) {
+                    results.push(RuntimeDelayBatchResult {
+                        proxy: name,
+                        delay_ms: None,
+                        tested_at: None,
+                        error: Some("不支持策略组测速，请选择具体节点".to_string()),
+                    });
+                    continue;
+                }
+                candidates.push(name);
+            }
+            candidates
+        }
+        None => {
+            let mut candidates: Vec<String> = proxies
+                .iter()
+                .filter_map(|(name, info)| {
+                    if is_proxy_group_type(&info.proxy_type) {
+                        return None;
+                    }
+                    Some(name.clone())
+                })
+                .collect();
+            candidates.sort();
+            candidates
+        }
+    }
+}
+
+struct CoreInstallOutcome {
+    downloaded: bool,
+    already_installed: bool,
+}
+
+async fn ensure_core_version_installed(
+    vm: &VersionManager,
+    version: &str,
+) -> Result<CoreInstallOutcome, ApiError> {
+    let installed = vm
+        .list_installed()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    if installed.iter().any(|item| item.version == version) {
+        return Ok(CoreInstallOutcome {
+            downloaded: false,
+            already_installed: true,
+        });
+    }
+
+    if let Err(err) = vm.install_with_progress(version, |_| {}).await {
+        let installed_after = vm
+            .list_installed()
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+        if installed_after.iter().any(|item| item.version == version) {
+            return Ok(CoreInstallOutcome {
+                downloaded: false,
+                already_installed: true,
+            });
+        }
+        return Err(ApiError::bad_request(err.to_string()));
+    }
+
+    Ok(CoreInstallOutcome {
+        downloaded: true,
+        already_installed: false,
+    })
 }
 
 fn ensure_valid_profile_name(name: &str) -> Result<String, ApiError> {
@@ -640,9 +1195,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     let profile_name = core_profiles::sanitize_profile_name(name)?;
     let source_url = url.trim();
     if source_url.is_empty() {
-        return Err(anyhow!(
-            "订阅链接不能为空"
-        ));
+        return Err(anyhow!("订阅链接不能为空"));
     }
 
     let masked_url = core_subscription::mask_subscription_url(source_url);
@@ -653,15 +1206,11 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     let content =
         core_subscription::fetch_subscription_text(client, raw_client, source_url).await?;
     if content.trim().is_empty() {
-        return Err(anyhow!(
-            "订阅返回内容为空"
-        ));
+        return Err(anyhow!("订阅返回内容为空"));
     }
     let content = core_subscription::strip_utf8_bom(&content);
     if core_config::validate_yaml(content).is_err() {
-        return Err(anyhow!(
-            "订阅内容不是有效的 YAML"
-        ));
+        return Err(anyhow!("订阅内容不是有效的 YAML"));
     }
 
     let manager = ConfigManager::new()?;
@@ -685,7 +1234,9 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
     } else {
         None
     };
-    manager.update_profile_metadata(&profile_name, &metadata).await?;
+    manager
+        .update_profile_metadata(&profile_name, &metadata)
+        .await?;
 
     let mut info = core_profiles::load_profile_info(&profile_name).await?;
     if activate {

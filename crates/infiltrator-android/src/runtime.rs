@@ -54,13 +54,10 @@ where
     }
 
     async fn is_running(&self) -> bool {
-        self.bridge
-            .core_is_running()
-            .await
-            .unwrap_or_else(|err| {
-                log::warn!("android core is_running failed: {err}");
-                false
-            })
+        self.bridge.core_is_running().await.unwrap_or_else(|err| {
+            log::warn!("android core is_running failed: {err}");
+            false
+        })
     }
 
     fn controller_url(&self) -> Option<String> {
@@ -257,28 +254,13 @@ mod tests {
     #[tokio::test]
     async fn test_adapter_credentials() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        let value = adapter
-            .get("svc", "key")
-            .await
-            .expect("get ok");
+        let value = adapter.get("svc", "key").await.expect("get ok");
         assert!(value.is_none());
-        adapter
-            .set("svc", "key", "secret")
-            .await
-            .expect("set ok");
-        let value = adapter
-            .get("svc", "key")
-            .await
-            .expect("get ok");
+        adapter.set("svc", "key", "secret").await.expect("set ok");
+        let value = adapter.get("svc", "key").await.expect("get ok");
         assert_eq!(value, Some("secret".to_string()));
-        adapter
-            .delete("svc", "key")
-            .await
-            .expect("delete ok");
-        let value = adapter
-            .get("svc", "key")
-            .await
-            .expect("get ok");
+        adapter.delete("svc", "key").await.expect("delete ok");
+        let value = adapter.get("svc", "key").await.expect("get ok");
         assert!(value.is_none());
     }
 
@@ -290,10 +272,7 @@ mod tests {
             runtime.controller().controller_url(),
             Some("http://127.0.0.1:9090".to_string())
         );
-        assert_eq!(
-            runtime.data_dirs().data_dir(),
-            Some(PathBuf::from("data"))
-        );
+        assert_eq!(runtime.data_dirs().data_dir(), Some(PathBuf::from("data")));
         assert_eq!(
             runtime.data_dirs().cache_dir(),
             Some(PathBuf::from("cache"))

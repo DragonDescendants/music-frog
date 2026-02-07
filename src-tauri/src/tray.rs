@@ -2,21 +2,22 @@
 pub mod handlers;
 pub mod menu;
 
-use tauri::{include_image, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}, AppHandle};
 use crate::app_state::AppState;
 use crate::frontend::open_frontend;
 use log::warn;
+use tauri::{
+    AppHandle, include_image,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+};
 
 pub(crate) use menu::{
-    refresh_core_versions_submenu,
-    refresh_profile_switch_submenu,
-    refresh_proxy_groups_submenu,
-    refresh_tray_menu,
-    refresh_tun_menu_item,
+    refresh_core_versions_submenu, refresh_profile_switch_submenu, refresh_proxy_groups_submenu,
+    refresh_tray_menu, refresh_tun_menu_item,
 };
 
 pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()> {
-    let tray_menu = tauri::async_runtime::block_on(async { menu::build_tray_menu(app, &state).await });
+    let tray_menu =
+        tauri::async_runtime::block_on(async { menu::build_tray_menu(app, &state).await });
     let (menu, items) = match tray_menu {
         Ok(result) => result,
         Err(err) => {
@@ -55,7 +56,8 @@ pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()>
                 button: MouseButton::Right,
                 button_state: MouseButtonState::Up,
                 ..
-            } = event {
+            } = event
+            {
                 // Refresh TUN state when menu is about to be shown
                 let state = state_for_tray_click.clone();
                 tauri::async_runtime::spawn(async move {
@@ -73,9 +75,10 @@ pub(crate) fn create_tray(app: &AppHandle, state: AppState) -> tauri::Result<()>
     tauri::async_runtime::spawn(async move {
         if let Ok(runtime) = summary_state.runtime().await
             && let Ok(summary) = runtime.summary().await
-                && let Err(err) = tauri::Emitter::emit(&app_handle, "mihomo://summary", &summary) {
-                    warn!("failed to emit summary event: {err}");
-                }
+            && let Err(err) = tauri::Emitter::emit(&app_handle, "mihomo://summary", &summary)
+        {
+            warn!("failed to emit summary event: {err}");
+        }
     });
 
     Ok(())

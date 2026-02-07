@@ -28,12 +28,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.despicableinfiltrator.R
 import com.musicfrog.despicableinfiltrator.ui.common.ErrorDialog
 import com.musicfrog.despicableinfiltrator.ui.common.InputDialog
+import com.musicfrog.despicableinfiltrator.ui.common.SelectionDialog
 import com.musicfrog.despicableinfiltrator.ui.common.StandardListItem
 
 @Composable
 fun TunScreen(viewModel: TunViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     var showMtuDialog by remember { mutableStateOf(false) }
+    var showStackDialog by remember { mutableStateOf(false) }
     var showDnsDialog by remember { mutableStateOf(false) }
 
     if (showMtuDialog) {
@@ -46,6 +48,23 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 showMtuDialog = false
             },
             isNumeric = true
+        )
+    }
+
+    if (showStackDialog) {
+        SelectionDialog(
+            title = stringResource(R.string.label_stack),
+            options = listOf(
+                "" to stringResource(R.string.option_stack_auto),
+                "system" to stringResource(R.string.option_stack_system),
+                "gvisor" to stringResource(R.string.option_stack_gvisor)
+            ),
+            selectedOption = state.stack,
+            onDismiss = { showStackDialog = false },
+            onSelect = {
+                viewModel.updateStack(it)
+                showStackDialog = false
+            }
         )
     }
 
@@ -112,6 +131,19 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
 
                 item {
                     StandardListItem(
+                        headline = stringResource(R.string.label_stack),
+                        supporting = when (state.stack) {
+                            "system" -> stringResource(R.string.option_stack_system)
+                            "gvisor" -> stringResource(R.string.option_stack_gvisor)
+                            else -> stringResource(R.string.option_stack_auto)
+                        },
+                        onClick = { if (!state.isLoading) showStackDialog = true }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
                         headline = stringResource(R.string.tun_auto_route),
                         supporting = stringResource(R.string.tun_auto_route_desc),
                         trailingContent = {
@@ -138,6 +170,26 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                             )
                         },
                         onClick = { if (!state.isLoading) viewModel.updateStrictRoute(!state.strictRoute) }
+                    )
+                    HorizontalDivider()
+                }
+
+                item {
+                    StandardListItem(
+                        headline = stringResource(R.string.tun_auto_detect_interface),
+                        supporting = stringResource(R.string.tun_auto_detect_interface_desc),
+                        trailingContent = {
+                            Switch(
+                                checked = state.autoDetectInterface,
+                                onCheckedChange = { viewModel.updateAutoDetectInterface(it) },
+                                enabled = !state.isLoading
+                            )
+                        },
+                        onClick = {
+                            if (!state.isLoading) {
+                                viewModel.updateAutoDetectInterface(!state.autoDetectInterface)
+                            }
+                        }
                     )
                     HorizontalDivider()
                 }

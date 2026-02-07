@@ -13,6 +13,7 @@ import infiltrator_android.LogEntry
 import infiltrator_android.LogLevel
 import infiltrator_android.TrafficSnapshot
 import infiltrator_android.configPatchMode
+import infiltrator_android.ipCheck
 import infiltrator_android.logsGet
 import infiltrator_android.logsStartStreaming
 import infiltrator_android.trafficSnapshot
@@ -28,6 +29,9 @@ data class OverviewUiState(
     val logs: List<LogEntry> = emptyList(),
     val trafficLoading: Boolean = true,
     val logsLoading: Boolean = true,
+    val egressIp: String? = null,
+    val egressLocation: String? = null,
+    val ipLoading: Boolean = false,
     val error: String? = null
 )
 
@@ -38,6 +42,7 @@ class OverviewViewModel : ViewModel() {
     init {
         startTrafficPolling()
         startLogStreaming()
+        refreshIpCheck()
     }
 
     private fun startTrafficPolling() {
@@ -139,5 +144,48 @@ class OverviewViewModel : ViewModel() {
     fun clearError() {
         _state.value = _state.value.copy(error = null)
         VpnStateManager.clearError()
+    }
+
+    fun refreshIpCheck() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(ipLoading = true)
+            try {
+                val call = runFfiCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) {
+                    ipCheck()
+                }
+                if (call.error != null) {
+                    _state.value = _state.value.copy(
+                        ipLoading = false,
+                        error = call.error,
+                    )
+                    return@launch
+                }
+                val result = call.value!!
+                if (result.status.code == FfiErrorCode.OK && result.value != null) {
+                    val value = result.value
+                    val location = listOfNotNull(
+                        value.country?.takeIf { it.isNotBlank() },
+                        value.region?.takeIf { it.isNotBlank() },
+                        value.city?.takeIf { it.isNotBlank() },
+                    ).joinToString(", ")
+                    _state.value = _state.value.copy(
+                        egressIp = value.ip,
+                        egressLocation = if (location.isBlank()) null else location,
+                        ipLoading = false,
+                        error = null,
+                    )
+                } else {
+                    _state.value = _state.value.copy(
+                        ipLoading = false,
+                        error = result.status.userMessage("Failed to check egress IP"),
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    ipLoading = false,
+                    error = e.message ?: "Failed to check egress IP",
+                )
+            }
+        }
     }
 }

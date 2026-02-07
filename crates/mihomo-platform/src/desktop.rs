@@ -208,9 +208,9 @@ mod process {
         let stderr = open_log_file(&log_path)?;
         log::info!("mihomo log file: {}", log_path.display());
 
-        let config_dir = config
-            .parent()
-            .ok_or_else(|| MihomoError::Config("Config file has no parent directory".to_string()))?;
+        let config_dir = config.parent().ok_or_else(|| {
+            MihomoError::Config("Config file has no parent directory".to_string())
+        })?;
 
         let mut command = Command::new(binary);
         command
@@ -254,11 +254,7 @@ mod process {
             .append(true)
             .open(path)
             .map_err(|e| {
-                MihomoError::Service(format!(
-                    "Failed to open log file {}: {}",
-                    path.display(),
-                    e
-                ))
+                MihomoError::Service(format!("Failed to open log file {}: {}", path.display(), e))
             })
     }
 
@@ -268,12 +264,13 @@ mod process {
 
         let pid = Pid::from_u32(pid);
         if let Some(process) = system.process(pid)
-            && !process.kill() {
-                return Err(MihomoError::Service(format!(
-                    "Failed to kill process {}",
-                    pid
-                )));
-            }
+            && !process.kill()
+        {
+            return Err(MihomoError::Service(format!(
+                "Failed to kill process {}",
+                pid
+            )));
+        }
 
         Ok(())
     }

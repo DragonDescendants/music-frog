@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { api } from '../api';
+import { api, runtimeLogsUrl } from '../api';
 
 describe('api', () => {
   const mockFetch = vi.fn();
@@ -126,7 +126,24 @@ describe('api', () => {
   it('core version functions work', async () => {
     mockFetch.mockResolvedValueOnce(createFetchResponse({ current: 'v1', versions: ['v1'] }));
     await api.listCoreVersions();
-    
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ version: 'v1.20.0', release_date: '2026-01-01T00:00:00Z' }));
+    await api.getLatestStableCore();
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ version: 'v1.20.0', downloaded: true, already_installed: false }));
+    await api.downloadCoreVersion('v1.20.0');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/core/download'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ version: 'v1.20.0' }) }),
+    );
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ version: 'v1.20.0', downloaded: true, already_installed: false, rebuild_scheduled: true }));
+    await api.updateStableCore();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/core/update-stable'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+
     mockFetch.mockResolvedValueOnce(createFetchResponse(null, true, 204));
     await api.activateCoreVersion('v1');
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/core/activate'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ version: 'v1' }) }));
@@ -136,6 +153,8 @@ describe('api', () => {
     const cfgs = [
         { name: 'FakeIp', get: api.getFakeIpConfig, save: api.saveFakeIpConfig, url: '/admin/api/fake-ip' },
         { name: 'RuleProviders', get: api.getRuleProviders, save: api.saveRuleProviders, url: '/admin/api/rule-providers' },
+        { name: 'ProxyProviders', get: api.getProxyProviders, save: api.saveProxyProviders, url: '/admin/api/proxy-providers' },
+        { name: 'Sniffer', get: api.getSnifferConfig, save: api.saveSnifferConfig, url: '/admin/api/sniffer' },
         { name: 'Rules', get: api.getRules, save: api.saveRules, url: '/admin/api/rules' },
         { name: 'Tun', get: api.getTunConfig, save: api.saveTunConfig, url: '/admin/api/tun' }
     ];
@@ -166,6 +185,70 @@ describe('api', () => {
     mockFetch.mockResolvedValueOnce(createFetchResponse({ rebuilding: false }));
     await api.getRebuildStatus();
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/rebuild/status'), expect.anything());
+  });
+
+  it('runtime API methods work', async () => {
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ downloadTotal: 0, uploadTotal: 0, connections: [] }));
+    await api.listRuntimeConnections();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/runtime/connections'), expect.anything());
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse(null, true, 204, ''));
+    await api.closeRuntimeConnection('conn-id');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/runtime/connections/conn-id'),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse(null, true, 204, ''));
+    await api.closeAllRuntimeConnections();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/runtime/connections'),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ up_rate: 1, down_rate: 2 }));
+    await api.getRuntimeTraffic();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/runtime/traffic'), expect.anything());
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ inuse: 1, oslimit: 2 }));
+    await api.getRuntimeMemory();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/runtime/memory'), expect.anything());
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ ip: '1.1.1.1' }));
+    await api.getRuntimeIp();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/admin/api/runtime/ip'), expect.anything());
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ nodes: [], default_test_url: '', default_timeout_ms: 5000 }));
+    await api.listRuntimeProxyDelayNodes();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/runtime/proxies'),
+      expect.anything(),
+    );
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ proxy: 'p1', delay_ms: 123 }));
+    await api.testRuntimeProxyDelay({ proxy: 'p1' });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/runtime/delay/test'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ proxy: 'p1' }),
+      }),
+    );
+
+    mockFetch.mockResolvedValueOnce(createFetchResponse({ results: [], success_count: 0, failed_count: 0 }));
+    await api.testAllRuntimeProxyDelays({ proxies: ['p1'] });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/api/runtime/delay/test-all'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ proxies: ['p1'] }),
+      }),
+    );
+  });
+
+  it('runtimeLogsUrl builds level query', () => {
+    expect(runtimeLogsUrl()).toContain('/admin/api/runtime/logs');
+    expect(runtimeLogsUrl('warning')).toContain('/admin/api/runtime/logs?level=warning');
   });
 
   it('handles timeout correctly', async () => {

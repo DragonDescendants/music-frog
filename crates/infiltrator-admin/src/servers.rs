@@ -1,16 +1,8 @@
-use axum::{
-    http::StatusCode,
-    response::Redirect,
-    routing::get,
-    Router,
-};
+use axum::{Router, http::StatusCode, response::Redirect, routing::get};
 use mihomo_config::port::find_available_port;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use tokio::{
-    net::TcpListener,
-    sync::oneshot,
-};
+use tokio::{net::TcpListener, sync::oneshot};
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::admin_api::{self, AdminApiContext, AdminApiState, AdminEventBus};
@@ -100,12 +92,7 @@ pub async fn start_admin_server<C: AdminApiContext>(
         .merge(admin_api::router(api_state))
         .nest_service("/admin", admin_static_service)
         .route("/", get(|| async { Redirect::temporary("/admin/") }))
-        .fallback(|| async {
-            (
-                StatusCode::NOT_FOUND,
-                "请访问 /admin/",
-            )
-        });
+        .fallback(|| async { (StatusCode::NOT_FOUND, "请访问 /admin/") });
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     tokio::spawn(async move {

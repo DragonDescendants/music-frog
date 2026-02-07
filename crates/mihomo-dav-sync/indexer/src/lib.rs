@@ -1,8 +1,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use std::path::{Path, PathBuf};
-use tokio::fs;
 use std::time::SystemTime;
+use tokio::fs;
 
 pub struct LocalEntry {
     pub path: PathBuf,
@@ -38,7 +38,10 @@ impl Indexer {
             } else if metadata.is_file() {
                 // 只同步 YAML 配置文件和特定的 settings
                 let extension = path.extension().and_then(|s| s.to_str());
-                if extension == Some("yaml") || extension == Some("yml") || extension == Some("toml") {
+                if extension == Some("yaml")
+                    || extension == Some("yml")
+                    || extension == Some("toml")
+                {
                     let relative_path = path
                         .strip_prefix(root)?
                         .to_string_lossy()
@@ -46,8 +49,9 @@ impl Indexer {
 
                     let content = fs::read(&path).await?;
                     let hash = format!("{:x}", md5::compute(&content));
-                    
-                    let last_modified: DateTime<Utc> = metadata.modified() 
+
+                    let last_modified: DateTime<Utc> = metadata
+                        .modified()
                         .unwrap_or_else(|_| SystemTime::now())
                         .into();
 

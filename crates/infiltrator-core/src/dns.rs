@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
@@ -129,16 +129,28 @@ impl DnsConfig {
 
 pub async fn load_dns_config() -> Result<DnsConfig> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
     extract_dns_config(&doc)
 }
 
 pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
     let manager = ConfigManager::new().context("init config manager")?;
-    let profile = manager.get_current().await.context("load current profile")?;
-    let content = manager.load(&profile).await.context("read profile config")?;
+    let profile = manager
+        .get_current()
+        .await
+        .context("load current profile")?;
+    let content = manager
+        .load(&profile)
+        .await
+        .context("read profile config")?;
     let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
 
     let mut config = extract_dns_config(&doc)?;
@@ -190,13 +202,15 @@ fn validate_dns_config(config: &DnsConfig) -> Result<()> {
         }
     }
     if let Some(listen) = config.listen.as_ref()
-        && listen.trim().is_empty() {
-            return Err(anyhow!("dns listen address is empty"));
-        }
+        && listen.trim().is_empty()
+    {
+        return Err(anyhow!("dns listen address is empty"));
+    }
     if let Some(range) = config.fake_ip_range.as_ref()
-        && range.trim().is_empty() {
-            return Err(anyhow!("fake-ip-range is empty"));
-        }
+        && range.trim().is_empty()
+    {
+        return Err(anyhow!("fake-ip-range is empty"));
+    }
     Ok(())
 }
 
@@ -291,15 +305,15 @@ mod tests {
             listen: Some("127.0.0.1:53".to_string()),
             ..DnsConfig::default()
         };
-        
+
         let patch = DnsConfigPatch {
             enable: Some(false),
             // nameserver and listen are None in patch
             ..DnsConfigPatch::default()
         };
-        
+
         config.apply_patch(patch);
-        
+
         assert_eq!(config.enable, Some(false));
         // Should preserve existing values
         assert_eq!(config.nameserver, Some(vec!["8.8.8.8".to_string()]));
@@ -308,14 +322,15 @@ mod tests {
 
     #[test]
     fn test_apply_dns_config_preserves_other_sections() {
-        let mut doc: Value = serde_yaml::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n").expect("yaml");
+        let mut doc: Value =
+            serde_yaml::from_str("tun:\n  enable: true\nproxies:\n  - name: p1\n").expect("yaml");
         let config = DnsConfig {
             enable: Some(true),
             nameserver: Some(vec!["1.1.1.1".to_string()]),
             ..DnsConfig::default()
         };
         apply_dns_config(&mut doc, &config).expect("apply dns");
-        
+
         let map = doc.as_mapping().expect("mapping");
         assert!(map.get(Value::String("tun".to_string())).is_some());
         assert!(map.get(Value::String("proxies".to_string())).is_some());
@@ -325,15 +340,24 @@ mod tests {
     #[test]
     fn test_validate_dns_config_all_errors() {
         // Empty listen
-        let config = DnsConfig { listen: Some(" ".to_string()), ..DnsConfig::default() };
+        let config = DnsConfig {
+            listen: Some(" ".to_string()),
+            ..DnsConfig::default()
+        };
         assert!(validate_dns_config(&config).is_err());
 
         // Invalid enhanced_mode
-        let config = DnsConfig { enhanced_mode: Some("vpn".to_string()), ..DnsConfig::default() };
+        let config = DnsConfig {
+            enhanced_mode: Some("vpn".to_string()),
+            ..DnsConfig::default()
+        };
         assert!(validate_dns_config(&config).is_err());
 
         // Empty fake_ip_range
-        let config = DnsConfig { fake_ip_range: Some("".to_string()), ..DnsConfig::default() };
+        let config = DnsConfig {
+            fake_ip_range: Some("".to_string()),
+            ..DnsConfig::default()
+        };
         assert!(validate_dns_config(&config).is_err());
     }
 }

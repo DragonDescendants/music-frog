@@ -2,13 +2,13 @@ use std::sync::OnceLock;
 
 use log::warn;
 use tokio::sync::{Mutex, watch};
-use tokio::time::{interval, Duration, Instant};
+use tokio::time::{Duration, Instant, interval};
 
 use infiltrator_http::{build_http_client, build_raw_http_client};
 
-use crate::admin_api::AdminApiContext;
 use self::subscription::run_subscription_tick;
 use self::sync::run_sync_tick;
+use crate::admin_api::AdminApiContext;
 
 pub mod subscription;
 pub mod sync;
@@ -28,7 +28,7 @@ impl SubscriptionScheduler {
         tokio::spawn(async move {
             let client = build_http_client();
             let raw_client = build_raw_http_client(&client);
-            
+
             // 提高检查频率至 1 分钟，以便处理不同频率的定时任务
             let mut ticker = interval(Duration::from_secs(60));
             // Avoid Instant underflow on early boot; force the first tick instead.
@@ -43,7 +43,7 @@ impl SubscriptionScheduler {
                 Some(instant) => (instant, false),
                 None => (now, true),
             };
-            
+
             loop {
                 tokio::select! {
                     _ = ticker.tick() => {
@@ -116,10 +116,10 @@ mod tests {
         let lock = update_lock();
         let guard = lock.try_lock();
         assert!(guard.is_ok(), "First lock should succeed");
-        
+
         let guard2 = lock.try_lock();
         assert!(guard2.is_err(), "Second concurrent lock should fail");
-        
+
         drop(guard);
         let guard3 = lock.try_lock();
         assert!(guard3.is_ok(), "Lock should be available again after drop");

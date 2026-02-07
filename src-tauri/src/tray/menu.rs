@@ -6,36 +6,34 @@ use std::{
 use infiltrator_core::profiles as core_profiles;
 use log::warn;
 use mihomo_api::ProxyInfo;
-use mihomo_version::{manager::VersionInfo, VersionManager};
+use mihomo_version::{VersionManager, manager::VersionInfo};
 use tauri::{
-    include_image,
+    AppHandle, Wry, include_image,
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
-    tray::{TrayIconBuilder},
-    AppHandle, Wry,
+    tray::TrayIconBuilder,
 };
 use tokio::time::Duration;
 
 use crate::{
     app_state::{AppState, TrayInfoItems},
     autostart::is_autostart_enabled,
-    platform::{is_running_as_admin},
     frontend::open_frontend,
     locales::{Lang, Localizer},
+    platform::is_running_as_admin,
 };
 
-pub(crate) async fn refresh_tray_menu(
-    app: &AppHandle,
-    state: &AppState,
-) -> anyhow::Result<()> {
+pub(crate) async fn refresh_tray_menu(app: &AppHandle, state: &AppState) -> anyhow::Result<()> {
     let (menu, items) = build_tray_menu(app, state).await?;
     if let Some(tray) = app.tray_by_id("metacube-tray") {
         tray.set_menu(Some(menu))?;
     }
     state.set_tray_info_items(items).await;
     state.refresh_system_proxy_state().await;
-    state.update_admin_privilege_text(is_running_as_admin()).await;
+    state
+        .update_admin_privilege_text(is_running_as_admin())
+        .await;
     state.refresh_core_version_info().await;
-    
+
     let lang_code = state.get_lang_code().await;
     let lang = Lang(lang_code.as_str());
 
@@ -44,31 +42,55 @@ pub(crate) async fn refresh_tray_menu(
             .update_static_info_text(format!("{}: {}", lang.tr("static_server"), url))
             .await;
     } else {
-        state.update_static_info_text(format!("{}: {}", lang.tr("static_server"), lang.tr("not_started"))).await;
+        state
+            .update_static_info_text(format!(
+                "{}: {}",
+                lang.tr("static_server"),
+                lang.tr("not_started")
+            ))
+            .await;
     }
     if let Some(url) = state.admin_server_url().await {
-        state.update_admin_info_text(format!("{}: {}", lang.tr("admin_server"), url)).await;
+        state
+            .update_admin_info_text(format!("{}: {}", lang.tr("admin_server"), url))
+            .await;
     } else {
-        state.update_admin_info_text(format!("{}: {}", lang.tr("admin_server"), lang.tr("not_started"))).await;
+        state
+            .update_admin_info_text(format!(
+                "{}: {}",
+                lang.tr("admin_server"),
+                lang.tr("not_started")
+            ))
+            .await;
     }
     if let Ok(runtime) = state.runtime().await {
         state
-            .update_controller_info_text(format!("{}: {}", lang.tr("controller_api"), runtime.controller_url))
+            .update_controller_info_text(format!(
+                "{}: {}",
+                lang.tr("controller_api"),
+                runtime.controller_url
+            ))
             .await;
     } else {
-        state.update_controller_info_text(format!("{}: {}", lang.tr("controller_api"), lang.tr("initializing"))).await;
+        state
+            .update_controller_info_text(format!(
+                "{}: {}",
+                lang.tr("controller_api"),
+                lang.tr("initializing")
+            ))
+            .await;
     }
     Ok(())
 }
 
 pub(crate) fn build_fallback_tray(app: &AppHandle, state: AppState) -> tauri::Result<()> {
     // Fallback tray usually happens on error, likely before we load settings or if loading settings fails.
-    // We can try to get language, but synchronous here. 
+    // We can try to get language, but synchronous here.
     // Since this is panic/error fallback, defaulting to Chinese or English hardcoded is fine.
-    // But let's try to be consistent if possible. However, state.get_lang_code() is async. 
+    // But let's try to be consistent if possible. However, state.get_lang_code() is async.
     // Let's stick to Chinese default for fallback to minimize complexity, or hardcode simple English.
     // Or we can block on async if we really want, but `build_fallback_tray` is sync in signature above (tauri::Result).
-    // Let's just use hardcoded Chinese as it was before, or minimal English. 
+    // Let's just use hardcoded Chinese as it was before, or minimal English.
     // The previous code had Chinese.
     let error_item = MenuItem::with_id(
         app,
@@ -77,17 +99,20 @@ pub(crate) fn build_fallback_tray(app: &AppHandle, state: AppState) -> tauri::Re
         false,
         None::<&str>,
     )?;
-    let show_item = MenuItem::with_id(app, "show", "打开代理页 / Open Proxy Page", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(
+        app,
+        "show",
+        "打开代理页 / Open Proxy Page",
+        true,
+        None::<&str>,
+    )?;
     let quit_item = MenuItem::with_id(app, "quit", "退出 / Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&error_item, &show_item, &quit_item])?;
 
-        TrayIconBuilder::with_id("metacube-tray")
-
-            .tooltip("MusicFrog Despicable Infiltrator")
-
-            .icon(include_image!("icons/tray.ico"))
-
-            .menu(&menu)
+    TrayIconBuilder::with_id("metacube-tray")
+        .tooltip("MusicFrog Despicable Infiltrator")
+        .icon(include_image!("icons/tray.ico"))
+        .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(move |_app, event| match event.id.as_ref() {
             "show" => {
@@ -108,7 +133,7 @@ pub(crate) async fn build_tray_menu(
 ) -> tauri::Result<(Menu<Wry>, TrayInfoItems)> {
     let mut profile_map: HashMap<String, String> = HashMap::new();
     let mut proxy_map: HashMap<String, (String, String)> = HashMap::new();
-    
+
     let lang_code = state.get_lang_code().await;
     let lang = Lang(lang_code.as_str());
 
@@ -133,29 +158,56 @@ pub(crate) async fn build_tray_menu(
     let about_submenu = build_about_submenu(app, state, &lang).await?;
     let (mode_submenu, mode_items) = build_mode_submenu(app, state, &lang).await?;
     let profile_switch_submenu = build_profile_switch_submenu(app, &mut profile_map, &lang).await?;
-    let proxy_groups_submenu = build_proxy_groups_submenu(app, state, &mut proxy_map, &lang).await?;
+    let proxy_groups_submenu =
+        build_proxy_groups_submenu(app, state, &mut proxy_map, &lang).await?;
     let tun_item = build_tun_menu_item(app, state, &lang).await?;
 
     // Group 1: Connection Info
     let static_info_item = MenuItem::with_id(
-        app, "static-info", format!("{}: {}", lang.tr("static_server"), lang.tr("starting")),
-    false, None::<&str>)?;
+        app,
+        "static-info",
+        format!("{}: {}", lang.tr("static_server"), lang.tr("starting")),
+        false,
+        None::<&str>,
+    )?;
     let controller_info_item = MenuItem::with_id(
-        app, "controller-info", format!("{}: {}", lang.tr("controller_api"), lang.tr("initializing")),
-    false, None::<&str>)?;
+        app,
+        "controller-info",
+        format!("{}: {}", lang.tr("controller_api"), lang.tr("initializing")),
+        false,
+        None::<&str>,
+    )?;
     let admin_info_item = MenuItem::with_id(
-        app, "admin-info", format!("{}: {}", lang.tr("admin_server"), lang.tr("starting")),
-    false, None::<&str>)?;
+        app,
+        "admin-info",
+        format!("{}: {}", lang.tr("admin_server"), lang.tr("starting")),
+        false,
+        None::<&str>,
+    )?;
     let sep1 = PredefinedMenuItem::separator(app)?;
 
     // Group 3: Privilege & Restart
     let admin_privilege_item = MenuItem::with_id(
-        app, "admin-privilege", format!("{}: {}", lang.tr("admin_privilege"), lang.tr("checking")),
-    false, None::<&str>)?;
-    let restart_admin_item =
-        MenuItem::with_id(app, "restart-admin", lang.tr("restart_admin"), true, None::<&str>)?;
-    let factory_reset_item =
-        MenuItem::with_id(app, "factory-reset", lang.tr("factory_reset"), true, None::<&str>)?;
+        app,
+        "admin-privilege",
+        format!("{}: {}", lang.tr("admin_privilege"), lang.tr("checking")),
+        false,
+        None::<&str>,
+    )?;
+    let restart_admin_item = MenuItem::with_id(
+        app,
+        "restart-admin",
+        lang.tr("restart_admin"),
+        true,
+        None::<&str>,
+    )?;
+    let factory_reset_item = MenuItem::with_id(
+        app,
+        "factory-reset",
+        lang.tr("factory_reset"),
+        true,
+        None::<&str>,
+    )?;
 
     // Group 2: Pages
     let show_item = MenuItem::with_id(app, "show", lang.tr("open_browser"), true, None::<&str>)?;
@@ -178,12 +230,22 @@ pub(crate) async fn build_tray_menu(
         lang.tr("autostart")
     };
     let autostart_item = CheckMenuItem::with_id(
-        app, "autostart", autostart_label, autostart_supported && autostart_is_admin, autostart_enabled, None::<&str>,
+        app,
+        "autostart",
+        autostart_label,
+        autostart_supported && autostart_is_admin,
+        autostart_enabled,
+        None::<&str>,
     )?;
     let open_webui_item = CheckMenuItem::with_id(
-        app, "open-webui", lang.tr("open_webui_startup"), true, open_webui_checked, None::<&str>,
+        app,
+        "open-webui",
+        lang.tr("open_webui_startup"),
+        true,
+        open_webui_checked,
+        None::<&str>,
     )?;
-    
+
     // Core submenu
     let core_version_item = MenuItem::with_id(
         app,
@@ -213,8 +275,13 @@ pub(crate) async fn build_tray_menu(
         false,
         None::<&str>,
     )?;
-    let core_update_item =
-        MenuItem::with_id(app, "core-update", lang.tr("update_to_stable"), true, None::<&str>)?;
+    let core_update_item = MenuItem::with_id(
+        app,
+        "core-update",
+        lang.tr("update_to_stable"),
+        true,
+        None::<&str>,
+    )?;
     let core_default_item = CheckMenuItem::with_id(
         app,
         "core-default",
@@ -241,13 +308,20 @@ pub(crate) async fn build_tray_menu(
     )?;
 
     let settings_submenu = Submenu::with_items(
-        app, lang.tr("settings"), true,
+        app,
+        lang.tr("settings"),
+        true,
         &[&autostart_item, &open_webui_item, &tun_item],
     )?;
     let sync_submenu = build_sync_submenu(app, state, &lang).await?;
     let advanced_submenu = build_advanced_submenu(app, &lang, admin_ready, core_ready)?;
-    let proxy_item = MenuItem::with_id(app, "system-proxy", format!("{}: {}", lang.tr("system_proxy"), lang.tr("disabled")),
-    true, None::<&str>)?;
+    let proxy_item = MenuItem::with_id(
+        app,
+        "system-proxy",
+        format!("{}: {}", lang.tr("system_proxy"), lang.tr("disabled")),
+        true,
+        None::<&str>,
+    )?;
 
     // Group 4: Core Manager
     let sep3 = PredefinedMenuItem::separator(app)?;
@@ -276,21 +350,38 @@ pub(crate) async fn build_tray_menu(
         app,
         &[
             // Group 1
-            &static_info_item, &controller_info_item, &admin_info_item, &sep1,
+            &static_info_item,
+            &controller_info_item,
+            &admin_info_item,
+            &sep1,
             // Group 2
-            &show_item, &open_config_item, &sep2,
+            &show_item,
+            &open_config_item,
+            &sep2,
             // Group 4
-            &core_submenu, &sep3,
+            &core_submenu,
+            &sep3,
             // Group 5
-            &settings_submenu, &sync_submenu, &proxy_item, &sep4,
+            &settings_submenu,
+            &sync_submenu,
+            &proxy_item,
+            &sep4,
             // Group 6
-            &advanced_submenu, &sep5,
+            &advanced_submenu,
+            &sep5,
             // Group 7
-            &mode_submenu, &profile_switch_submenu, &proxy_groups_submenu, &sep6,
+            &mode_submenu,
+            &profile_switch_submenu,
+            &proxy_groups_submenu,
+            &sep6,
             // Group 3 (after Group 7)
-            &admin_privilege_item, &restart_admin_item, &factory_reset_item, &sep7,
+            &admin_privilege_item,
+            &restart_admin_item,
+            &factory_reset_item,
+            &sep7,
             // Group 8
-            &about_submenu, &quit_item,
+            &about_submenu,
+            &quit_item,
         ],
     )?;
 
@@ -322,10 +413,17 @@ pub(crate) async fn build_tray_menu(
     Ok((menu, items))
 }
 
-async fn build_about_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>) -> tauri::Result<Submenu<Wry>> {
-    let app_version = format!("MusicFrog-Despicable-Infiltrator v{}", env!("CARGO_PKG_VERSION"));
+async fn build_about_submenu(
+    app: &AppHandle,
+    state: &AppState,
+    lang: &Lang<'_>,
+) -> tauri::Result<Submenu<Wry>> {
+    let app_version = format!(
+        "MusicFrog-Despicable-Infiltrator v{}",
+        env!("CARGO_PKG_VERSION")
+    );
     let sdk_version = "mihomo-sdk (workspace)";
-    
+
     let core_version = if let Ok(runtime) = state.runtime().await {
         match runtime.client().get_version().await {
             Ok(v) => format!("{} {}", lang.tr("core_service"), v.version),
@@ -339,7 +437,12 @@ async fn build_about_submenu(app: &AppHandle, state: &AppState, lang: &Lang<'_>)
     let sdk_item = MenuItem::with_id(app, "about-sdk", sdk_version, false, None::<&str>)?;
     let core_item = MenuItem::with_id(app, "about-core", &core_version, false, None::<&str>)?;
 
-    Submenu::with_items(app, lang.tr("about"), true, &[&app_item, &sdk_item, &core_item])
+    Submenu::with_items(
+        app,
+        lang.tr("about"),
+        true,
+        &[&app_item, &sdk_item, &core_item],
+    )
 }
 
 async fn build_profile_switch_submenu(
@@ -361,8 +464,13 @@ async fn build_profile_switch_items(
         Ok(list) => list,
         Err(err) => {
             warn!("failed to list profiles: {err:#}");
-            let failed_item =
-                MenuItem::with_id(app, "profile-switch-error", lang.tr("profile_read_failed"), false, None::<&str>)?;
+            let failed_item = MenuItem::with_id(
+                app,
+                "profile-switch-error",
+                lang.tr("profile_read_failed"),
+                false,
+                None::<&str>,
+            )?;
             return Ok(vec![Box::new(failed_item)]);
         }
     };
@@ -370,13 +478,20 @@ async fn build_profile_switch_items(
     let active_profile = profiles.iter().find(|p| p.active).cloned();
 
     if profiles.is_empty() {
-        let empty_item =
-            MenuItem::with_id(app, "profile-switch-empty", lang.tr("profile_empty"), false, None::<&str>)?;
+        let empty_item = MenuItem::with_id(
+            app,
+            "profile-switch-empty",
+            lang.tr("profile_empty"),
+            false,
+            None::<&str>,
+        )?;
         return Ok(vec![Box::new(empty_item)]);
     }
 
     profiles.sort_by(|a, b| b.active.cmp(&a.active).then_with(|| a.name.cmp(&b.name)));
-    let has_subscription = profiles.iter().any(|profile| profile.subscription_url.is_some());
+    let has_subscription = profiles
+        .iter()
+        .any(|profile| profile.subscription_url.is_some());
 
     let max_visible = 10usize;
     let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
@@ -389,14 +504,7 @@ async fn build_profile_switch_items(
         };
         let label = truncate_label(&label, 60);
         let menu_id = insert_profile_menu_id(profile_map, &profile.name);
-        let item = CheckMenuItem::with_id(
-            app,
-            menu_id,
-            label,
-            true,
-            profile.active,
-            None::<&str>,
-        )?;
+        let item = CheckMenuItem::with_id(app, menu_id, label, true, profile.active, None::<&str>)?;
         items.push(Box::new(item));
     }
 
@@ -418,8 +526,12 @@ async fn build_profile_switch_items(
             .iter()
             .map(|item| item as &dyn IsMenuItem<Wry>)
             .collect();
-        let overflow_submenu =
-            Submenu::with_items(app, lang.tr("more_profiles"), true, overflow_refs.as_slice())?;
+        let overflow_submenu = Submenu::with_items(
+            app,
+            lang.tr("more_profiles"),
+            true,
+            overflow_refs.as_slice(),
+        )?;
         items.push(Box::new(overflow_submenu));
     }
 
@@ -435,17 +547,18 @@ async fn build_profile_switch_items(
     items.push(Box::new(update_all_item));
 
     if let Some(active) = active_profile
-        && active.subscription_url.is_some() {
-            let auto_update_item = CheckMenuItem::with_id(
-                app,
-                format!("profile-auto-update-{}", active.name),
-                lang.tr("auto_update_sub"),
-                true,
-                active.auto_update_enabled,
-                None::<&str>,
-            )?;
-            items.push(Box::new(auto_update_item));
-        }
+        && active.subscription_url.is_some()
+    {
+        let auto_update_item = CheckMenuItem::with_id(
+            app,
+            format!("profile-auto-update-{}", active.name),
+            lang.tr("auto_update_sub"),
+            true,
+            active.auto_update_enabled,
+            None::<&str>,
+        )?;
+        items.push(Box::new(auto_update_item));
+    }
 
     Ok(items)
 }
@@ -487,8 +600,14 @@ async fn build_mode_submenu(
     let is_direct = current_mode.as_deref() == Some("direct");
     let is_script = current_mode.as_deref() == Some("script");
 
-    let rule_item =
-        CheckMenuItem::with_id(app, "mode-rule", lang.tr("mode_rule"), menu_enabled, is_rule, None::<&str>)?;
+    let rule_item = CheckMenuItem::with_id(
+        app,
+        "mode-rule",
+        lang.tr("mode_rule"),
+        menu_enabled,
+        is_rule,
+        None::<&str>,
+    )?;
     let global_item = CheckMenuItem::with_id(
         app,
         "mode-global",
@@ -544,7 +663,12 @@ fn build_core_versions_submenu(
 ) -> tauri::Result<Submenu<Wry>> {
     let items = build_core_versions_items(app, lang, versions)?;
     let item_refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|item| item.as_ref()).collect();
-    Submenu::with_items(app, lang.tr("downloaded_version"), true, item_refs.as_slice())
+    Submenu::with_items(
+        app,
+        lang.tr("downloaded_version"),
+        true,
+        item_refs.as_slice(),
+    )
 }
 
 fn build_core_versions_items(
@@ -560,10 +684,20 @@ fn build_core_versions_items(
 
     let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
     for version in versions {
-        let use_item =
-            MenuItem::with_id(app, format!("core-use-{}", version.version), lang.tr("use"), true, None::<&str>)?;
-        let delete_item =
-            MenuItem::with_id(app, format!("core-delete-{}", version.version), lang.tr("delete"), true, None::<&str>)?;
+        let use_item = MenuItem::with_id(
+            app,
+            format!("core-use-{}", version.version),
+            lang.tr("use"),
+            true,
+            None::<&str>,
+        )?;
+        let delete_item = MenuItem::with_id(
+            app,
+            format!("core-delete-{}", version.version),
+            lang.tr("delete"),
+            true,
+            None::<&str>,
+        )?;
         let submenu = Submenu::with_items(app, &version.version, true, &[&use_item, &delete_item])?;
         items.push(Box::new(submenu));
     }
@@ -592,8 +726,13 @@ async fn build_proxy_groups_items(
         Ok(proxies) => proxies,
         Err(err) => {
             warn!("failed to refresh proxies: {err:#}");
-            let failed_item =
-                MenuItem::with_id(app, "proxy-groups-error", lang.tr("proxy_groups_read_failed"), false, None::<&str>)?;
+            let failed_item = MenuItem::with_id(
+                app,
+                "proxy-groups-error",
+                lang.tr("proxy_groups_read_failed"),
+                false,
+                None::<&str>,
+            )?;
             return Ok(vec![Box::new(failed_item)]);
         }
     };
@@ -604,8 +743,13 @@ async fn build_proxy_groups_items(
         .map(|(name, info)| (name.clone(), info.clone()))
         .collect();
     if groups.is_empty() {
-        let empty_item =
-            MenuItem::with_id(app, "proxy-groups-empty", lang.tr("proxy_groups_empty"), false, None::<&str>)?;
+        let empty_item = MenuItem::with_id(
+            app,
+            "proxy-groups-empty",
+            lang.tr("proxy_groups_empty"),
+            false,
+            None::<&str>,
+        )?;
         return Ok(vec![Box::new(empty_item)]);
     }
     groups.sort_by(|a, b| a.0.cmp(&b.0));
@@ -662,18 +806,14 @@ fn build_proxy_group_submenu(
     for node in nodes.iter().take(max_nodes) {
         let label = truncate_label(&build_proxy_node_label(proxies, node), 60);
         let menu_id = insert_proxy_menu_id(proxy_map, group_name, node);
-        let item = CheckMenuItem::with_id(
-            app,
-            menu_id,
-            label,
-            true,
-            current == node,
-            None::<&str>,
-        )?;
+        let item =
+            CheckMenuItem::with_id(app, menu_id, label, true, current == node, None::<&str>)?;
         node_items.push(item);
     }
-    let mut item_refs: Vec<&dyn IsMenuItem<Wry>> =
-        node_items.iter().map(|item| item as &dyn IsMenuItem<Wry>).collect();
+    let mut item_refs: Vec<&dyn IsMenuItem<Wry>> = node_items
+        .iter()
+        .map(|item| item as &dyn IsMenuItem<Wry>)
+        .collect();
 
     let mut overflow_submenus: Vec<Submenu<Wry>> = Vec::new();
     if nodes.len() > max_nodes {
@@ -681,14 +821,8 @@ fn build_proxy_group_submenu(
         for node in nodes.iter().skip(max_nodes) {
             let label = truncate_label(&build_proxy_node_label(proxies, node), 60);
             let menu_id = insert_proxy_menu_id(proxy_map, group_name, node);
-            let item = CheckMenuItem::with_id(
-                app,
-                menu_id,
-                label,
-                true,
-                current == node,
-                None::<&str>,
-            )?;
+            let item =
+                CheckMenuItem::with_id(app, menu_id, label, true, current == node, None::<&str>)?;
             overflow_items.push(item);
         }
         let overflow_refs: Vec<&dyn IsMenuItem<Wry>> = overflow_items
@@ -876,7 +1010,13 @@ fn build_advanced_submenu(
         app,
         lang.tr("advanced_settings"),
         true,
-        &[&dns_item, &fake_ip_item, &fake_ip_flush_item, &rules_item, &tun_item],
+        &[
+            &dns_item,
+            &fake_ip_item,
+            &fake_ip_flush_item,
+            &rules_item,
+            &tun_item,
+        ],
     )
 }
 
@@ -887,17 +1027,29 @@ async fn build_sync_submenu(
 ) -> tauri::Result<Submenu<Wry>> {
     let settings = state.get_app_settings().await;
     let enabled = settings.webdav.enabled;
-    
+
     let status_label = if enabled {
         format!("{}: {}", lang.tr("webdav_sync"), lang.tr("enabled"))
     } else {
         format!("{}: {}", lang.tr("webdav_sync"), lang.tr("disabled"))
     };
-    
+
     let status_item = MenuItem::with_id(app, "sync-status", &status_label, false, None::<&str>)?;
-    let sync_now_item = MenuItem::with_id(app, "webdav-sync-now", lang.tr("sync_now"), enabled, None::<&str>)?;
-    let sync_settings_item = MenuItem::with_id(app, "webdav-sync-settings", lang.tr("sync_settings"), true, None::<&str>)?;
-    
+    let sync_now_item = MenuItem::with_id(
+        app,
+        "webdav-sync-now",
+        lang.tr("sync_now"),
+        enabled,
+        None::<&str>,
+    )?;
+    let sync_settings_item = MenuItem::with_id(
+        app,
+        "webdav-sync-settings",
+        lang.tr("sync_settings"),
+        true,
+        None::<&str>,
+    )?;
+
     Submenu::with_items(
         app,
         lang.tr("sync_and_backup"),
@@ -938,7 +1090,10 @@ pub(crate) async fn refresh_profile_switch_submenu(
         match result {
             Ok(()) => {
                 state.set_tray_profile_map(profile_map).await;
-                log::info!("profile switch submenu refreshed successfully (attempt {})", attempt);
+                log::info!(
+                    "profile switch submenu refreshed successfully (attempt {})",
+                    attempt
+                );
                 return Ok(());
             }
             Err(err) => {
@@ -1007,9 +1162,7 @@ pub(crate) async fn refresh_core_versions_submenu(
     Ok(())
 }
 
-pub(crate) async fn refresh_tun_menu_item(
-    state: &AppState,
-) -> anyhow::Result<()> {
+pub(crate) async fn refresh_tun_menu_item(state: &AppState) -> anyhow::Result<()> {
     let Some(items) = state.tray_info_items().await else {
         return Ok(());
     };

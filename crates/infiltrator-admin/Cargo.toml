@@ -13,6 +13,7 @@ infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-http = { path = "../infiltrator-http" }
 log = { workspace = true }
 mihomo-config = { path = "../mihomo-config" }
+mihomo-api = { path = "../mihomo-api" }
 mihomo-platform = { path = "../mihomo-platform" }
 mihomo-version = { path = "../mihomo-version" }
 serde = { workspace = true }

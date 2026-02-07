@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use mihomo_api::{MihomoClient, ProxyGroup, ProxyManager};
 use mihomo_config::ConfigManager;
 use mihomo_version::VersionManager;
-use reqwest::{header::ACCEPT_ENCODING, Client};
+use reqwest::{Client, header::ACCEPT_ENCODING};
 use serde::Serialize;
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -41,8 +41,7 @@ impl MihomoRuntime {
         cm.ensure_proxy_ports().await?;
         let controller_url = cm.ensure_external_controller().await?;
         let config_path = cm.get_current_path().await?;
-        let binary =
-            version::resolve_binary(vm, use_bundled, bundled_candidates, data_dir).await?;
+        let binary = version::resolve_binary(vm, use_bundled, bundled_candidates, data_dir).await?;
         let geoip_candidates = collect_geoip_candidates(&binary, bundled_candidates);
         ensure_geoip_database(&config_path, &geoip_candidates).await?;
         let service_manager = ServiceManager::new(binary, config_path.clone());
@@ -120,9 +119,7 @@ impl MihomoRuntime {
     async fn read_mode(&self, profile: &str) -> anyhow::Result<String> {
         let content = self.config_manager.load(profile).await?;
         let doc = parse_yaml_doc(&content)?;
-        Ok(get_yaml_str(&doc, "mode")
-            .unwrap_or("rule")
-            .to_string())
+        Ok(get_yaml_str(&doc, "mode").unwrap_or("rule").to_string())
     }
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {
@@ -172,9 +169,10 @@ fn collect_geoip_candidates(binary: &Path, bundled_candidates: &[PathBuf]) -> Ve
     }
     for candidate in bundled_candidates {
         if let Some(dir) = candidate.parent()
-            && !dirs.contains(&dir.to_path_buf()) {
-                dirs.push(dir.to_path_buf());
-            }
+            && !dirs.contains(&dir.to_path_buf())
+        {
+            dirs.push(dir.to_path_buf());
+        }
     }
 
     dirs.into_iter()
@@ -196,9 +194,10 @@ async fn ensure_geoip_database(
         .ok_or_else(|| anyhow!("配置目录不存在"))?;
     let geoip_path = config_dir.join("geoip.metadb");
     if let Ok(meta) = tokio::fs::metadata(&geoip_path).await
-        && meta.len() >= GEOIP_MIN_SIZE {
-            return Ok(());
-        }
+        && meta.len() >= GEOIP_MIN_SIZE
+    {
+        return Ok(());
+    }
 
     if try_copy_geoip_candidates(geoip_candidates, &geoip_path).await? {
         return Ok(());
@@ -211,11 +210,7 @@ async fn ensure_geoip_database(
         match download_geoip(&client, &url).await {
             Ok(bytes) => {
                 if bytes.len() as u64 <= GEOIP_MIN_SIZE {
-                    last_err = Some(format!(
-                        "下载 {} 返回 {} bytes",
-                        url,
-                        bytes.len()
-                    ));
+                    last_err = Some(format!("下载 {} 返回 {} bytes", url, bytes.len()));
                     continue;
                 }
                 tokio::fs::write(&geoip_path, &bytes).await?;
@@ -253,15 +248,16 @@ async fn try_copy_geoip_candidates(
 ) -> anyhow::Result<bool> {
     for candidate in candidates {
         if let Ok(meta) = tokio::fs::metadata(candidate).await
-            && meta.len() >= GEOIP_MIN_SIZE {
-                log::info!(
-                    "使用本地 GeoIP 数据库: {} -> {}",
-                    candidate.display(),
-                    geoip_path.display()
-                );
-                tokio::fs::copy(candidate, geoip_path).await?;
-                return Ok(true);
-            }
+            && meta.len() >= GEOIP_MIN_SIZE
+        {
+            log::info!(
+                "使用本地 GeoIP 数据库: {} -> {}",
+                candidate.display(),
+                geoip_path.display()
+            );
+            tokio::fs::copy(candidate, geoip_path).await?;
+            return Ok(true);
+        }
     }
 
     Ok(false)
@@ -276,10 +272,7 @@ async fn download_geoip(client: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
         .await
         .map_err(|e| anyhow!("下载 GeoIP 数据库失败: {e}"))?;
     if !response.status().is_success() {
-        return Err(anyhow!(
-            "下载 GeoIP 数据库失败: HTTP {}",
-            response.status()
-        ));
+        return Err(anyhow!("下载 GeoIP 数据库失败: HTTP {}", response.status()));
     }
     let bytes = response
         .bytes()
@@ -290,8 +283,7 @@ async fn download_geoip(client: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
 }
 
 fn parse_yaml_doc(content: &str) -> anyhow::Result<Yaml> {
-    let docs = YamlLoader::load_from_str(content)
-        .map_err(|err| anyhow!(err.to_string()))?;
+    let docs = YamlLoader::load_from_str(content).map_err(|err| anyhow!(err.to_string()))?;
     docs.into_iter()
         .next()
         .ok_or_else(|| anyhow!("配置内容不是有效的 YAML"))
@@ -304,9 +296,7 @@ fn get_yaml_str<'a>(doc: &'a Yaml, key: &str) -> Option<&'a str> {
 }
 
 fn get_yaml_u16(doc: &Yaml, key: &str) -> Option<u16> {
-    let value = doc
-        .as_hash()?
-        .get(&Yaml::String(key.to_string()))?;
+    let value = doc.as_hash()?.get(&Yaml::String(key.to_string()))?;
     match value {
         Yaml::Integer(num) => {
             if *num >= 0 && *num <= u16::MAX as i64 {

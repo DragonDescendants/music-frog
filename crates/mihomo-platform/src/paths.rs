@@ -1,10 +1,11 @@
 use mihomo_api::MihomoError;
 use std::path::PathBuf;
-use std::sync::RwLock;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::RwLock;
 
-static DATA_DIR_OVERRIDE: LazyLock<Arc<RwLock<Option<PathBuf>>>> = LazyLock::new(|| Arc::new(RwLock::new(None)));
+static DATA_DIR_OVERRIDE: LazyLock<Arc<RwLock<Option<PathBuf>>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(None)));
 
 pub fn set_home_dir_override(path: PathBuf) -> bool {
     if let Ok(mut guard) = DATA_DIR_OVERRIDE.write() {
@@ -23,10 +24,11 @@ pub fn clear_home_dir_override() {
 
 pub fn get_home_dir() -> Result<PathBuf, MihomoError> {
     if let Ok(guard) = DATA_DIR_OVERRIDE.read()
-        && let Some(path) = guard.as_ref() {
-            log::debug!("Using data dir override: {}", path.display());
-            return Ok(path.clone());
-        }
+        && let Some(path) = guard.as_ref()
+    {
+        log::debug!("Using data dir override: {}", path.display());
+        return Ok(path.clone());
+    }
 
     if let Ok(home) = std::env::var("MIHOMO_HOME") {
         let path = PathBuf::from(home);

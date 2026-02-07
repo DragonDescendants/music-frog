@@ -238,20 +238,26 @@ mod tests {
         clear_android_bridge();
         set_android_bridge(Arc::new(TestBridge));
         let bridge = get_android_bridge().expect("bridge");
-        
+
         // Exhaustive check of proxied methods via Arc
         assert!(bridge.core_start().await.is_ok());
         assert!(bridge.core_stop().await.is_ok());
         assert!(bridge.core_is_running().await.unwrap());
-        assert_eq!(bridge.core_controller_url().unwrap(), "http://127.0.0.1:9090");
-        
-        assert_eq!(bridge.credential_get("s", "k").await.unwrap(), Some("secret".to_string()));
+        assert_eq!(
+            bridge.core_controller_url().unwrap(),
+            "http://127.0.0.1:9090"
+        );
+
+        assert_eq!(
+            bridge.credential_get("s", "k").await.unwrap(),
+            Some("secret".to_string())
+        );
         assert!(bridge.credential_set("s", "k", "v").await.is_ok());
         assert!(bridge.credential_delete("s", "k").await.is_ok());
-        
+
         assert_eq!(bridge.data_dir().unwrap(), PathBuf::from("data"));
         assert_eq!(bridge.cache_dir().unwrap(), PathBuf::from("cache"));
-        
+
         assert!(bridge.vpn_start().await.unwrap());
         assert!(bridge.vpn_stop().await.unwrap());
         assert!(bridge.vpn_is_running().await.unwrap());

@@ -53,8 +53,8 @@ impl Profile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[tokio::test]
     async fn test_profile_new() {
@@ -81,11 +81,7 @@ mod tests {
         writeln!(temp_file, "socks-port: 7891").unwrap();
         writeln!(temp_file, "mode: rule").unwrap();
 
-        let profile = Profile::new(
-            "test".to_string(),
-            temp_file.path().to_path_buf(),
-            false,
-        );
+        let profile = Profile::new("test".to_string(), temp_file.path().to_path_buf(), false);
 
         let result = profile.validate().await;
         assert!(result.is_ok());
@@ -109,11 +105,7 @@ mod tests {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "invalid: yaml: content: [").unwrap();
 
-        let profile = Profile::new(
-            "test".to_string(),
-            temp_file.path().to_path_buf(),
-            false,
-        );
+        let profile = Profile::new("test".to_string(), temp_file.path().to_path_buf(), false);
 
         let result = profile.validate().await;
         assert!(result.is_err());
@@ -124,11 +116,7 @@ mod tests {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "port: 7890").unwrap();
 
-        let profile = Profile::new(
-            "test".to_string(),
-            temp_file.path().to_path_buf(),
-            false,
-        );
+        let profile = Profile::new("test".to_string(), temp_file.path().to_path_buf(), false);
 
         let result = profile.backup().await;
         assert!(result.is_ok());
@@ -143,11 +131,7 @@ mod tests {
 
     #[test]
     fn test_profile_clone() {
-        let profile = Profile::new(
-            "test".to_string(),
-            PathBuf::from("/tmp/test.yaml"),
-            true,
-        );
+        let profile = Profile::new("test".to_string(), PathBuf::from("/tmp/test.yaml"), true);
 
         let cloned = profile.clone();
         assert_eq!(cloned.name, profile.name);
@@ -157,11 +141,7 @@ mod tests {
 
     #[test]
     fn test_profile_debug() {
-        let profile = Profile::new(
-            "test".to_string(),
-            PathBuf::from("/tmp/test.yaml"),
-            false,
-        );
+        let profile = Profile::new("test".to_string(), PathBuf::from("/tmp/test.yaml"), false);
 
         let debug_str = format!("{:?}", profile);
         assert!(debug_str.contains("test"));

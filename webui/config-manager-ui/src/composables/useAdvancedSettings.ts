@@ -21,12 +21,16 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   const tunConfig = ref<TunConfig>({});
   const rules = ref<RuleEntry[]>([]);
   const ruleProvidersJson = ref('{}');
+  const proxyProvidersJson = ref('{}');
+  const snifferJson = ref('{}');
   const dirty = reactive({
     dns: false,
     fakeIp: false,
     tun: false,
     rules: false,
     ruleProviders: false,
+    proxyProviders: false,
+    sniffer: false,
   });
   const suppressDirty = {
     dns: false,
@@ -34,6 +38,8 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
     tun: false,
     rules: false,
     ruleProviders: false,
+    proxyProviders: false,
+    sniffer: false,
   };
 
   function setCleanValue<K extends keyof typeof dirty, T>(key: K, target: { value: T }, value: T) {
@@ -88,6 +94,24 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
     },
     { flush: 'sync' },
   );
+  watch(
+    proxyProvidersJson,
+    () => {
+      if (!suppressDirty.proxyProviders) {
+        dirty.proxyProviders = true;
+      }
+    },
+    { flush: 'sync' },
+  );
+  watch(
+    snifferJson,
+    () => {
+      if (!suppressDirty.sniffer) {
+        dirty.sniffer = true;
+      }
+    },
+    { flush: 'sync' },
+  );
 
   function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -117,6 +141,23 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
 
   function areRuleProviders(value: Record<string, unknown>): value is Record<string, RuleProvider> {
     return Object.values(value).every((entry) => isPlainObject(entry) && isRuleProvider(entry));
+  }
+
+  function isProxyProvider(value: Record<string, unknown>): boolean {
+    return typeof value.type === 'string' && value.type.trim().length > 0;
+  }
+
+  function areProxyProviders(value: Record<string, unknown>): value is Record<string, Record<string, unknown>> {
+    return Object.values(value).every((entry) => isPlainObject(entry) && isProxyProvider(entry));
+  }
+
+  function parseJsonObject(raw: string, errorMessage: string): Record<string, unknown> {
+    const trimmed = raw.trim();
+    const parsed: unknown = trimmed ? JSON.parse(trimmed) : {};
+    if (!isPlainObject(parsed)) {
+      throw new Error(errorMessage);
+    }
+    return parsed;
   }
 
   async function refreshDnsConfig(silent = false) {
@@ -159,6 +200,38 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
     }
   }
 
+  async function refreshProxyProviders(silent = false) {
+    try {
+      const data = await api.getProxyProviders();
+      setCleanValue(
+        'proxyProviders',
+        proxyProvidersJson,
+        JSON.stringify(data.providers || {}, null, 2),
+      );
+    } catch (err) {
+      const message = (err as Error).message || String(err);
+      if (!silent) {
+        pushToast(message, 'error');
+      }
+    }
+  }
+
+  async function refreshSnifferConfig(silent = false) {
+    try {
+      const data = await api.getSnifferConfig();
+      setCleanValue(
+        'sniffer',
+        snifferJson,
+        JSON.stringify(data || {}, null, 2),
+      );
+    } catch (err) {
+      const message = (err as Error).message || String(err);
+      if (!silent) {
+        pushToast(message, 'error');
+      }
+    }
+  }
+
   async function refreshRules(silent = false) {
     try {
       const data = await api.getRules();
@@ -172,7 +245,12 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
   }
 
   async function refreshRulesAndProviders(silent = false) {
-    await Promise.all([refreshRules(silent), refreshRuleProviders(silent)]);
+    await Promise.all([
+      refreshRules(silent),
+      refreshRuleProviders(silent),
+      refreshProxyProviders(silent),
+      refreshSnifferConfig(silent),
+    ]);
   }
 
   async function refreshTunConfig(silent = false) {
@@ -249,11 +327,7 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
     }
     busy.startBusy(t('rules.saving_providers'), t('rules.saving_detail'));
     try {
-      const trimmed = ruleProvidersJson.value.trim();
-      const parsed: unknown = trimmed ? JSON.parse(trimmed) : {};
-      if (!isPlainObject(parsed)) {
-        throw new Error(t('rules.invalid_providers'));
-      }
+      const parsed = parseJsonObject(ruleProvidersJson.value, t('rules.invalid_providers'));
       if (!areRuleProviders(parsed)) {
         throw new Error(t('rules.invalid_provider_items'));
       }
@@ -265,6 +339,47 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
       pushToast(message, 'error');
     } finally {
       await refreshRuleProviders(true);
+      busy.endBusy();
+    }
+  }
+
+  async function saveProxyProviders() {
+    if (busy.busy.value) {
+      return;
+    }
+    busy.startBusy(t('rules.saving_proxy_providers'), t('rules.saving_detail'));
+    try {
+      const parsed = parseJsonObject(proxyProvidersJson.value, t('rules.invalid_proxy_providers'));
+      if (!areProxyProviders(parsed)) {
+        throw new Error(t('rules.invalid_proxy_provider_items'));
+      }
+      await api.saveProxyProviders({ providers: parsed });
+      await waitForRebuild(t('rules.saving_proxy_providers'));
+      pushToast(t('rules.save_proxy_providers_success'));
+    } catch (err) {
+      const message = (err as Error).message || String(err);
+      pushToast(message, 'error');
+    } finally {
+      await refreshProxyProviders(true);
+      busy.endBusy();
+    }
+  }
+
+  async function saveSnifferConfig() {
+    if (busy.busy.value) {
+      return;
+    }
+    busy.startBusy(t('rules.saving_sniffer'), t('rules.saving_detail'));
+    try {
+      const parsed = parseJsonObject(snifferJson.value, t('rules.invalid_sniffer'));
+      await api.saveSnifferConfig(parsed);
+      await waitForRebuild(t('rules.saving_sniffer'));
+      pushToast(t('rules.save_sniffer_success'));
+    } catch (err) {
+      const message = (err as Error).message || String(err);
+      pushToast(message, 'error');
+    } finally {
+      await refreshSnifferConfig(true);
       busy.endBusy();
     }
   }
@@ -311,17 +426,23 @@ export function useAdvancedSettings(pushToast: (message: string, tone?: ToastTon
     tunConfig,
     rules,
     ruleProvidersJson,
+    proxyProvidersJson,
+    snifferJson,
     dirty,
     refreshDnsConfig,
     refreshFakeIpConfig,
     refreshRuleProviders,
+    refreshProxyProviders,
     refreshRules,
     refreshRulesAndProviders,
+    refreshSnifferConfig,
     refreshTunConfig,
     saveDnsConfig,
     saveFakeIpConfig,
     flushFakeIpCache,
     saveRuleProviders,
+    saveProxyProviders,
+    saveSnifferConfig,
     saveRules,
     saveTunConfig,
   };

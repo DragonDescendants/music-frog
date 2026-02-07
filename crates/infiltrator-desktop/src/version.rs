@@ -34,9 +34,10 @@ pub async fn resolve_binary(
     sort_versions_desc(&mut versions);
     if let Some(latest) = versions.first()
         && vm.set_default(latest).await.is_ok()
-            && let Ok(path) = vm.get_binary_path(Some(latest)).await {
-                return Ok(path);
-            }
+        && let Ok(path) = vm.get_binary_path(Some(latest)).await
+    {
+        return Ok(path);
+    }
 
     Err(anyhow!("未找到可用内核，请检查已下载版本或捆绑内核"))
 }
@@ -64,11 +65,7 @@ pub async fn copy_bundled_binary(
 
     #[cfg(windows)]
     {
-        let Some(source_path) = bundled_candidates
-            .iter()
-            .find(|p| p.exists())
-            .cloned()
-        else {
+        let Some(source_path) = bundled_candidates.iter().find(|p| p.exists()).cloned() else {
             log::warn!("bundled core not found in resources or project directory");
             return Ok(None);
         };
@@ -144,21 +141,42 @@ mod tests {
 
     #[test]
     fn test_compare_versions_desc() {
-        assert_eq!(compare_versions_desc("v1.20.0", "v1.19.0"), std::cmp::Ordering::Less);
-        assert_eq!(compare_versions_desc("v1.19.0", "v1.20.0"), std::cmp::Ordering::Greater);
-        assert_eq!(compare_versions_desc("v1.19.0", "v1.19.0"), std::cmp::Ordering::Equal);
+        assert_eq!(
+            compare_versions_desc("v1.20.0", "v1.19.0"),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_versions_desc("v1.19.0", "v1.20.0"),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_versions_desc("v1.19.0", "v1.19.0"),
+            std::cmp::Ordering::Equal
+        );
     }
 
     #[test]
     fn test_compare_versions_desc_partial() {
-        assert_eq!(compare_versions_desc("1.20", "1.19"), std::cmp::Ordering::Less);
-        assert_eq!(compare_versions_desc("1.19", "1.20"), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_versions_desc("1.20", "1.19"),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_versions_desc("1.19", "1.20"),
+            std::cmp::Ordering::Greater
+        );
     }
 
     #[test]
     fn test_compare_versions_desc_invalid() {
-        assert_eq!(compare_versions_desc("invalid", "1.19.0"), std::cmp::Ordering::Greater);
-        assert_eq!(compare_versions_desc("1.19.0", "invalid"), std::cmp::Ordering::Less);
+        assert_eq!(
+            compare_versions_desc("invalid", "1.19.0"),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_versions_desc("1.19.0", "invalid"),
+            std::cmp::Ordering::Less
+        );
     }
 
     #[test]

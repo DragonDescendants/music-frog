@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
+use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, PartialEq)]
@@ -19,9 +19,9 @@ pub struct StateStore {
 
 impl StateStore {
     pub async fn new(db_path: &str) -> Result<Self> {
-        let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", db_path))?
-            .create_if_missing(true);
-        
+        let options =
+            SqliteConnectOptions::from_str(&format!("sqlite:{}", db_path))?.create_if_missing(true);
+
         let pool = SqlitePool::connect_with(options).await?;
         Self::init(&pool).await?;
         Ok(Self { pool })
@@ -44,8 +44,10 @@ impl StateStore {
                 last_hash TEXT NOT NULL,
                 last_sync_at DATETIME NOT NULL,
                 is_tombstone INTEGER NOT NULL DEFAULT 0
-            )"
-        ).execute(pool).await?;
+            )",
+        )
+        .execute(pool)
+        .await?;
         Ok(())
     }
 
@@ -72,7 +74,7 @@ impl StateStore {
                 last_etag = excluded.last_etag,
                 last_hash = excluded.last_hash,
                 last_sync_at = excluded.last_sync_at,
-                is_tombstone = excluded.is_tombstone"
+                is_tombstone = excluded.is_tombstone",
         )
         .bind(row.path)
         .bind(row.last_etag)
@@ -126,9 +128,9 @@ mod tests {
     async fn test_upsert_and_get_state() {
         let store = StateStore::new_in_memory().await.unwrap();
         let row = make_test_row("config.yaml");
-        
+
         store.upsert_state(row.clone()).await.unwrap();
-        
+
         let retrieved = store.get_state("config.yaml").await.unwrap();
         assert!(retrieved.is_some());
         let retrieved = retrieved.unwrap();
@@ -140,7 +142,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_nonexistent_state() {
         let store = StateStore::new_in_memory().await.unwrap();
-        
+
         let result = store.get_state("nonexistent.yaml").await.unwrap();
         assert!(result.is_none());
     }
@@ -148,7 +150,7 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_updates_existing() {
         let store = StateStore::new_in_memory().await.unwrap();
-        
+
         let row1 = SyncStateRow {
             path: "test.yaml".to_string(),
             last_etag: "old_etag".to_string(),
@@ -157,7 +159,7 @@ mod tests {
             is_tombstone: 0,
         };
         store.upsert_state(row1).await.unwrap();
-        
+
         let row2 = SyncStateRow {
             path: "test.yaml".to_string(),
             last_etag: "new_etag".to_string(),
@@ -166,7 +168,7 @@ mod tests {
             is_tombstone: 0,
         };
         store.upsert_state(row2).await.unwrap();
-        
+
         let retrieved = store.get_state("test.yaml").await.unwrap().unwrap();
         assert_eq!(retrieved.last_etag, "new_etag");
         assert_eq!(retrieved.last_hash, "new_hash");
@@ -176,10 +178,10 @@ mod tests {
     async fn test_delete_state() {
         let store = StateStore::new_in_memory().await.unwrap();
         let row = make_test_row("to_delete.yaml");
-        
+
         store.upsert_state(row).await.unwrap();
         assert!(store.get_state("to_delete.yaml").await.unwrap().is_some());
-        
+
         store.delete_state("to_delete.yaml").await.unwrap();
         assert!(store.get_state("to_delete.yaml").await.unwrap().is_none());
     }
@@ -187,11 +189,20 @@ mod tests {
     #[tokio::test]
     async fn test_get_all_states() {
         let store = StateStore::new_in_memory().await.unwrap();
-        
-        store.upsert_state(make_test_row("file1.yaml")).await.unwrap();
-        store.upsert_state(make_test_row("file2.yaml")).await.unwrap();
-        store.upsert_state(make_test_row("file3.yaml")).await.unwrap();
-        
+
+        store
+            .upsert_state(make_test_row("file1.yaml"))
+            .await
+            .unwrap();
+        store
+            .upsert_state(make_test_row("file2.yaml"))
+            .await
+            .unwrap();
+        store
+            .upsert_state(make_test_row("file3.yaml"))
+            .await
+            .unwrap();
+
         let all = store.get_all_states().await.unwrap();
         assert_eq!(all.len(), 3);
     }
@@ -200,10 +211,10 @@ mod tests {
     async fn test_mark_tombstone() {
         let store = StateStore::new_in_memory().await.unwrap();
         let row = make_test_row("tombstone.yaml");
-        
+
         store.upsert_state(row).await.unwrap();
         store.mark_tombstone("tombstone.yaml").await.unwrap();
-        
+
         let retrieved = store.get_state("tombstone.yaml").await.unwrap().unwrap();
         assert_eq!(retrieved.is_tombstone, 1);
     }

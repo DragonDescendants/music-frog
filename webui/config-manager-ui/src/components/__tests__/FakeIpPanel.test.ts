@@ -1,18 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createI18n } from 'vue-i18n';
 import FakeIpPanel from '../FakeIpPanel.vue';
+import { createTestI18n } from '../../test-utils/i18n';
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: {
-    en: {
-      fake_ip: { title: 'Fake IP', range: 'Range', flush: 'Flush' },
-      common: { save: 'Save', refresh: 'Refresh' }
-    }
-  }
-});
+const i18n = createTestI18n();
 
 describe('FakeIpPanel', () => {
   it('renders fake ip config values', () => {
@@ -54,7 +45,7 @@ describe('FakeIpPanel', () => {
       props: { modelValue: {} },
     });
 
-    await wrapper.findAll('button').find(b => b.text() === 'Flush')?.trigger('click');
+    await wrapper.findAll('button').find(b => b.text().includes('Flush'))?.trigger('click');
     expect(wrapper.emitted('flush')).toBeTruthy();
   });
 });

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use flate2::read::{GzDecoder, ZlibDecoder};
 use std::io::Read;
 
@@ -126,7 +126,8 @@ mod tests {
     #[test]
     fn test_decode_deflate() {
         use std::io::Write;
-        let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        let mut encoder =
+            flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(b"deflated").unwrap();
         let compressed = encoder.finish().unwrap();
         let decoded = decode_subscription_bytes(compressed, Some("deflate")).unwrap();
@@ -154,7 +155,7 @@ mod tests {
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(b"hello world").unwrap();
         let compressed = encoder.finish().unwrap();
-        
+
         let decoded = decode_subscription_bytes(compressed, None).unwrap();
         assert_eq!(decoded, b"hello world");
     }
@@ -162,7 +163,10 @@ mod tests {
     #[test]
     fn test_strip_utf8_bom_exhaustive() {
         let with_bom = vec![0xEF, 0xBB, 0xBF, b'a', b'b'];
-        assert_eq!(strip_utf8_bom(std::str::from_utf8(&with_bom).unwrap()), "ab");
+        assert_eq!(
+            strip_utf8_bom(std::str::from_utf8(&with_bom).unwrap()),
+            "ab"
+        );
         assert_eq!(strip_utf8_bom("no bom"), "no bom");
         assert_eq!(strip_utf8_bom(""), "");
     }
@@ -170,7 +174,9 @@ mod tests {
     #[test]
     fn test_looks_like_gzip_minimum_size() {
         assert!(!looks_like_gzip(&[0x1f, 0x8b]));
-        assert!(looks_like_gzip(&[0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
+        assert!(looks_like_gzip(&[
+            0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        ]));
     }
 
     #[test]

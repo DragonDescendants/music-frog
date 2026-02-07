@@ -71,10 +71,14 @@ fun OverviewScreen(
             trafficLoading = state.trafficLoading,
             logs = state.logs,
             logsLoading = state.logsLoading,
+            egressIp = state.egressIp,
+            egressLocation = state.egressLocation,
+            ipLoading = state.ipLoading,
             onRequestVpnPermission = onRequestVpnPermission,
             onToggleVpn = { viewModel.toggleVpn(host) },
             onRestartCore = { viewModel.restartCore(host) },
-            onModeChange = { mode -> viewModel.changeMode(mode, context) }
+            onModeChange = { mode -> viewModel.changeMode(mode, context) },
+            onRefreshIp = { viewModel.refreshIpCheck() },
         )
     }
 
@@ -128,10 +132,14 @@ private fun overviewCards(
     trafficLoading: Boolean,
     logs: List<LogEntry>,
     logsLoading: Boolean,
+    egressIp: String?,
+    egressLocation: String?,
+    ipLoading: Boolean,
     onRequestVpnPermission: () -> Unit,
     onToggleVpn: () -> Unit,
     onRestartCore: () -> Unit,
-    onModeChange: (String) -> Unit
+    onModeChange: (String) -> Unit,
+    onRefreshIp: () -> Unit,
 ): List<@Composable () -> Unit> {
     return listOf(
         {
@@ -176,6 +184,10 @@ private fun overviewCards(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.mode_direct)) },
                                 onClick = { onModeChange("direct"); expanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.mode_script)) },
+                                onClick = { onModeChange("script"); expanded = false }
                             )
                         }
                     }
@@ -226,6 +238,24 @@ private fun overviewCards(
                     icon = Icons.Outlined.Memory
                  )
             }
+        },
+        {
+            val subtitle = when {
+                ipLoading -> stringResource(R.string.text_loading)
+                egressIp.isNullOrBlank() -> stringResource(R.string.text_ip_unavailable)
+                egressLocation.isNullOrBlank() -> stringResource(R.string.label_exit_ip, egressIp)
+                else -> "${stringResource(R.string.label_exit_ip, egressIp)}\n${stringResource(R.string.label_ip_location, egressLocation)}"
+            }
+            StatusCard(
+                title = stringResource(R.string.card_network_diagnostics),
+                subtitle = subtitle,
+                icon = Icons.Outlined.Public,
+                actions = {
+                    FilledTonalButton(onClick = onRefreshIp) {
+                        Text(stringResource(R.string.action_refresh_ip))
+                    }
+                }
+            )
         },
         {
             LogPreviewCard(logs, logsLoading)

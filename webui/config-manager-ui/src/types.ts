@@ -33,6 +33,24 @@ export interface CoreVersionsResponse {
   versions: string[];
 }
 
+export interface CoreLatestStableResponse {
+  version: string;
+  release_date: string;
+}
+
+export interface CoreDownloadResponse {
+  version: string;
+  downloaded: boolean;
+  already_installed: boolean;
+}
+
+export interface CoreUpdateStableResponse {
+  version: string;
+  downloaded: boolean;
+  already_installed: boolean;
+  rebuild_scheduled: boolean;
+}
+
 export interface RebuildStatusResponse {
   in_progress: boolean;
   last_error?: string | null;
@@ -105,6 +123,12 @@ export interface RuleProvidersPayload {
   providers: Record<string, RuleProvider>;
 }
 
+export interface ProxyProvidersPayload {
+  providers: Record<string, Record<string, unknown>>;
+}
+
+export type SnifferConfig = Record<string, unknown>;
+
 export interface RulesPayload {
   rules: RuleEntry[];
 }
@@ -136,4 +160,106 @@ export interface AdminEvent {
   kind: string;
   detail?: string | null;
   timestamp?: number;
+}
+
+export type RuntimeLogLevel = 'debug' | 'info' | 'warning' | 'error' | 'silent';
+
+export interface RuntimeConnectionMetadata {
+  network?: string;
+  type?: string;
+  sourceIP?: string;
+  destinationIP?: string;
+  sourcePort?: string;
+  destinationPort?: string;
+  host?: string;
+  dnsMode?: string;
+  processPath?: string;
+  specialProxy?: string;
+}
+
+export interface RuntimeConnection {
+  id: string;
+  metadata?: RuntimeConnectionMetadata;
+  upload?: number;
+  download?: number;
+  start?: string;
+  chains?: string[];
+  rule?: string;
+  rulePayload?: string;
+}
+
+export interface RuntimeConnectionsResponse {
+  downloadTotal: number;
+  uploadTotal: number;
+  connections: RuntimeConnection[];
+}
+
+export interface RuntimeTrafficSnapshot {
+  up_rate: number;
+  down_rate: number;
+  up_total: number;
+  down_total: number;
+  up_peak: number;
+  down_peak: number;
+  connections: number;
+}
+
+export interface RuntimeMemoryData {
+  inuse: number;
+  oslimit: number;
+}
+
+export interface RuntimeIpCheckResponse {
+  ip: string;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
+}
+
+export interface RuntimeProxyDelayNode {
+  name: string;
+  proxy_type: string;
+  delay_ms?: number | null;
+  tested_at?: string | null;
+}
+
+export interface RuntimeProxyDelayNodesResponse {
+  nodes: RuntimeProxyDelayNode[];
+  default_test_url: string;
+  default_timeout_ms: number;
+}
+
+export interface RuntimeDelayTestPayload {
+  proxy: string;
+  test_url?: string;
+  timeout_ms?: number;
+}
+
+export interface RuntimeDelayBatchPayload {
+  proxies?: string[];
+  test_url?: string;
+  timeout_ms?: number;
+}
+
+export interface RuntimeDelayTestResponse {
+  proxy: string;
+  delay_ms: number;
+  tested_at: string;
+  test_url: string;
+  timeout_ms: number;
+}
+
+export interface RuntimeDelayBatchResult {
+  proxy: string;
+  delay_ms?: number | null;
+  tested_at?: string | null;
+  error?: string | null;
+}
+
+export interface RuntimeDelayBatchResponse {
+  results: RuntimeDelayBatchResult[];
+  success_count: number;
+  failed_count: number;
+  test_url: string;
+  timeout_ms: number;
 }

@@ -2,9 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use infiltrator_admin::{
-    AdminEvent,
-    AdminEventBus,
-    SubscriptionScheduler,
+    AdminEvent, AdminEventBus, SubscriptionScheduler,
     servers::{AdminServerHandle, StaticServerHandle},
 };
 use infiltrator_core::AppSettings;
@@ -13,8 +11,8 @@ use log::warn;
 use mihomo_api::ProxyInfo;
 use mihomo_version::VersionManager;
 use tauri::{
-    menu::{CheckMenuItem, MenuItem, Submenu},
     AppHandle, Wry,
+    menu::{CheckMenuItem, MenuItem, Submenu},
 };
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::RwLock;
@@ -214,9 +212,7 @@ impl AppState {
         *guard = groups;
     }
 
-    pub(crate) async fn refresh_proxy_groups(
-        &self,
-    ) -> anyhow::Result<HashMap<String, ProxyInfo>> {
+    pub(crate) async fn refresh_proxy_groups(&self) -> anyhow::Result<HashMap<String, ProxyInfo>> {
         let runtime = self.runtime().await?;
         let proxies = runtime
             .client()
@@ -234,9 +230,10 @@ impl AppState {
 
     pub(crate) async fn update_tun_checked(&self, enabled: bool) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.tun_mode.set_checked(enabled) {
-                warn!("failed to update tun menu item: {err}");
-            }
+            && let Err(err) = items.tun_mode.set_checked(enabled)
+        {
+            warn!("failed to update tun menu item: {err}");
+        }
     }
 
     pub(crate) async fn set_tray_profile_map(&self, map: HashMap<String, String>) {
@@ -252,10 +249,7 @@ impl AppState {
         self.tray_proxy_map.read().await.clone()
     }
 
-    pub(crate) async fn set_tray_proxy_map(
-        &self,
-        map: HashMap<String, (String, String)>,
-    ) {
+    pub(crate) async fn set_tray_proxy_map(&self, map: HashMap<String, (String, String)>) {
         let mut guard = self.tray_proxy_map.write().await;
         *guard = map;
     }
@@ -268,7 +262,10 @@ impl AppState {
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         let enabled = match config.tun.as_ref() {
-            Some(tun) => tun.get("enable").and_then(|value| value.as_bool()).unwrap_or(false),
+            Some(tun) => tun
+                .get("enable")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false),
             None => false,
         };
         // Always available to toggle if we can talk to the core
@@ -290,23 +287,26 @@ impl AppState {
 
     pub(crate) async fn update_static_info_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.static_host.set_text(text.into()) {
-                warn!("failed to update static host info menu item: {err}");
-            }
+            && let Err(err) = items.static_host.set_text(text.into())
+        {
+            warn!("failed to update static host info menu item: {err}");
+        }
     }
 
     pub(crate) async fn update_controller_info_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.controller.set_text(text.into()) {
-                warn!("failed to update controller info menu item: {err}");
-            }
+            && let Err(err) = items.controller.set_text(text.into())
+        {
+            warn!("failed to update controller info menu item: {err}");
+        }
     }
 
     pub(crate) async fn update_admin_info_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.admin_host.set_text(text.into()) {
-                warn!("failed to update admin info menu item: {err}");
-            }
+            && let Err(err) = items.admin_host.set_text(text.into())
+        {
+            warn!("failed to update admin info menu item: {err}");
+        }
     }
 
     pub(crate) async fn update_system_proxy_text(&self, enabled: bool, endpoint: Option<&str>) {
@@ -351,37 +351,42 @@ impl AppState {
 
     pub(crate) async fn update_core_version_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.core_version.set_text(text.into()) {
-                warn!("failed to update core version menu item: {err}");
-            }
+            && let Err(err) = items.core_version.set_text(text.into())
+        {
+            warn!("failed to update core version menu item: {err}");
+        }
     }
 
     pub(crate) async fn update_core_installed_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.core_installed.set_text(text.into()) {
-                warn!("failed to update core installed menu item: {err}");
-            }
+            && let Err(err) = items.core_installed.set_text(text.into())
+        {
+            warn!("failed to update core installed menu item: {err}");
+        }
     }
 
     pub(crate) async fn update_core_status_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.core_status.set_text(text.into()) {
-                warn!("failed to update core status menu item: {err}");
-            }
+            && let Err(err) = items.core_status.set_text(text.into())
+        {
+            warn!("failed to update core status menu item: {err}");
+        }
     }
 
     pub(crate) async fn update_core_network_text(&self, text: impl Into<String>) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.core_network.set_text(text.into()) {
-                warn!("failed to update core network menu item: {err}");
-            }
+            && let Err(err) = items.core_network.set_text(text.into())
+        {
+            warn!("failed to update core network menu item: {err}");
+        }
     }
 
     pub(crate) async fn set_core_update_enabled(&self, enabled: bool) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.core_update.set_enabled(enabled) {
-                warn!("failed to update core update menu item: {err}");
-            }
+            && let Err(err) = items.core_update.set_enabled(enabled)
+        {
+            warn!("failed to update core update menu item: {err}");
+        }
     }
 
     pub(crate) async fn refresh_core_version_info(&self) {
@@ -404,28 +409,53 @@ impl AppState {
                 let installed_text = format!("{}: {}", lang.tr("downloaded_version"), installed);
                 self.update_core_version_text(current_text).await;
                 self.update_core_installed_text(installed_text).await;
-                self.update_core_status_text(format!("{}: {}", lang.tr("update_status"), lang.tr("idle")))
-                    .await;
-                self.update_core_network_text(format!("{}: {}", lang.tr("network_check"), lang.tr("not_set")))
-                    .await;
+                self.update_core_status_text(format!(
+                    "{}: {}",
+                    lang.tr("update_status"),
+                    lang.tr("idle")
+                ))
+                .await;
+                self.update_core_network_text(format!(
+                    "{}: {}",
+                    lang.tr("network_check"),
+                    lang.tr("not_set")
+                ))
+                .await;
                 self.set_core_update_enabled(true).await;
                 if let Some(items) = self.tray_info.read().await.as_ref()
-                    && let Err(err) = items.core_default.set_checked(use_bundled) {
-                        warn!("failed to update core default menu item: {err}");
-                    }
+                    && let Err(err) = items.core_default.set_checked(use_bundled)
+                {
+                    warn!("failed to update core default menu item: {err}");
+                }
             }
             Err(err) => {
                 warn!("failed to read core version info: {err:#}");
-                let reading_failed = lang.tr("profile_read_failed"); 
+                let reading_failed = lang.tr("profile_read_failed");
 
-                self.update_core_version_text(format!("{}: {}", lang.tr("current_core"), reading_failed))
-                    .await;
-                self.update_core_installed_text(format!("{}: {}", lang.tr("downloaded_version"), reading_failed))
-                    .await;
-                self.update_core_status_text(format!("{}: {}", lang.tr("update_status"), reading_failed))
-                    .await;
-                self.update_core_network_text(format!("{}: {}", lang.tr("network_check"), lang.tr("not_set")))
-                    .await;
+                self.update_core_version_text(format!(
+                    "{}: {}",
+                    lang.tr("current_core"),
+                    reading_failed
+                ))
+                .await;
+                self.update_core_installed_text(format!(
+                    "{}: {}",
+                    lang.tr("downloaded_version"),
+                    reading_failed
+                ))
+                .await;
+                self.update_core_status_text(format!(
+                    "{}: {}",
+                    lang.tr("update_status"),
+                    reading_failed
+                ))
+                .await;
+                self.update_core_network_text(format!(
+                    "{}: {}",
+                    lang.tr("network_check"),
+                    lang.tr("not_set")
+                ))
+                .await;
                 self.set_core_update_enabled(true).await;
             }
         }
@@ -488,12 +518,10 @@ impl AppState {
         }
         // If language changed, refresh tray immediately
         if let Some(app_handle) = self.app_handle.read().await.as_ref()
-            && let Err(err) = crate::tray::refresh_tray_menu(
-                app_handle,
-                self,
-            ).await {
-                warn!("failed to refresh tray menu after settings change: {err}");
-            }
+            && let Err(err) = crate::tray::refresh_tray_menu(app_handle, self).await
+        {
+            warn!("failed to refresh tray menu after settings change: {err}");
+        }
         Ok(())
     }
 
@@ -509,9 +537,10 @@ impl AppState {
 
     pub(crate) async fn set_open_webui_checked(&self, enabled: bool) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.open_webui.set_checked(enabled) {
-                warn!("failed to update open webui menu item: {err}");
-            }
+            && let Err(err) = items.open_webui.set_checked(enabled)
+        {
+            warn!("failed to update open webui menu item: {err}");
+        }
     }
 
     pub(crate) async fn open_webui_on_startup(&self) -> bool {
@@ -544,9 +573,10 @@ impl AppState {
 
     pub(crate) async fn set_autostart_checked(&self, enabled: bool) {
         if let Some(items) = self.tray_info.read().await.as_ref()
-            && let Err(err) = items.autostart.set_checked(enabled) {
-                warn!("failed to update autostart menu item: {err}");
-            }
+            && let Err(err) = items.autostart.set_checked(enabled)
+        {
+            warn!("failed to update autostart menu item: {err}");
+        }
     }
 
     pub(crate) async fn use_bundled_core(&self) -> bool {
@@ -572,7 +602,9 @@ impl AppState {
             lang.tr("sub_updated").replace("{0}", profile)
         } else {
             let reason = message.unwrap_or_else(|| lang.tr("unknown").into_owned());
-            lang.tr("sub_failed_reason").replace("{0}", profile).replace("{1}", &reason)
+            lang.tr("sub_failed_reason")
+                .replace("{0}", profile)
+                .replace("{1}", &reason)
         };
         self.show_notification(&title, &body).await;
     }
@@ -580,7 +612,8 @@ impl AppState {
     pub(crate) async fn notify_subscription_update_start(&self) {
         let lang_code = self.get_lang_code().await;
         let lang = Lang(lang_code.as_str());
-        self.show_notification(&lang.tr("sub_updating_title"), &lang.tr("sub_updating_msg")).await;
+        self.show_notification(&lang.tr("sub_updating_title"), &lang.tr("sub_updating_msg"))
+            .await;
     }
 
     pub(crate) async fn notify_subscription_update_summary(
@@ -591,11 +624,13 @@ impl AppState {
     ) {
         let lang_code = self.get_lang_code().await;
         let lang = Lang(lang_code.as_str());
-        let body = lang.tr("sub_update_summary")
+        let body = lang
+            .tr("sub_update_summary")
             .replace("{0}", &updated.to_string())
             .replace("{1}", &failed.to_string())
             .replace("{2}", &skipped.to_string());
-        self.show_notification(&lang.tr("sub_update_done"), &body).await;
+        self.show_notification(&lang.tr("sub_update_done"), &body)
+            .await;
     }
 
     pub(crate) async fn notify_webdav_sync_result(
@@ -613,7 +648,8 @@ impl AppState {
             lang.tr("webdav_sync_failed")
         };
         let body = if success {
-            lang.tr("webdav_sync_done").replace("{0}", &action_count.to_string())
+            lang.tr("webdav_sync_done")
+                .replace("{0}", &action_count.to_string())
         } else {
             let reason = error_msg.unwrap_or_else(|| lang.tr("unknown").into_owned());
             lang.tr("webdav_sync_error").replace("{0}", &reason)
@@ -630,15 +666,13 @@ impl AppState {
                 .title(title)
                 .body(body)
                 .show()
-            {
-                warn!("failed to show notification: {err}");
-            }
+        {
+            warn!("failed to show notification: {err}");
+        }
     }
 }
 
-async fn read_core_version_info(
-    state: &AppState,
-) -> anyhow::Result<(Option<String>, usize, bool)> {
+async fn read_core_version_info(state: &AppState) -> anyhow::Result<(Option<String>, usize, bool)> {
     let vm = VersionManager::new()?;
     let installed = vm.list_installed().await?;
     let current = vm.get_default().await.ok();
@@ -711,7 +745,10 @@ mod tests {
         map.insert("id_1".into(), ("group1".into(), "node1".into()));
         state.set_tray_proxy_map(map.clone()).await;
         let fetched = state.tray_proxy_map().await;
-        assert_eq!(fetched.get("id_1"), Some(&("group1".to_string(), "node1".to_string())));
+        assert_eq!(
+            fetched.get("id_1"),
+            Some(&("group1".to_string(), "node1".to_string()))
+        );
     }
 
     #[tokio::test]
@@ -727,8 +764,11 @@ mod tests {
         let state = AppState::default();
         let state_clone = state.clone();
         let _ = tokio::spawn(async move {
-            state_clone.set_current_mode(Some("direct".to_string())).await;
-        }).await;
+            state_clone
+                .set_current_mode(Some("direct".to_string()))
+                .await;
+        })
+        .await;
         state.set_current_mode(Some("global".to_string())).await;
         assert!(state.current_mode.read().await.is_some());
     }
@@ -737,7 +777,15 @@ mod tests {
     async fn test_proxy_groups_clear() {
         let state = AppState::default();
         let mut groups = HashMap::new();
-        groups.insert("G1".to_string(), ProxyInfo { proxy_type: "S".into(), now: None, all: None, history: vec![] });
+        groups.insert(
+            "G1".to_string(),
+            ProxyInfo {
+                proxy_type: "S".into(),
+                now: None,
+                all: None,
+                history: vec![],
+            },
+        );
         state.set_proxy_groups(groups).await;
         state.set_proxy_groups(HashMap::new()).await;
         assert_eq!(state.proxy_groups.read().await.len(), 0);
@@ -765,7 +813,9 @@ mod tests {
     #[tokio::test]
     async fn test_system_proxy_state_update() {
         let state = AppState::default();
-        state.set_system_proxy_state(true, Some("127.0.0.1:1234".into())).await;
+        state
+            .set_system_proxy_state(true, Some("127.0.0.1:1234".into()))
+            .await;
         let s = state.system_proxy.read().await;
         assert!(s.enabled);
         assert_eq!(s.endpoint, Some("127.0.0.1:1234".into()));

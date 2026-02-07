@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::tray::menu::*;
-    use mihomo_api::{ProxyInfo, DelayHistory};
+    use mihomo_api::{DelayHistory, ProxyInfo};
 
     #[tokio::test]
     async fn test_build_menu_id() {
