@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{MihomoError, Result};
 use crate::types::*;
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -66,6 +66,18 @@ impl MihomoClient {
         let req = self.add_auth(req);
         let resp = req.send().await?;
         Ok(resp.json().await?)
+    }
+
+    pub async fn get_rules(&self) -> Result<Vec<Rule>> {
+        let url = self.base_url.join("rules").map_err(MihomoError::from)?;
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(MihomoError::from)?;
+        let list: RuleList = resp.json().await.map_err(MihomoError::from)?;
+        Ok(list.rules)
     }
 
     pub async fn get_proxies(&self) -> Result<HashMap<String, ProxyInfo>> {

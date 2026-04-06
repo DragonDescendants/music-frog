@@ -34,6 +34,8 @@ impl ProxyManager {
                 nodes.push(ProxyNode {
                     name,
                     proxy_type: info.proxy_type,
+                    udp: info.udp,
+                    history: info.history,
                     delay,
                     alive: delay.is_some(),
                 });
@@ -125,7 +127,7 @@ mod tests {
         let proxies = manager.list_proxies().await.unwrap();
 
         mock.assert_async().await;
-        assert_eq!(proxies.len(), 1); // Only Proxy-A, DIRECT is considered a group-like here or filtered
+        assert_eq!(proxies.len(), 1); // Only Proxy-A, DIRECT is considered a group-like here or filtered       
         assert_eq!(proxies[0].name, "Proxy-A");
         assert_eq!(proxies[0].delay, Some(100));
         assert!(proxies[0].alive);
