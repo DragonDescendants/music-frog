@@ -116,7 +116,8 @@ impl AppState {
                 )
             }
             Message::ProfileContentLoaded(result) => match result {
-                Ok((_, content)) => {
+                Ok((path, content)) => {
+                    self.editor_path = Some(path);
                     self.editor_content = text_editor::Content::with_text(&content);
                     Task::none()
                 }
@@ -216,12 +217,10 @@ impl AppState {
             Message::SyncFinished(result) => {
                 self.is_syncing = false;
                 match result {
-                    Ok(_) => {
-                        Task::done(Message::ShowToast(
-                            "Sync successful".to_string(),
-                            ToastStatus::Success,
-                        ))
-                    }
+                    Ok(_) => Task::done(Message::ShowToast(
+                        "Sync successful".to_string(),
+                        ToastStatus::Success,
+                    )),
                     Err(e) => {
                         self.error_msg = Some(e.clone());
                         Task::done(Message::ShowToast(e, ToastStatus::Error))

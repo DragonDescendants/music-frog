@@ -1,6 +1,6 @@
 use crate::autostart;
 use crate::state::AppState;
-use crate::types::{Message, ToastStatus};
+use crate::types::{Message, RuntimeConfig, ToastStatus};
 use iced::{Task, stream};
 use infiltrator_desktop::MihomoRuntime;
 use mihomo_version::VersionManager;
@@ -172,35 +172,37 @@ impl AppState {
                                 (false, "gvisor".to_string(), true, false)
                             };
                             let sniff = config.sniffer.map(|s| s.enable).unwrap_or(false);
-                            Ok((
-                                mode, tun_en, dns, fallback, enhanced, tun_st, tun_ar, tun_sr,
-                                sniff,
-                            ))
+                            Ok(RuntimeConfig {
+                                mode,
+                                tun_enabled: tun_en,
+                                dns_nameservers: dns,
+                                dns_fallback: fallback,
+                                dns_enhanced_mode: enhanced,
+                                tun_stack: tun_st,
+                                tun_auto_route: tun_ar,
+                                tun_strict_route: tun_sr,
+                                sniffer_enabled: sniff,
+                            })
                         },
-                        |result| match result {
-                            Ok((m, t, d, f, e, st, ar, sr, sn)) => {
-                                Message::RuntimeConfigFetched(Ok((m, t, d, f, e, st, ar, sr, sn)))
-                            }
-                            Err(e) => Message::RuntimeConfigFetched(Err(e)),
-                        },
+                        Message::RuntimeConfigFetched,
                     )
                 } else {
                     Task::none()
                 }
             }
             Message::RuntimeConfigFetched(result) => {
-                if let Ok((mode, tun, dns, fallback, enhanced, st, ar, sr, sn)) = result {
-                    self.proxy_mode = Some(mode);
-                    self.tun_enabled = Some(tun);
-                    self.dns_nameservers = dns;
-                    self.dns_fallback_servers = fallback;
-                    self.dns_enhanced_mode = enhanced;
-                    self.tun_stack = st;
-                    self.tun_auto_route = ar;
-                    self.tun_strict_route = sr;
-                    self.sniffer_enabled = sn;
+                if let Ok(config) = result {
+                    self.proxy_mode = Some(config.mode);
+                    self.tun_enabled = Some(config.tun_enabled);
+                    self.dns_nameservers = config.dns_nameservers;
+                    self.dns_fallback_servers = config.dns_fallback;
+                    self.dns_enhanced_mode = config.dns_enhanced_mode;
+                    self.tun_stack = config.tun_stack;
+                    self.tun_auto_route = config.tun_auto_route;
+                    self.tun_strict_route = config.tun_strict_route;
+                    self.sniffer_enabled = config.sniffer_enabled;
                     if let Some(tm) = &self.tray_manager {
-                        tm.update_status(self.system_proxy_enabled, tun);
+                        tm.update_status(self.system_proxy_enabled, config.tun_enabled);
                     }
                 }
                 Task::none()
@@ -636,15 +638,13 @@ impl AppState {
             Message::CoreDownloadFinished(result) => {
                 self.download_progress = 0.0;
                 match result {
-                    Ok(_) => {
-                        Task::batch(vec![
-                            Task::done(Message::LoadKernels),
-                            Task::done(Message::ShowToast(
-                                "Kernel updated successfully".to_string(),
-                                ToastStatus::Success,
-                            )),
-                        ])
-                    }
+                    Ok(_) => Task::batch(vec![
+                        Task::done(Message::LoadKernels),
+                        Task::done(Message::ShowToast(
+                            "Kernel updated successfully".to_string(),
+                            ToastStatus::Success,
+                        )),
+                    ]),
                     Err(e) => {
                         self.error_msg = Some(e.clone());
                         Task::done(Message::ShowToast(e, ToastStatus::Error))

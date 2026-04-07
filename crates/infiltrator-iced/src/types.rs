@@ -31,6 +31,19 @@ pub enum ToastStatus {
     Error,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct RuntimeConfig {
+    pub mode: String,
+    pub tun_enabled: bool,
+    pub dns_nameservers: Vec<String>,
+    pub dns_fallback: Vec<String>,
+    pub dns_enhanced_mode: String,
+    pub tun_stack: String,
+    pub tun_auto_route: bool,
+    pub tun_strict_route: bool,
+    pub sniffer_enabled: bool,
+}
+
 #[derive(Clone)]
 pub enum Message {
     Navigate(Route),
@@ -58,22 +71,7 @@ pub enum Message {
     CloseAllConnections,
     FetchRuntimeConfig,
     FetchIpInfo,
-    RuntimeConfigFetched(
-        Result<
-            (
-                String,
-                bool,
-                Vec<String>,
-                Vec<String>,
-                String,
-                String,
-                bool,
-                bool,
-                bool,
-            ),
-            String,
-        >,
-    ),
+    RuntimeConfigFetched(Result<RuntimeConfig, String>),
     SetProxyMode(String),
     SetTunEnabled(bool),
     SetTunStack(String),
@@ -188,19 +186,19 @@ impl std::fmt::Debug for Message {
             Message::CloseAllConnections => write!(f, "CloseAllConnections"),
             Message::FetchRuntimeConfig => write!(f, "FetchRuntimeConfig"),
             Message::FetchIpInfo => write!(f, "FetchIpInfo"),
-            Message::RuntimeConfigFetched(Ok((m, t, d, fb, e, stack, auto, strict, sniff))) => {
+            Message::RuntimeConfigFetched(Ok(config)) => {
                 write!(
                     f,
                     "RuntimeConfigFetched({}, {}, {} DNS, {} FB, {}, {}, {}, {}, {})",
-                    m,
-                    t,
-                    d.len(),
-                    fb.len(),
-                    e,
-                    stack,
-                    auto,
-                    strict,
-                    sniff
+                    config.mode,
+                    config.tun_enabled,
+                    config.dns_nameservers.len(),
+                    config.dns_fallback.len(),
+                    config.dns_enhanced_mode,
+                    config.tun_stack,
+                    config.tun_auto_route,
+                    config.tun_strict_route,
+                    config.sniffer_enabled
                 )
             }
             Message::RuntimeConfigFetched(Err(e)) => write!(f, "RuntimeConfigFetched(Err({}))", e),
