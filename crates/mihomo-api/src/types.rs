@@ -34,6 +34,31 @@ pub struct MemoryData {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct DnsConfig {
+    pub enable: bool,
+    pub nameserver: Vec<String>,
+    pub fallback: Option<Vec<String>>,
+    #[serde(rename = "enhanced-mode", default)]
+    pub enhanced_mode: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct TunConfig {
+    pub enable: bool,
+    pub stack: String,
+    #[serde(rename = "auto-route")]
+    pub auto_route: bool,
+    #[serde(rename = "strict-route")]
+    pub strict_route: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct SnifferConfig {
+    pub enable: bool,
+    pub sniff: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ConfigResponse {
     pub port: u16,
     #[serde(rename = "socks-port")]
@@ -49,7 +74,9 @@ pub struct ConfigResponse {
     pub log_level: String,
     #[serde(rename = "allow-lan")]
     pub allow_lan: bool,
-    pub tun: Option<HashMap<String, serde_json::Value>>,
+    pub tun: Option<TunConfig>,
+    pub sniffer: Option<SnifferConfig>,
+    pub dns: Option<DnsConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -165,6 +192,38 @@ pub struct ConnectionsResponse {
     #[serde(rename = "uploadTotal")]
     pub upload_total: u64,
     pub connections: Vec<Connection>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct ProxyProvider {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub provider_type: String,
+    pub vehicle_type: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct ProxyProviderList {
+    pub providers: HashMap<String, ProxyProvider>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct RuleProvider {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub provider_type: String,
+    pub behavior: String,
+    pub vehicle_type: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+    pub rule_count: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct RuleProviderList {
+    pub providers: HashMap<String, RuleProvider>,
 }
 
 fn deserialize_null_as_empty_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>

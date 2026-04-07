@@ -267,6 +267,40 @@ impl MihomoClient {
         Ok(())
     }
 
+    pub async fn get_proxy_providers(&self) -> Result<HashMap<String, ProxyProvider>> {
+        let url = self.build_url("/providers/proxies")?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        let data: ProxyProviderList = resp.json().await?;
+        Ok(data.providers)
+    }
+
+    pub async fn update_proxy_provider(&self, name: &str) -> Result<()> {
+        let url = self.build_url(&format!("/providers/proxies/{}", name))?;
+        let req = self.client.put(url);
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
+    pub async fn get_rule_providers(&self) -> Result<HashMap<String, RuleProvider>> {
+        let url = self.build_url("/providers/rules")?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        let data: RuleProviderList = resp.json().await?;
+        Ok(data.providers)
+    }
+
+    pub async fn update_rule_provider(&self, name: &str) -> Result<()> {
+        let url = self.build_url(&format!("/providers/rules/{}", name))?;
+        let req = self.client.put(url);
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
     pub async fn stream_connections(
         &self,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<ConnectionSnapshot>> {

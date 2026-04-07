@@ -31,11 +31,21 @@ pub fn get_system_language() -> String {
 fn translate_zh_cn(key: &str) -> Cow<'static, str> {
     match key {
         "app_title" => "MusicFrog Infiltrator".into(),
+        "nav_overview" => "核心概览".into(),
         "nav_profiles" => "配置管理".into(),
+        "nav_proxies" => "代理节点".into(),
         "nav_runtime" => "运行状态".into(),
         "nav_rules" => "规则管理".into(),
         "nav_dns" => "DNS 设置".into(),
+        "nav_sync" => "数据同步".into(),
         "nav_settings" => "系统设置".into(),
+
+        "sync_title" => "WebDAV 同步".into(),
+        "sync_url" => "服务器地址 (URL)".into(),
+        "sync_user" => "用户名".into(),
+        "sync_pass" => "密码".into(),
+        "sync_upload" => "上传配置".into(),
+        "sync_download" => "下载配置".into(),
 
         "dns_title" => "DNS & Fake-IP".into(),
         "dns_nameservers" => "DNS 服务器 (Nameservers)".into(),
@@ -44,6 +54,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "dns_add" => "添加".into(),
 
         "profiles_title" => "配置列表".into(),
+        "proxies_title" => "节点选择".into(),
         "rules_title" => "规则管理".into(),
         "rules_filter_placeholder" => "搜索规则内容...".into(),
         "refresh" => "刷新".into(),
@@ -67,8 +78,14 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "start_proxy" => "启动代理".into(),
         "stop_proxy" => "停止代理".into(),
 
-        "proxy_mode" => "代理模式".into(),
-        "mode_rule" => "规则模式".into(),
+        "system_proxy" => "系统代理 (System Proxy)".into(),
+        "admin_status" => "权限状态".into(),
+        "admin_authorized" => "🛡️ 已获得管理员权限 (WinTun 就绪)".into(),
+        "admin_unauthorized" => "⚠️ 未获得管理员权限 (无法开启 TUN)".into(),
+        "autostart" => "开机自启动".into(),
+        "dark_mode" => "深色模式".into(),
+
+        "proxy_mode" => "代理模式".into(),        "mode_rule" => "规则模式".into(),
         "mode_global" => "全局模式".into(),
         "mode_direct" => "直连模式".into(),
         "mode_script" => "脚本模式".into(),
@@ -81,11 +98,21 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
 fn translate_en(key: &str) -> Cow<'static, str> {
     match key {
         "app_title" => "MusicFrog Infiltrator".into(),
+        "nav_overview" => "Overview".into(),
         "nav_profiles" => "Profiles".into(),
+        "nav_proxies" => "Proxies".into(),
         "nav_runtime" => "Runtime".into(),
         "nav_rules" => "Rules".into(),
         "nav_dns" => "DNS Settings".into(),
+        "nav_sync" => "Sync".into(),
         "nav_settings" => "Settings".into(),
+
+        "sync_title" => "WebDAV Sync".into(),
+        "sync_url" => "Server URL".into(),
+        "sync_user" => "Username".into(),
+        "sync_pass" => "Password".into(),
+        "sync_upload" => "Upload Config".into(),
+        "sync_download" => "Download Config".into(),
 
         "dns_title" => "DNS & Fake-IP".into(),
         "dns_nameservers" => "Nameservers".into(),
@@ -94,6 +121,7 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "dns_add" => "Add".into(),
 
         "profiles_title" => "Profiles & Imports".into(),
+        "proxies_title" => "Proxy Selection".into(),
         "rules_title" => "Rules Management".into(),
         "rules_filter_placeholder" => "Search rules...".into(),
         "refresh" => "Refresh".into(),
@@ -117,8 +145,13 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "start_proxy" => "Start Proxy".into(),
         "stop_proxy" => "Stop Proxy".into(),
 
-        "proxy_mode" => "Proxy Mode".into(),
-        "mode_rule" => "Rule".into(),
+        "system_proxy" => "System Proxy".into(),
+        "admin_status" => "Admin Privileges".into(),
+        "admin_authorized" => "🛡️ Admin Authorized (WinTun Ready)".into(),
+        "admin_unauthorized" => "⚠️ Not Admin (TUN unavailable)".into(),
+        "autostart" => "Start on Boot".into(),
+
+        "proxy_mode" => "Proxy Mode".into(),        "mode_rule" => "Rule".into(),
         "mode_global" => "Global".into(),
         "mode_direct" => "Direct".into(),
         "mode_script" => "Script".into(),

@@ -21,8 +21,18 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         .padding(20),
         Space::new().height(10),
         nav_button(
+            lang.tr("nav_overview").into_owned(),
+            Route::Overview,
+            &state.current_route
+        ),
+        nav_button(
             lang.tr("nav_profiles").into_owned(),
             Route::Profiles,
+            &state.current_route
+        ),
+        nav_button(
+            lang.tr("nav_proxies").into_owned(),
+            Route::Proxies,
             &state.current_route
         ),
         nav_button(
@@ -38,6 +48,11 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         nav_button(
             lang.tr("nav_dns").into_owned(),
             Route::Dns,
+            &state.current_route
+        ),
+        nav_button(
+            lang.tr("nav_sync").into_owned(),
+            Route::Sync,
             &state.current_route
         ),
         nav_button(
