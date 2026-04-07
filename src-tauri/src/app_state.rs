@@ -262,10 +262,7 @@ impl AppState {
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         let enabled = match config.tun.as_ref() {
-            Some(tun) => tun
-                .get("enable")
-                .and_then(|value| value.as_bool())
-                .unwrap_or(false),
+            Some(tun) => tun.enable,
             None => false,
         };
         // Always available to toggle if we can talk to the core
@@ -717,7 +714,9 @@ mod tests {
         let state = AppState::default();
         let mut groups = HashMap::new();
         let info = ProxyInfo {
+            name: "Group1".to_string(),
             proxy_type: "Selector".to_string(),
+            udp: false,
             now: None,
             all: None,
             history: vec![],
@@ -780,7 +779,9 @@ mod tests {
         groups.insert(
             "G1".to_string(),
             ProxyInfo {
+                name: "G1".into(),
                 proxy_type: "S".into(),
+                udp: false,
                 now: None,
                 all: None,
                 history: vec![],

@@ -1,8 +1,8 @@
 use crate::locales::{Lang, Localizer};
 use crate::utils::format_bytes;
-use crate::view::components::{card, TrafficChart};
+use crate::view::components::{TrafficChart, card};
 use crate::{AppState, Message};
-use iced::widget::{Scrollable, Space, button, column, container, pick_list, row, text, Canvas};
+use iced::widget::{Canvas, Scrollable, Space, button, column, container, pick_list, row, text};
 use iced::{Alignment, Border, Color, Element, Font, Length, Theme, border};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -27,9 +27,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let traffic_section = card(column![
         row![
             column![
-                text("REAL-TIME TRAFFIC").size(10).font(bold_font).style(|_theme| text::Style { color: Some(Color::from_rgb(0.5, 0.5, 0.5)) }),
+                text("REAL-TIME TRAFFIC")
+                    .size(10)
+                    .font(bold_font)
+                    .style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                    }),
                 if let Some(ip) = &state.public_ip {
-                    text(format!("Public IP: {}", ip)).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.4, 0.4, 0.4)) })
+                    text(format!("Public IP: {}", ip))
+                        .size(10)
+                        .style(|_theme| text::Style {
+                            color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
+                        })
                 } else {
                     text("").size(0)
                 }
@@ -37,12 +46,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             Space::new().width(Length::Fill),
             if let Some(t) = &state.traffic {
                 row![
-                    text(format!("↑ {}", format_bytes(t.up))).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.4, 0.8, 0.4)) }),
+                    text(format!("↑ {}", format_bytes(t.up)))
+                        .size(10)
+                        .style(|_theme| text::Style {
+                            color: Some(Color::from_rgb(0.4, 0.8, 0.4))
+                        }),
                     Space::new().width(15),
-                    text(format!("↓ {}", format_bytes(t.down))).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.4, 0.4, 0.8)) }),
+                    text(format!("↓ {}", format_bytes(t.down)))
+                        .size(10)
+                        .style(|_theme| text::Style {
+                            color: Some(Color::from_rgb(0.4, 0.4, 0.8))
+                        }),
                     Space::new().width(15),
                     if let Some(m) = &state.memory {
-                        text(format!("MEM: {}", format_bytes(m.inuse))).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.5, 0.5, 0.5)) })
+                        text(format!("MEM: {}", format_bytes(m.in_use)))
+                            .size(10)
+                            .style(|_theme| text::Style {
+                                color: Some(Color::from_rgb(0.5, 0.5, 0.5)),
+                            })
                     } else {
                         text("").size(0)
                     }
@@ -52,9 +73,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }
         ],
         Space::new().height(10),
-        Canvas::new(TrafficChart { history: state.traffic_history.clone() })
-            .width(Length::Fill)
-            .height(Length::Fixed(100.0)),
+        Canvas::new(TrafficChart {
+            history: state.traffic_history.clone()
+        })
+        .width(Length::Fill)
+        .height(Length::Fixed(100.0)),
     ]);
 
     let mut connections_section = column![
@@ -81,7 +104,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     if let Some(c) = &state.connections {
         let mut conn_list = column![].spacing(8);
-        
+
         let mut sorted_conns = c.connections.clone();
         sorted_conns.sort_by(|a, b| b.download.cmp(&a.download));
 
@@ -133,13 +156,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ]
                 .align_y(Alignment::Center),
                 row![
-                    text(rule_str).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.4, 0.6, 0.9)) }),
+                    text(rule_str).size(10).style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.4, 0.6, 0.9))
+                    }),
                     Space::new().width(8),
-                    text(payload_str).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.5, 0.5, 0.5)) }),
+                    text(payload_str).size(10).style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                    }),
                     Space::new().width(Length::Fill),
-                    text(source_ip).size(10).style(|_theme| text::Style { color: Some(Color::from_rgb(0.4, 0.4, 0.4)) }),
+                    text(source_ip).size(10).style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.4, 0.4, 0.4))
+                    }),
                 ]
-            ].spacing(4);
+            ]
+            .spacing(4);
 
             conn_list =
                 conn_list.push(container(row_content).padding(8).style(|_theme: &Theme| {

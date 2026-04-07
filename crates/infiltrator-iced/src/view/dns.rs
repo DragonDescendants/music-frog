@@ -37,9 +37,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text("Enhanced Mode").font(bold_font),
         Space::new().height(10),
         row![
-            mode_button("fake-ip".to_string(), "Fake-IP (Recommended)".to_string(), &state.dns_enhanced_mode),
+            mode_button(
+                "fake-ip".to_string(),
+                "Fake-IP (Recommended)".to_string(),
+                &state.dns_enhanced_mode
+            ),
             Space::new().width(10),
-            mode_button("redir-host".to_string(), "Redir-Host".to_string(), &state.dns_enhanced_mode),
+            mode_button(
+                "redir-host".to_string(),
+                "Redir-Host".to_string(),
+                &state.dns_enhanced_mode
+            ),
         ]
     ]);
 
@@ -53,10 +61,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     for (i, server) in state.dns_nameservers.iter().enumerate() {
         dns_list = dns_list.push(
             row![
-                text_input("e.g. 1.1.1.1 or https://dns.cloudflare.com/dns-query", server)
-                    .on_input(move |v| Message::UpdateDnsServer(i, v))
-                    .padding(10)
-                    .size(14),
+                text_input(
+                    "e.g. 1.1.1.1 or https://dns.cloudflare.com/dns-query",
+                    server
+                )
+                .on_input(move |v| Message::UpdateDnsServer(i, v))
+                .padding(10)
+                .size(14),
                 button(text("−").size(14))
                     .on_press(Message::RemoveDnsServer(i))
                     .style(button::danger)
@@ -79,35 +90,45 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text("Quick Templates").font(bold_font),
         Space::new().height(10),
         row![
-            template_button("Cloudflare".to_string(), "https://1.1.1.1/dns-query".to_string()),
+            template_button(
+                "Cloudflare".to_string(),
+                "https://1.1.1.1/dns-query".to_string()
+            ),
             Space::new().width(10),
-            template_button("Google".to_string(), "https://8.8.8.8/dns-query".to_string()),
+            template_button(
+                "Google".to_string(),
+                "https://8.8.8.8/dns-query".to_string()
+            ),
             Space::new().width(10),
-            template_button("AliDNS".to_string(), "https://223.5.5.5/dns-query".to_string()),
+            template_button(
+                "AliDNS".to_string(),
+                "https://223.5.5.5/dns-query".to_string()
+            ),
         ]
     ]);
 
     let content = column![
-        header, 
-        Space::new().height(24), 
+        header,
+        Space::new().height(24),
         enhanced_mode_section,
         Space::new().height(20),
         card(dns_list),
         Space::new().height(20),
         templates,
-    ].spacing(10);
+    ]
+    .spacing(10);
 
     Scrollable::new(content).height(Length::Fill).into()
 }
 
 fn mode_button<'a>(mode: String, label: String, current_mode: &str) -> Element<'a, Message> {
     let is_active = mode == current_mode;
-    
+
     button(
         container(text(label).size(12))
             .width(Length::Fill)
             .align_x(Alignment::Center)
-            .padding(8)
+            .padding(8),
     )
     .width(Length::FillPortion(1))
     .style(move |_theme, status| {
@@ -125,7 +146,7 @@ fn mode_button<'a>(mode: String, label: String, current_mode: &str) -> Element<'
 
 fn template_button<'a>(label: String, url: String) -> Element<'a, Message> {
     button(text(label).size(11))
-        .on_press(Message::UpdateDnsServer(0, url)) 
+        .on_press(Message::UpdateDnsServer(0, url))
         .padding([6, 12])
         .style(button::secondary)
         .into()

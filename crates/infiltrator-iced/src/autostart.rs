@@ -1,5 +1,5 @@
-use std::process::Command;
 use anyhow::anyhow;
+use std::process::Command;
 
 const AUTOSTART_NAME: &str = "MusicFrogInfiltrator";
 const REG_RUN_KEY: &str = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";

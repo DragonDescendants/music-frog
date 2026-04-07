@@ -1,17 +1,17 @@
+mod app;
 mod autostart;
 mod locales;
-mod tray;
-mod utils;
-mod view;
-mod types;
 mod state;
 mod subscription;
+mod tray;
+mod types;
 mod update;
+mod utils;
+mod view;
 mod view_root;
-mod app;
 
-pub use types::*;
 pub use state::AppState;
+pub use types::*;
 
 use single_instance::SingleInstance;
 

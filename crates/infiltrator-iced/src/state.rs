@@ -1,14 +1,14 @@
 use crate::tray::TrayManager;
 use crate::types::{Route, ToastStatus};
-use iced::widget::text_editor;
 use iced::Theme;
+use iced::widget::text_editor;
 use infiltrator_desktop::MihomoRuntime;
 use mihomo_api::{ConnectionSnapshot, Rule, TrafficData};
 use mihomo_config::Profile;
 use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub struct AppState {
     pub current_route: Route,

@@ -82,14 +82,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         if let Some(members) = &group_info.all {
             let mut members_row = row![].spacing(8);
             let mut members_col = column![].spacing(8);
-            
+
             // Simple grid implementation
             let mut i = 0;
             for member_name in members {
                 let is_active = group_info.now.as_ref() == Some(member_name);
-                
+
                 // Try to find the node info for delay display
-                let delay = state.proxies.get(member_name).and_then(|p| p.history.last().map(|h| h.delay));
+                let delay = state
+                    .proxies
+                    .get(member_name)
+                    .and_then(|p| p.history.last().map(|h| h.delay));
 
                 let mut btn = button(
                     row![
@@ -102,12 +105,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             } else {
                                 Color::from_rgb(0.8, 0.4, 0.4)
                             };
-                            text(format!("{}ms", d)).size(10).style(move |_: &Theme| text::Style { color: Some(color) })
+                            text(format!("{}ms", d))
+                                .size(10)
+                                .style(move |_: &Theme| text::Style { color: Some(color) })
                         } else {
                             text("").size(10)
                         }
                     ]
-                    .align_y(Alignment::Center)
+                    .align_y(Alignment::Center),
                 )
                 .width(Length::FillPortion(1))
                 .padding(10);
@@ -115,7 +120,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 if is_active {
                     btn = btn.style(button::primary);
                 } else {
-                    btn = btn.style(button::secondary).on_press(Message::SelectProxy(group_name.clone(), member_name.clone()));
+                    btn = btn.style(button::secondary).on_press(Message::SelectProxy(
+                        group_name.clone(),
+                        member_name.clone(),
+                    ));
                 }
 
                 members_row = members_row.push(btn);
@@ -126,7 +134,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     members_row = row![].spacing(8);
                 }
             }
-            
+
             if i % 3 != 0 {
                 // Add spacers to fill the last row
                 for _ in 0..(3 - (i % 3)) {

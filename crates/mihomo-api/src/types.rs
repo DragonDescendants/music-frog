@@ -29,8 +29,10 @@ pub struct TrafficData {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct MemoryData {
-    pub inuse: u64,
-    pub os: u64,
+    #[serde(rename = "inuse")]
+    pub in_use: u64,
+    #[serde(rename = "oslimit", alias = "os")]
+    pub os_limit: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -77,6 +79,7 @@ pub struct ConfigResponse {
     pub tun: Option<TunConfig>,
     pub sniffer: Option<SnifferConfig>,
     pub dns: Option<DnsConfig>,
+    pub script: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -153,6 +156,8 @@ pub struct ConnectionMetadata {
     #[serde(rename = "processPath")]
     #[serde(default)]
     pub process_path: String,
+    #[serde(rename = "specialProxy", default)]
+    pub special_proxy: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,6 +176,8 @@ pub struct Connection {
     #[serde(rename = "rulePayload")]
     #[serde(default)]
     pub rule_payload: String,
+    #[serde(default)]
+    pub chains: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

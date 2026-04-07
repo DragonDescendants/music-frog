@@ -85,7 +85,8 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "autostart" => "开机自启动".into(),
         "dark_mode" => "深色模式".into(),
 
-        "proxy_mode" => "代理模式".into(),        "mode_rule" => "规则模式".into(),
+        "proxy_mode" => "代理模式".into(),
+        "mode_rule" => "规则模式".into(),
         "mode_global" => "全局模式".into(),
         "mode_direct" => "直连模式".into(),
         "mode_script" => "脚本模式".into(),
@@ -151,7 +152,8 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "admin_unauthorized" => "⚠️ Not Admin (TUN unavailable)".into(),
         "autostart" => "Start on Boot".into(),
 
-        "proxy_mode" => "Proxy Mode".into(),        "mode_rule" => "Rule".into(),
+        "proxy_mode" => "Proxy Mode".into(),
+        "mode_rule" => "Rule".into(),
         "mode_global" => "Global".into(),
         "mode_direct" => "Direct".into(),
         "mode_script" => "Script".into(),

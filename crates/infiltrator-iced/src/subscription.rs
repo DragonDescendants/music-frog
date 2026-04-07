@@ -1,8 +1,8 @@
 use crate::state::AppState;
 use crate::types::Message;
-use iced::{stream, Subscription};
-use tray_icon::TrayIconEvent;
+use iced::{Subscription, stream};
 use muda::MenuEvent;
+use tray_icon::TrayIconEvent;
 
 impl AppState {
     pub fn subscription(&self) -> Subscription<Message> {

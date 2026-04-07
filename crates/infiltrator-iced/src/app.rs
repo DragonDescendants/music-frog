@@ -1,8 +1,8 @@
 use crate::autostart;
-use crate::locales::{get_system_language, Lang, Localizer};
+use crate::locales::{Lang, Localizer, get_system_language};
+use crate::state::AppState;
 use crate::tray::TrayManager;
 use crate::types::{Message, Route};
-use crate::state::AppState;
 use iced::Task;
 use mihomo_config::ConfigManager;
 
@@ -77,11 +77,11 @@ impl AppState {
                     async {
                         let data_dir = mihomo_platform::get_home_dir().unwrap_or_default();
                         let path = data_dir.join("settings.toml");
-                        infiltrator_core::settings::load_settings(&path).await.unwrap_or_default()
+                        infiltrator_core::settings::load_settings(&path)
+                            .await
+                            .unwrap_or_default()
                     },
-                    |_| {
-                        Message::Navigate(Route::Overview)
-                    }
+                    |_| Message::Navigate(Route::Overview),
                 ),
                 Task::perform(
                     async {

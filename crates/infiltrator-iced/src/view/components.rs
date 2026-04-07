@@ -1,6 +1,6 @@
 use crate::{Message, Route};
-use iced::widget::{Space, button, container, text, canvas};
-use iced::{Border, Color, Element, Length, border, Point, Rectangle, Renderer, Theme, mouse};
+use iced::widget::{Space, button, canvas, container, text};
+use iced::{Border, Color, Element, Length, Point, Rectangle, Renderer, Theme, border, mouse};
 use std::collections::VecDeque;
 
 pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Element<'a, Message> {
@@ -84,12 +84,16 @@ impl<Message> canvas::Program<Message> for TrafficChart {
         let max_points = 60;
         let x_step = width / (max_points - 1) as f32;
 
-        let mut max_speed = self.history.iter()
+        let mut max_speed = self
+            .history
+            .iter()
             .map(|(up, down)| std::cmp::max(*up, *down))
             .max()
             .unwrap_or(1024 * 1024);
-        
-        if max_speed < 1024 * 100 { max_speed = 1024 * 100; }
+
+        if max_speed < 1024 * 100 {
+            max_speed = 1024 * 100;
+        }
 
         let scale = |speed: u64| height - (speed as f32 / max_speed as f32) * height;
 
@@ -102,22 +106,40 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             p.close();
         });
         frame.fill(&down_path, Color::from_rgba(0.2, 0.4, 0.8, 0.15));
-        
+
         let down_line = canvas::Path::new(|p| {
             for (i, (_, down)) in self.history.iter().enumerate() {
                 let pt = Point::new(i as f32 * x_step, scale(*down));
-                if i == 0 { p.move_to(pt); } else { p.line_to(pt); }
+                if i == 0 {
+                    p.move_to(pt);
+                } else {
+                    p.line_to(pt);
+                }
             }
         });
-        frame.stroke(&down_line, canvas::Stroke::default().with_color(Color::from_rgb(0.3, 0.5, 1.0)).with_width(2.0));
+        frame.stroke(
+            &down_line,
+            canvas::Stroke::default()
+                .with_color(Color::from_rgb(0.3, 0.5, 1.0))
+                .with_width(2.0),
+        );
 
         let up_line = canvas::Path::new(|p| {
             for (i, (up, _)) in self.history.iter().enumerate() {
                 let pt = Point::new(i as f32 * x_step, scale(*up));
-                if i == 0 { p.move_to(pt); } else { p.line_to(pt); }
+                if i == 0 {
+                    p.move_to(pt);
+                } else {
+                    p.line_to(pt);
+                }
             }
         });
-        frame.stroke(&up_line, canvas::Stroke::default().with_color(Color::from_rgb(0.3, 0.8, 0.3)).with_width(1.5));
+        frame.stroke(
+            &up_line,
+            canvas::Stroke::default()
+                .with_color(Color::from_rgb(0.3, 0.8, 0.3))
+                .with_width(1.5),
+        );
 
         vec![frame.into_geometry()]
     }

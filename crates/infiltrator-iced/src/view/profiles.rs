@@ -1,8 +1,8 @@
 use crate::locales::{Lang, Localizer};
-use crate::{AppState, Message};
-use iced::widget::{button, column, container, row, text, text_input, Scrollable, Space};
-use iced::{Alignment, Color, Element, Length, Font};
 use crate::view::components::card;
+use crate::{AppState, Message};
+use iced::widget::{Scrollable, Space, button, column, container, row, text, text_input};
+use iced::{Alignment, Color, Element, Font, Length};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
@@ -18,7 +18,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .on_press(Message::OpenConfigDir)
             .padding([6, 12])
             .style(button::secondary)
-    ].align_y(Alignment::Center);
+    ]
+    .align_y(Alignment::Center);
 
     // Import Section
     let import_actions: Element<'_, Message> = if state.is_importing {
@@ -48,7 +49,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .width(Length::FillPortion(2)),
             Space::new().width(10),
             import_actions
-        ].align_y(Alignment::Center)
+        ]
+        .align_y(Alignment::Center)
     ]);
 
     let mut profiles_list = column![].spacing(12);
@@ -60,20 +62,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     } else {
         for profile in &state.profiles {
             let is_active = profile.active;
-            
+
             let mut actions = row![].spacing(8);
             if !is_active {
                 actions = actions.push(
                     button(text(lang.tr("use")).size(12))
                         .on_press(Message::SetActiveProfile(profile.name.clone()))
                         .padding([6, 12])
-                        .style(button::secondary)
+                        .style(button::secondary),
                 );
                 actions = actions.push(
                     button(text(lang.tr("edit")).size(12))
                         .on_press(Message::EditProfile(profile.path.clone()))
                         .padding([6, 12])
-                        .style(button::secondary)
+                        .style(button::secondary),
                 );
             } else {
                 actions = actions.push(
@@ -81,9 +83,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         .padding([4, 8])
                         .style(|_theme| container::Style {
                             background: Some(Color::from_rgb(0.2, 0.6, 0.2).into()),
-                            border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                            border: iced::Border {
+                                radius: 4.0.into(),
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        })
+                        }),
                 );
             }
 
@@ -100,7 +105,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .width(Length::Fill),
                     actions
                 ]
-                .align_y(Alignment::Center)
+                .align_y(Alignment::Center),
             )
             .padding(15)
             .style(move |_theme| container::Style {

@@ -1,8 +1,8 @@
 use crate::locales::{Lang, Localizer};
+use crate::view::components::card;
 use crate::{AppState, Message};
 use iced::widget::{Scrollable, Space, button, column, container, row, text, text_input};
-use iced::{Alignment, Color, Element, Font, Length, Theme, Border, border};
-use crate::view::components::card;
+use iced::{Alignment, Border, Color, Element, Font, Length, Theme, border};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
@@ -37,11 +37,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = row![
         text(lang.tr("rules_title")).size(24).font(bold_font),
         Space::new().width(10),
-        text(format!("({} / {})", filtered_rules.len(), state.rules.len()))
-            .size(14)
-            .style(|_theme| text::Style {
-                color: Some(Color::from_rgb(0.5, 0.5, 0.5))
-            }),
+        text(format!(
+            "({} / {})",
+            filtered_rules.len(),
+            state.rules.len()
+        ))
+        .size(14)
+        .style(|_theme| text::Style {
+            color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+        }),
         Space::new().width(Length::Fill),
         if state.is_loading_rules || state.is_loading_providers {
             Element::from(text("..."))
@@ -59,10 +63,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut proxy_providers_list = column![
         text("Proxy Providers").font(bold_font),
         Space::new().height(10),
-    ].spacing(8);
+    ]
+    .spacing(8);
 
     if state.proxy_providers.is_empty() {
-        proxy_providers_list = proxy_providers_list.push(text("No proxy providers").size(12).style(|_| text::Style { color: Some(Color::from_rgb(0.4, 0.4, 0.4)) }));
+        proxy_providers_list =
+            proxy_providers_list.push(text("No proxy providers").size(12).style(|_| text::Style {
+                color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
+            }));
     } else {
         for provider in &state.proxy_providers {
             proxy_providers_list = proxy_providers_list.push(
@@ -70,20 +78,32 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     row![
                         column![
                             text(&provider.name).size(14).font(bold_font),
-                            text(format!("{} - Updated: {}", provider.vehicle_type, provider.updated_at)).size(10).style(|_| text::Style { color: Some(Color::from_rgb(0.5, 0.5, 0.5)) }),
-                        ].width(Length::Fill),
+                            text(format!(
+                                "{} - Updated: {}",
+                                provider.vehicle_type, provider.updated_at
+                            ))
+                            .size(10)
+                            .style(|_| text::Style {
+                                color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                            }),
+                        ]
+                        .width(Length::Fill),
                         button(text("Update").size(10))
                             .on_press(Message::UpdateProxyProvider(provider.name.clone()))
                             .padding([4, 8])
                             .style(button::secondary)
-                    ].align_y(Alignment::Center)
+                    ]
+                    .align_y(Alignment::Center),
                 )
                 .padding(8)
                 .style(|_| container::Style {
                     background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.03).into()),
-                    border: Border { radius: border::Radius::from(6.0), ..Default::default() },
+                    border: Border {
+                        radius: border::Radius::from(6.0),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                })
+                }),
             );
         }
     }
@@ -92,10 +112,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut rule_providers_list = column![
         text("Rule Providers").font(bold_font),
         Space::new().height(10),
-    ].spacing(8);
+    ]
+    .spacing(8);
 
     if state.rule_providers.is_empty() {
-        rule_providers_list = rule_providers_list.push(text("No rule providers").size(12).style(|_| text::Style { color: Some(Color::from_rgb(0.4, 0.4, 0.4)) }));
+        rule_providers_list =
+            rule_providers_list.push(text("No rule providers").size(12).style(|_| text::Style {
+                color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
+            }));
     } else {
         for provider in &state.rule_providers {
             rule_providers_list = rule_providers_list.push(
@@ -103,20 +127,32 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     row![
                         column![
                             text(&provider.name).size(14).font(bold_font),
-                            text(format!("{} rules - Updated: {}", provider.rule_count, provider.updated_at)).size(10).style(|_| text::Style { color: Some(Color::from_rgb(0.5, 0.5, 0.5)) }),
-                        ].width(Length::Fill),
+                            text(format!(
+                                "{} rules - Updated: {}",
+                                provider.rule_count, provider.updated_at
+                            ))
+                            .size(10)
+                            .style(|_| text::Style {
+                                color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                            }),
+                        ]
+                        .width(Length::Fill),
                         button(text("Update").size(10))
                             .on_press(Message::UpdateRuleProvider(provider.name.clone()))
                             .padding([4, 8])
                             .style(button::secondary)
-                    ].align_y(Alignment::Center)
+                    ]
+                    .align_y(Alignment::Center),
                 )
                 .padding(8)
                 .style(|_| container::Style {
                     background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.03).into()),
-                    border: Border { radius: border::Radius::from(6.0), ..Default::default() },
+                    border: Border {
+                        radius: border::Radius::from(6.0),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                })
+                }),
             );
         }
     }
@@ -149,11 +185,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         }),
                     Space::new().width(12),
                     text(&rule.payload).size(13).width(Length::Fill),
-                    text(&rule.proxy)
-                        .size(12)
-                        .style(|_theme| text::Style {
-                            color: Some(Color::from_rgb(0.4, 0.7, 0.4))
-                        }),
+                    text(&rule.proxy).size(12).style(|_theme| text::Style {
+                        color: Some(Color::from_rgb(0.4, 0.7, 0.4))
+                    }),
                 ]
                 .align_y(Alignment::Center),
             )

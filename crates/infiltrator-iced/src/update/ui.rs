@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use crate::types::{Message, Route};
-use iced::{window, Task, Theme};
+use iced::{Task, Theme, window};
 
 impl AppState {
     pub fn update_ui(&mut self, message: Message) -> Task<Message> {
@@ -22,7 +22,11 @@ impl AppState {
                 Task::none()
             }
             Message::ToggleTheme => {
-                self.theme = if self.theme == Theme::Dark { Theme::Light } else { Theme::Dark };
+                self.theme = if self.theme == Theme::Dark {
+                    Theme::Light
+                } else {
+                    Theme::Dark
+                };
                 Task::none()
             }
             Message::WindowClosed(id) => {
@@ -32,25 +36,37 @@ impl AppState {
             Message::HideWindow => {
                 let current_route = self.current_route;
                 window::latest().then(move |id| {
-                    if let Some(id) = id { window::close(id).map(move |_: ()| Message::Navigate(current_route)) }
-                    else { Task::none() }
-                })
-            }
-            Message::ShowWindow => {
-                window::latest().then(move |id| {
-                    if let Some(id) = id { window::gain_focus(id) }
-                    else {
-                        let (_, task) = window::open(window::Settings { size: (1000.0, 700.0).into(), ..Default::default() });
-                        task.map(|_: window::Id| Message::Navigate(Route::Overview))
+                    if let Some(id) = id {
+                        window::close(id).map(move |_: ()| Message::Navigate(current_route))
+                    } else {
+                        Task::none()
                     }
                 })
             }
+            Message::ShowWindow => window::latest().then(move |id| {
+                if let Some(id) = id {
+                    window::gain_focus(id)
+                } else {
+                    let (_, task) = window::open(window::Settings {
+                        size: (1000.0, 700.0).into(),
+                        ..Default::default()
+                    });
+                    task.map(|_: window::Id| Message::Navigate(Route::Overview))
+                }
+            }),
             Message::Exit => {
                 let rt = self.runtime.take();
                 Task::perform(
-                    async move { if let Some(r) = rt { let _ = r.shutdown().await; } },
+                    async move {
+                        if let Some(r) = rt {
+                            let _ = r.shutdown().await;
+                        }
+                    },
                     |_| Message::ProxyStopped,
-                ).then(|_| { std::process::exit(0); })
+                )
+                .then(|_| {
+                    std::process::exit(0);
+                })
             }
             Message::ShowToast(content, status) => {
                 self.toasts.push((content, status));
@@ -60,7 +76,7 @@ impl AppState {
                         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                         index
                     },
-                    Message::RemoveToast
+                    Message::RemoveToast,
                 )
             }
             Message::RemoveToast(index) => {

@@ -1,4 +1,4 @@
-use muda::{Menu, MenuItem, PredefinedMenuItem, CheckMenuItem, Submenu};
+use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use std::path::Path;
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
@@ -15,14 +15,15 @@ impl TrayManager {
 
         let menu = Menu::new();
         let show_item = MenuItem::with_id("show", "显示主界面", true, None);
-        
+
         let mode_menu = Submenu::new("代理模式", true);
         let mode_rule = MenuItem::with_id("mode_rule", "规则模式", true, None);
         let mode_global = MenuItem::with_id("mode_global", "全局模式", true, None);
         let mode_direct = MenuItem::with_id("mode_direct", "直连模式", true, None);
         let _ = mode_menu.append_items(&[&mode_rule, &mode_global, &mode_direct]);
 
-        let system_proxy_item = CheckMenuItem::with_id("toggle_system_proxy", "系统代理", true, false, None);
+        let system_proxy_item =
+            CheckMenuItem::with_id("toggle_system_proxy", "系统代理", true, false, None);
         let tun_mode_item = CheckMenuItem::with_id("toggle_tun", "TUN 模式", true, false, None);
         let theme_item = MenuItem::with_id("toggle_theme", "切换深/浅色模式", true, None);
 
@@ -36,7 +37,7 @@ impl TrayManager {
             &tun_mode_item,
             &theme_item,
             &PredefinedMenuItem::separator(),
-            &quit_item
+            &quit_item,
         ]);
 
         let mut builder = TrayIconBuilder::new()
@@ -49,17 +50,17 @@ impl TrayManager {
 
         let tray_icon = builder.build().unwrap();
 
-        Self { 
-            tray_icon, 
-            menu, 
-            system_proxy_item, 
-            tun_mode_item 
+        Self {
+            tray_icon,
+            menu,
+            system_proxy_item,
+            tun_mode_item,
         }
     }
 
     pub fn update_status(&self, system_proxy: bool, tun: bool) {
-        let _ = self.system_proxy_item.set_checked(system_proxy);
-        let _ = self.tun_mode_item.set_checked(tun);
+        self.system_proxy_item.set_checked(system_proxy);
+        self.tun_mode_item.set_checked(tun);
     }
 }
 

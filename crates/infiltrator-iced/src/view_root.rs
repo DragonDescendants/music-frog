@@ -1,8 +1,8 @@
 use crate::state::AppState;
 use crate::types::{Message, Route, ToastStatus};
 use crate::view;
-use iced::widget::{container, row, column, text, stack};
-use iced::{Element, Length, Alignment, Color, Border};
+use iced::widget::{column, container, row, stack, text};
+use iced::{Alignment, Border, Color, Element, Length};
 
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
@@ -18,7 +18,7 @@ impl AppState {
             Route::Editor => view::editor::view(self),
             Route::Settings => view::settings::view(self),
         };
-        
+
         let main_content = container(content)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -37,7 +37,7 @@ impl AppState {
                     ToastStatus::Warning => Color::from_rgb(0.8, 0.5, 0.2),
                     ToastStatus::Error => Color::from_rgb(0.8, 0.2, 0.2),
                 };
-                
+
                 toast_column = toast_column.push(
                     container(text(content.clone()).size(13))
                         .padding([10, 20])
@@ -49,7 +49,7 @@ impl AppState {
                                 color,
                             },
                             ..Default::default()
-                        })
+                        }),
                 );
             }
 
@@ -61,7 +61,8 @@ impl AppState {
                     .padding(20)
                     .align_x(Alignment::End)
                     .align_y(Alignment::End)
-            ].into()
+            ]
+            .into()
         }
     }
 }

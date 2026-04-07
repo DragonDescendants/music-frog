@@ -1,8 +1,8 @@
-use iced::widget::{button, checkbox, column, container, pick_list, row, text, Space, Scrollable};
-use iced::{Color, Element, Font, Length, Alignment, Theme, Border, border};
-use crate::{AppState, Message};
 use crate::locales::{Lang, Localizer};
 use crate::view::components::card;
+use crate::{AppState, Message};
+use iced::widget::{Scrollable, Space, button, checkbox, column, container, pick_list, row, text};
+use iced::{Alignment, Border, Color, Element, Font, Length, Theme, border};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
@@ -42,7 +42,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             checkbox(state.tun_enabled.unwrap_or(false))
                 .label("Enable")
                 .on_toggle(Message::SetTunEnabled),
-        ].align_y(Alignment::Center),
+        ]
+        .align_y(Alignment::Center),
         Space::new().height(15),
         row![
             text("Stack").size(14).width(Length::FillPortion(1)),
@@ -50,8 +51,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 &["gvisor", "mixed", "system"][..],
                 Some(state.tun_stack.as_str()),
                 |s| Message::SetTunStack(s.to_string())
-            ).width(Length::FillPortion(2)),
-        ].align_y(Alignment::Center),
+            )
+            .width(Length::FillPortion(2)),
+        ]
+        .align_y(Alignment::Center),
         Space::new().height(10),
         checkbox(state.tun_auto_route)
             .label("Auto Route")
@@ -69,17 +72,22 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             checkbox(state.sniffer_enabled)
                 .label("Enable")
                 .on_toggle(Message::SetSnifferEnabled),
-        ].align_y(Alignment::Center),
+        ]
+        .align_y(Alignment::Center),
         Space::new().height(10),
         text("Sniff traffic to restore domain names for better routing.")
             .size(12)
-            .style(|_theme| text::Style { color: Some(Color::from_rgb(0.5, 0.5, 0.5)) }),
+            .style(|_theme| text::Style {
+                color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+            }),
     ]);
 
     // 4. Kernel Management
     let mut kernel_list = column![
         row![
-            text("Kernel Management").font(bold_font).width(Length::Fill),
+            text("Kernel Management")
+                .font(bold_font)
+                .width(Length::Fill),
             if state.is_checking_update {
                 Element::from(button(text("Checking...").size(11)).padding([6, 12]))
             } else {
@@ -89,30 +97,40 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .style(button::secondary)
                     .into()
             }
-        ].align_y(Alignment::Center),
+        ]
+        .align_y(Alignment::Center),
         Space::new().height(10),
-    ].spacing(10);
+    ]
+    .spacing(10);
 
     if let Some(latest) = &state.latest_core_version {
         let is_installed = state.installed_kernels.iter().any(|k| k.version == *latest);
-        kernel_list = kernel_list.push(
-            card(row![
+        kernel_list = kernel_list.push(card(
+            row![
                 column![
                     text(format!("Latest Version: {}", latest)).font(bold_font),
-                    text(if is_installed { "Already installed" } else { "New version available" }).size(11),
-                ].width(Length::Fill),
+                    text(if is_installed {
+                        "Already installed"
+                    } else {
+                        "New version available"
+                    })
+                    .size(11),
+                ]
+                .width(Length::Fill),
                 if !is_installed {
                     if state.download_progress > 0.0 {
-                        Element::from(column![
-                            text(format!("{:.1}%", state.download_progress * 100.0)).size(10),
-                            container(Space::new().width(Length::Fixed(100.0)).height(4))
-                                .style(move |_: &Theme| container::Style {
-                                    background: Some(Color::from_rgb(0.2, 0.2, 0.2).into()),
-                                    ..Default::default()
-                                })
-                        ].spacing(4))
-                    }
- else {
+                        Element::from(
+                            column![
+                                text(format!("{:.1}%", state.download_progress * 100.0)).size(10),
+                                container(Space::new().width(Length::Fixed(100.0)).height(4))
+                                    .style(move |_: &Theme| container::Style {
+                                        background: Some(Color::from_rgb(0.2, 0.2, 0.2).into()),
+                                        ..Default::default()
+                                    })
+                            ]
+                            .spacing(4),
+                        )
+                    } else {
                         button(text("Download").size(11))
                             .on_press(Message::DownloadCore(latest.clone()))
                             .padding([6, 12])
@@ -122,8 +140,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 } else {
                     text("").into()
                 }
-            ].align_y(Alignment::Center))
-        );
+            ]
+            .align_y(Alignment::Center),
+        ));
     }
 
     if state.installed_kernels.is_empty() {
@@ -131,15 +150,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     } else {
         for kernel in &state.installed_kernels {
             let is_default = kernel.is_default;
-            
+
             let mut action_area = row![].spacing(8).align_y(Alignment::Center);
-            
+
             if !is_default {
                 action_area = action_area.push(
                     button(text("Delete").size(11))
                         .on_press(Message::DeleteKernel(kernel.version.clone()))
                         .padding([6, 12])
-                        .style(button::danger)
+                        .style(button::danger),
                 );
             }
 
@@ -154,14 +173,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                                 ..Default::default()
                             },
                             ..Default::default()
-                        })
+                        }),
                 );
             } else {
                 action_area = action_area.push(
                     button(text("Set Default").size(11))
                         .on_press(Message::SetDefaultKernel(kernel.version.clone()))
                         .padding([6, 12])
-                        .style(button::secondary)
+                        .style(button::secondary),
                 );
             }
 
@@ -171,9 +190,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         column![
                             text(&kernel.version).font(bold_font),
                             text(kernel.path.to_string_lossy().to_string()).size(11),
-                        ].width(Length::Fill),
+                        ]
+                        .width(Length::Fill),
                         action_area
-                    ].align_y(Alignment::Center)
+                    ]
+                    .align_y(Alignment::Center),
                 )
                 .padding(10)
                 .style(|_theme| container::Style {
@@ -183,7 +204,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         ..Default::default()
                     },
                     ..Default::default()
-                })
+                }),
             );
         }
     }
@@ -199,7 +220,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Space::new().height(20),
         card(kernel_list),
         Space::new().height(40),
-    ].spacing(10);
+    ]
+    .spacing(10);
 
     Scrollable::new(content).height(Length::Fill).into()
 }

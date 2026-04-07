@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::tray::menu::*;
-    use mihomo_api::{DelayHistory, ProxyInfo};
+    use mihomo_api::{ProxyHistory, ProxyInfo};
 
     #[tokio::test]
     async fn test_build_menu_id() {
@@ -95,35 +95,45 @@ mod tests {
     #[test]
     fn test_is_selectable_group() {
         let selector_info = ProxyInfo {
+            name: "Selector".to_string(),
             proxy_type: "Selector".to_string(),
+            udp: false,
             all: None,
             now: None,
             history: vec![],
         };
 
         let fallback_info = ProxyInfo {
+            name: "Fallback".to_string(),
             proxy_type: "Fallback".to_string(),
+            udp: false,
             all: None,
             now: None,
             history: vec![],
         };
 
         let load_balance_info = ProxyInfo {
+            name: "LoadBalance".to_string(),
             proxy_type: "LoadBalance".to_string(),
+            udp: false,
             all: None,
             now: None,
             history: vec![],
         };
 
         let url_test_info = ProxyInfo {
+            name: "URLTest".to_string(),
             proxy_type: "URLTest".to_string(),
+            udp: false,
             all: None,
             now: None,
             history: vec![],
         };
 
         let direct_info = ProxyInfo {
+            name: "Direct".to_string(),
             proxy_type: "Direct".to_string(),
+            udp: false,
             all: None,
             now: None,
             history: vec![],
@@ -161,12 +171,14 @@ mod tests {
         // Proxy with delay
         let node1 = "node1".to_string();
         let mut info1 = ProxyInfo {
+            name: "Shadowsocks".to_string(),
             proxy_type: "Shadowsocks".to_string(),
+            udp: true,
             all: None,
             now: None,
             history: vec![],
         };
-        info1.history.push(DelayHistory {
+        info1.history.push(ProxyHistory {
             time: "2024-01-01T00:00:00Z".to_string(),
             delay: 150,
         });
@@ -175,7 +187,9 @@ mod tests {
         // Proxy without delay
         let node2 = "node2".to_string();
         let info2 = ProxyInfo {
+            name: "Shadowsocks".to_string(),
             proxy_type: "Shadowsocks".to_string(),
+            udp: true,
             all: None,
             now: None,
             history: vec![],

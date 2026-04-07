@@ -1,7 +1,7 @@
 use crate::locales::{Lang, Localizer};
 use crate::{AppState, Message};
-use iced::widget::{button, column, row, text, text_editor, Space};
-use iced::{Color, Element, Font, Length, Alignment};
+use iced::widget::{Space, button, column, row, text, text_editor};
+use iced::{Alignment, Color, Element, Font, Length};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
@@ -21,19 +21,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text(format!("Editing: {}", title)).size(24).font(bold_font),
         Space::new().width(Length::Fill),
         if let Some(path) = &state.editor_path {
-            Element::from(text(path.to_string_lossy().to_string())
-                .size(12)
-                .style(|_| text::Style {
-                    color: Some(Color::from_rgb(0.5, 0.5, 0.5))
-                }))
+            Element::from(
+                text(path.to_string_lossy().to_string())
+                    .size(12)
+                    .style(|_| text::Style {
+                        color: Some(Color::from_rgb(0.5, 0.5, 0.5)),
+                    }),
+            )
         } else {
             text("").into()
         }
     ]
     .align_y(Alignment::Center);
 
-    let editor = text_editor(&state.editor_content)
-        .on_action(Message::EditorAction);
+    let editor = text_editor(&state.editor_content).on_action(Message::EditorAction);
 
     let actions = row![
         button(text(lang.tr("dns_save")).size(12))

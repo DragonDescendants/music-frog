@@ -1,4 +1,8 @@
-﻿use super::*;
+use super::*;
+use crate::locales::{Lang, Localizer};
+use iced::widget::text_editor;
+use mihomo_api::TrafficData;
+use mihomo_config::Profile;
 use std::path::PathBuf;
 
 #[test]
@@ -16,7 +20,7 @@ fn test_route_navigation() {
 #[test]
 fn test_proxy_lifecycle_messages() {
     let (mut state, _) = AppState::new();
-    
+
     // Test Start
     let _ = state.update(Message::StartProxy);
     assert!(state.is_starting);
@@ -31,7 +35,7 @@ fn test_proxy_lifecycle_messages() {
     state.traffic = Some(TrafficData { up: 100, down: 100 });
     state.proxy_mode = Some("rule".into());
     state.logs.push_back("some log".into());
-    
+
     let _ = state.update(Message::ProxyStopped);
     assert!(state.traffic.is_none());
     assert!(state.proxy_mode.is_none());
@@ -41,14 +45,20 @@ fn test_proxy_lifecycle_messages() {
 #[test]
 fn test_runtime_config_sync() {
     let (mut state, _) = AppState::new();
-    
+
     // Simulate config fetch
     let _ = state.update(Message::RuntimeConfigFetched(Ok((
         "global".into(),
         true,
-        vec!["1.1.1.1".into()]
+        vec!["1.1.1.1".into()],
+        vec!["8.8.8.8".into()],
+        "fake-ip".into(),
+        "gvisor".into(),
+        true,
+        false,
+        true,
     ))));
-    
+
     assert_eq!(state.proxy_mode.as_ref().unwrap(), "global");
     assert!(state.tun_enabled.unwrap());
     assert_eq!(state.dns_nameservers[0], "1.1.1.1");
@@ -57,7 +67,7 @@ fn test_runtime_config_sync() {
 #[test]
 fn test_mode_set_interactions() {
     let (mut state, _) = AppState::new();
-    
+
     // Success path (should trigger a re-fetch)
     let _task = state.update(Message::ModeSetResult(Ok(())));
     assert!(state.error_msg.is_none());
@@ -80,14 +90,23 @@ fn test_log_buffer_limit_and_queue() {
 #[test]
 fn test_traffic_throttling_logic() {
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::TrafficReceived(TrafficData { up: 1000, down: 1000 }));
-    
+    let _ = state.update(Message::TrafficReceived(TrafficData {
+        up: 1000,
+        down: 1000,
+    }));
+
     // Throttled
-    let _ = state.update(Message::TrafficReceived(TrafficData { up: 1500, down: 1500 }));
+    let _ = state.update(Message::TrafficReceived(TrafficData {
+        up: 1500,
+        down: 1500,
+    }));
     assert_eq!(state.traffic.as_ref().unwrap().up, 1000);
 
     // Updated
-    let _ = state.update(Message::TrafficReceived(TrafficData { up: 3000, down: 3000 }));
+    let _ = state.update(Message::TrafficReceived(TrafficData {
+        up: 3000,
+        down: 3000,
+    }));
     assert_eq!(state.traffic.as_ref().unwrap().up, 3000);
 }
 
@@ -110,7 +129,7 @@ fn test_dns_server_list_manipulation() {
 #[test]
 fn test_system_integration_states() {
     let (mut state, _) = AppState::new();
-    
+
     // System Proxy toggle
     state.system_proxy_enabled = false;
     let _ = state.update(Message::SetSystemProxy(true));
@@ -125,15 +144,18 @@ fn test_system_integration_states() {
     state.autostart_enabled = false;
     let _ = state.update(Message::SetAutostart(true));
     assert!(state.autostart_enabled);
-    
+
     let _ = state.update(Message::AutostartSet(Err("Registry lock".into())));
-    assert!(!state.autostart_enabled, "Should rollback autostart on failure");
+    assert!(
+        !state.autostart_enabled,
+        "Should rollback autostart on failure"
+    );
 }
 
 #[test]
 fn test_profiles_and_rules_loading() {
     let (mut state, _) = AppState::new();
-    
+
     // Profiles loaded
     let _ = state.update(Message::ProfilesLoaded(Ok(vec![Profile::new(
         "test".into(),
@@ -156,17 +178,22 @@ fn test_profiles_and_rules_loading() {
 #[test]
 fn test_editor_actions() {
     let (mut state, _) = AppState::new();
-    
+
     // Simulate successful load
     let _ = state.update(Message::ProfileContentLoaded(Ok((
         PathBuf::from("config.yaml"),
-        "proxies: []".into()
+        "proxies: []".into(),
     ))));
-    assert_eq!(state.editor_path.as_ref().unwrap().to_str().unwrap(), "config.yaml");
+    assert_eq!(
+        state.editor_path.as_ref().unwrap().to_str().unwrap(),
+        "config.yaml"
+    );
     assert_eq!(state.editor_content.text(), "proxies: []");
 
     // Editor action (simulating typing)
-    let _ = state.update(Message::EditorAction(text_editor::Action::Edit(text_editor::Edit::Insert('a'))));
+    let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
+        text_editor::Edit::Insert('a'),
+    )));
     assert_ne!(state.editor_content.text(), "proxies: []");
 
     // Save success (should return to profiles)
@@ -178,27 +205,31 @@ fn test_editor_actions() {
 #[test]
 fn test_tray_and_exit() {
     let (mut state, _) = AppState::new();
-    
+
     // Tray event shouldn't crash
     let _ = state.update(Message::TrayIconEvent(tray_icon::TrayIconEvent::Click {
         id: "test".into(),
         position: tray_icon::dpi::PhysicalPosition { x: 0.0, y: 0.0 },
         rect: tray_icon::Rect {
             position: tray_icon::dpi::PhysicalPosition { x: 0.0, y: 0.0 },
-            size: tray_icon::dpi::PhysicalSize { width: 0, height: 0 },
+            size: tray_icon::dpi::PhysicalSize {
+                width: 0,
+                height: 0,
+            },
         },
         button: tray_icon::MouseButton::Left,
         button_state: tray_icon::MouseButtonState::Up,
     }));
-    
-    let _ = state.update(Message::MenuEvent(muda::MenuEvent {
-        id: "show".into(),
-    }));
+
+    let _ = state.update(Message::MenuEvent(muda::MenuEvent { id: "show".into() }));
 }
 
 #[test]
 fn test_i18n_fallback() {
     let lang = Lang("fr-FR"); // Unsupported
-    assert_eq!(lang.tr("nav_profiles"), "配置管理", "Should fallback to ZH for unsupported locales");
+    assert_eq!(
+        lang.tr("nav_profiles"),
+        "配置管理",
+        "Should fallback to ZH for unsupported locales"
+    );
 }
-

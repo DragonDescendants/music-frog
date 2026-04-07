@@ -1,13 +1,13 @@
-use iced::{window, widget::text_editor};
+use iced::{widget::text_editor, window};
 use infiltrator_desktop::MihomoRuntime;
 use mihomo_api::{ConnectionSnapshot, Rule, TrafficData};
 use mihomo_config::Profile;
 use mihomo_version::manager::VersionInfo;
-use std::sync::Arc;
-use std::path::PathBuf;
-use std::collections::HashMap;
-use tray_icon::TrayIconEvent;
 use muda::MenuEvent;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tray_icon::TrayIconEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Route {
@@ -58,7 +58,22 @@ pub enum Message {
     CloseAllConnections,
     FetchRuntimeConfig,
     FetchIpInfo,
-    RuntimeConfigFetched(Result<(String, bool, Vec<String>, Vec<String>, String, String, bool, bool, bool), String>),
+    RuntimeConfigFetched(
+        Result<
+            (
+                String,
+                bool,
+                Vec<String>,
+                Vec<String>,
+                String,
+                String,
+                bool,
+                bool,
+                bool,
+            ),
+            String,
+        >,
+    ),
     SetProxyMode(String),
     SetTunEnabled(bool),
     SetTunStack(String),
@@ -70,7 +85,15 @@ pub enum Message {
     LoadRules,
     RulesLoaded(Result<Vec<Rule>, String>),
     LoadProviders,
-    ProvidersLoaded(Result<(Vec<mihomo_api::ProxyProvider>, Vec<mihomo_api::RuleProvider>), String>),
+    ProvidersLoaded(
+        Result<
+            (
+                Vec<mihomo_api::ProxyProvider>,
+                Vec<mihomo_api::RuleProvider>,
+            ),
+            String,
+        >,
+    ),
     UpdateProxyProvider(String),
     UpdateRuleProvider(String),
     FilterRules(String),
@@ -144,11 +167,21 @@ impl std::fmt::Debug for Message {
             Message::ProxiesLoaded(Ok(p)) => write!(f, "ProxiesLoaded(Ok({} proxies))", p.len()),
             Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({}))", e),
             Message::SelectProxy(g, n) => write!(f, "SelectProxy({}, {})", g, n),
-            Message::TrafficReceived(t) => write!(f, "TrafficReceived(up: {}, down: {})", t.up, t.down),
-            Message::MemoryReceived(m) => write!(f, "MemoryReceived(inuse: {}, os: {})", m.inuse, m.os),
+            Message::TrafficReceived(t) => {
+                write!(f, "TrafficReceived(up: {}, down: {})", t.up, t.down)
+            }
+            Message::MemoryReceived(m) => write!(
+                f,
+                "MemoryReceived(in_use: {}, os_limit: {})",
+                m.in_use, m.os_limit
+            ),
             Message::IpInfoReceived(Ok(ip)) => write!(f, "IpInfoReceived(Ok({}))", ip),
             Message::IpInfoReceived(Err(e)) => write!(f, "IpInfoReceived(Err({}))", e),
-            Message::ConnectionsReceived(c) => write!(f, "ConnectionsReceived({} connections)", c.connections.len()),
+            Message::ConnectionsReceived(c) => write!(
+                f,
+                "ConnectionsReceived({} connections)",
+                c.connections.len()
+            ),
             Message::LogReceived(l) => write!(f, "LogReceived({})", l),
             Message::SetLogLevel(l) => write!(f, "SetLogLevel({})", l),
             Message::CloseConnection(id) => write!(f, "CloseConnection({})", id),
@@ -156,8 +189,19 @@ impl std::fmt::Debug for Message {
             Message::FetchRuntimeConfig => write!(f, "FetchRuntimeConfig"),
             Message::FetchIpInfo => write!(f, "FetchIpInfo"),
             Message::RuntimeConfigFetched(Ok((m, t, d, fb, e, stack, auto, strict, sniff))) => {
-                write!(f, "RuntimeConfigFetched({}, {}, {} DNS, {} FB, {}, {}, {}, {}, {})", 
-                    m, t, d.len(), fb.len(), e, stack, auto, strict, sniff)
+                write!(
+                    f,
+                    "RuntimeConfigFetched({}, {}, {} DNS, {} FB, {}, {}, {}, {}, {})",
+                    m,
+                    t,
+                    d.len(),
+                    fb.len(),
+                    e,
+                    stack,
+                    auto,
+                    strict,
+                    sniff
+                )
             }
             Message::RuntimeConfigFetched(Err(e)) => write!(f, "RuntimeConfigFetched(Err({}))", e),
             Message::SetProxyMode(m) => write!(f, "SetProxyMode({})", m),
@@ -174,7 +218,12 @@ impl std::fmt::Debug for Message {
             Message::RulesLoaded(Ok(r)) => write!(f, "RulesLoaded(Ok({} rules))", r.len()),
             Message::RulesLoaded(Err(e)) => write!(f, "RulesLoaded(Err({}))", e),
             Message::LoadProviders => write!(f, "LoadProviders"),
-            Message::ProvidersLoaded(Ok((p, r))) => write!(f, "ProvidersLoaded(Ok({} proxies, {} rules))", p.len(), r.len()),
+            Message::ProvidersLoaded(Ok((p, r))) => write!(
+                f,
+                "ProvidersLoaded(Ok({} proxies, {} rules))",
+                p.len(),
+                r.len()
+            ),
             Message::ProvidersLoaded(Err(e)) => write!(f, "ProvidersLoaded(Err({}))", e),
             Message::UpdateProxyProvider(name) => write!(f, "UpdateProxyProvider({})", name),
             Message::UpdateRuleProvider(name) => write!(f, "UpdateRuleProvider({})", name),
@@ -205,7 +254,9 @@ impl std::fmt::Debug for Message {
             Message::SystemProxySet(Ok(_)) => write!(f, "SystemProxySet(Ok)"),
             Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({}))", e),
             Message::EditProfile(p) => write!(f, "EditProfile({:?})", p),
-            Message::ProfileContentLoaded(Ok((p, _))) => write!(f, "ProfileContentLoaded(Ok({:?}))", p),
+            Message::ProfileContentLoaded(Ok((p, _))) => {
+                write!(f, "ProfileContentLoaded(Ok({:?}))", p)
+            }
             Message::ProfileContentLoaded(Err(e)) => write!(f, "ProfileContentLoaded(Err({}))", e),
             Message::EditorAction(_) => write!(f, "EditorAction"),
             Message::SaveProfile => write!(f, "SaveProfile"),
