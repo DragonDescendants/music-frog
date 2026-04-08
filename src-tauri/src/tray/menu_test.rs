@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::tray::menu::*;
-    use mihomo_api::{ProxyHistory, ProxyInfo};
+    use mihomo_api::{Proxy, ProxyBase, ProxyGroup, ProxyHistory};
 
     #[tokio::test]
     async fn test_build_menu_id() {
@@ -94,50 +94,40 @@ mod tests {
 
     #[test]
     fn test_is_selectable_group() {
-        let selector_info = ProxyInfo {
+        let selector_info = Proxy::Selector(ProxyGroup {
             name: "Selector".to_string(),
-            proxy_type: "Selector".to_string(),
-            udp: false,
-            all: None,
-            now: None,
+            all: vec![],
+            now: "".to_string(),
             history: vec![],
-        };
+        });
 
-        let fallback_info = ProxyInfo {
+        let fallback_info = Proxy::Fallback(ProxyGroup {
             name: "Fallback".to_string(),
-            proxy_type: "Fallback".to_string(),
-            udp: false,
-            all: None,
-            now: None,
+            all: vec![],
+            now: "".to_string(),
             history: vec![],
-        };
+        });
 
-        let load_balance_info = ProxyInfo {
+        let load_balance_info = Proxy::LoadBalance(ProxyGroup {
             name: "LoadBalance".to_string(),
-            proxy_type: "LoadBalance".to_string(),
-            udp: false,
-            all: None,
-            now: None,
+            all: vec![],
+            now: "".to_string(),
             history: vec![],
-        };
+        });
 
-        let url_test_info = ProxyInfo {
+        let url_test_info = Proxy::URLTest(ProxyGroup {
             name: "URLTest".to_string(),
-            proxy_type: "URLTest".to_string(),
-            udp: false,
-            all: None,
-            now: None,
+            all: vec![],
+            now: "".to_string(),
             history: vec![],
-        };
+        });
 
-        let direct_info = ProxyInfo {
-            name: "Direct".to_string(),
-            proxy_type: "Direct".to_string(),
-            udp: false,
-            all: None,
-            now: None,
-            history: vec![],
-        };
+        let direct_info = Proxy::Direct(mihomo_api::proxy::types::Direct {
+            base: ProxyBase {
+                name: "Direct".to_string(),
+                ..Default::default()
+            },
+        });
 
         assert!(is_selectable_group(&selector_info));
         assert!(is_selectable_group(&fallback_info));
@@ -170,30 +160,29 @@ mod tests {
 
         // Proxy with delay
         let node1 = "node1".to_string();
-        let mut info1 = ProxyInfo {
-            name: "Shadowsocks".to_string(),
-            proxy_type: "Shadowsocks".to_string(),
-            udp: true,
-            all: None,
-            now: None,
-            history: vec![],
-        };
-        info1.history.push(ProxyHistory {
-            time: "2024-01-01T00:00:00Z".to_string(),
-            delay: 150,
+        let info1 = Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "node1".to_string(),
+                history: vec![ProxyHistory {
+                    time: "2024-01-01T00:00:00Z".to_string(),
+                    delay: 150,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
         });
         proxies.insert(node1.clone(), info1);
 
         // Proxy without delay
         let node2 = "node2".to_string();
-        let info2 = ProxyInfo {
-            name: "Shadowsocks".to_string(),
-            proxy_type: "Shadowsocks".to_string(),
-            udp: true,
-            all: None,
-            now: None,
-            history: vec![],
-        };
+        let info2 = Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "node2".to_string(),
+                history: vec![],
+                ..Default::default()
+            },
+            ..Default::default()
+        });
         proxies.insert(node2.clone(), info2);
 
         // Test with delay

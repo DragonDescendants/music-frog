@@ -3,31 +3,31 @@ use crate::utils::format_bytes;
 use crate::view::components::{TrafficChart, card};
 use crate::{AppState, Message};
 use iced::widget::{Canvas, Scrollable, Space, button, column, container, pick_list, row, text};
-use iced::{Alignment, Border, Color, Element, Font, Length, Theme, border};
+use iced::{Alignment, Border, Color, Element, Font, Length, Theme};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
-    let bold_font = iced::Font {
+    let bold_font = Font {
         weight: iced::font::Weight::Bold,
         ..Default::default()
     };
 
-    let header = text(lang.tr("runtime_title")).size(24).font(bold_font);
-
-    if state.runtime.is_none() {
-        return column![
-            header,
-            Space::new().height(40),
-            card(text(lang.tr("proxy_not_running")))
-        ]
-        .into();
+    if state.runtime.is_none() && !state.is_starting {
+        return container(card(text(lang.tr("proxy_not_running"))))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into();
     }
 
-    // Traffic Stats Card with Chart
+    let header = text(lang.tr("runtime_title")).size(24).font(bold_font);
+
+    // 1. Real-time Traffic Section
     let traffic_section = card(column![
         row![
             column![
-                text("REAL-TIME TRAFFIC")
+                text(lang.tr("overview_traffic"))
                     .size(10)
                     .font(bold_font)
                     .style(|_theme| text::Style {
@@ -69,7 +69,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     }
                 ]
             } else {
-                row![]
+                row![text(lang.tr("waiting_traffic")).size(10)]
             }
         ],
         Space::new().height(10),
@@ -82,25 +82,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let mut connections_section = column![
         row![
-            text(format!(
-                "Active Connections ({})",
-                state
-                    .connections
-                    .as_ref()
-                    .map(|c| c.connections.len())
-                    .unwrap_or(0)
-            ))
-            .font(bold_font)
-            .width(Length::Fill),
-            button(text("Close All").size(11))
+            text("CONNECTIONS")
+                .size(10)
+                .font(bold_font)
+                .style(|_theme| text::Style {
+                    color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                }),
+            Space::new().width(Length::Fill),
+            button(text(lang.tr("btn_close_all")).size(10))
                 .on_press(Message::CloseAllConnections)
-                .style(button::danger)
-                .padding([4, 10]),
+                .padding([4, 8])
+                .style(button::danger),
         ]
         .align_y(Alignment::Center),
         Space::new().height(10),
-    ]
-    .spacing(10);
+    ];
 
     if let Some(c) = &state.connections {
         let mut conn_list = column![].spacing(8);
@@ -108,51 +104,42 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let mut sorted_conns = c.connections.clone();
         sorted_conns.sort_by(|a, b| b.download.cmp(&a.download));
 
-        for conn in sorted_conns.iter().take(50) {
-            let host = if !conn.metadata.host.is_empty() {
-                conn.metadata.host.clone()
-            } else {
+        for conn in sorted_conns {
+            let host = if conn.metadata.host.is_empty() {
                 conn.metadata.destination_ip.clone()
+            } else {
+                conn.metadata.host.clone()
             };
 
-            let rule_str = format!("[{}]", conn.rule);
-            let payload_str = conn.rule_payload.clone();
-            let source_ip = conn.metadata.source_ip.clone();
-            let network = conn.metadata.network.clone();
-            let dest_port = conn.metadata.destination_port.clone();
-            let conn_id = conn.id.clone();
+            let rule_str = format!("{}({})", conn.rule, conn.rule_payload);
+            let payload_str = format!("{}:{}", host, conn.metadata.destination_port);
+            let source_ip = format!("{} ->", conn.metadata.source_ip);
+            let network = conn.metadata.network.to_uppercase();
 
             let row_content = column![
                 row![
-                    container(text(network).size(9).font(bold_font))
-                        .padding([1, 4])
-                        .style(|_theme: &Theme| container::Style {
-                            background: Some(Color::from_rgb(0.2, 0.2, 0.2).into()),
-                            border: Border {
-                                radius: border::Radius::from(3.0),
-                                ..Default::default()
-                            },
-                            ..Default::default()
+                    text(network)
+                        .size(10)
+                        .font(bold_font)
+                        .style(|_theme| text::Style {
+                            color: Some(Color::from_rgb(0.4, 0.4, 0.4))
                         }),
                     Space::new().width(8),
-                    text(format!("{}:{}", host, dest_port))
-                        .size(13)
-                        .font(bold_font)
-                        .width(Length::Fill),
+                    text(host).size(13).font(bold_font).width(Length::Fill),
                     text(format!(
-                        "↑{} / ↓{}",
+                        "↑ {} / ↓ {}",
                         format_bytes(conn.upload),
                         format_bytes(conn.download)
                     ))
-                    .size(11)
+                    .size(10)
                     .style(|_theme| text::Style {
                         color: Some(Color::from_rgb(0.5, 0.5, 0.5))
                     }),
                     Space::new().width(12),
                     button(text("×").size(10))
-                        .on_press(Message::CloseConnection(conn_id))
-                        .style(button::danger)
+                        .on_press(Message::CloseConnection(conn.id.clone()))
                         .padding([2, 6])
+                        .style(button::danger),
                 ]
                 .align_y(Alignment::Center),
                 row![
@@ -174,55 +161,64 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             conn_list =
                 conn_list.push(container(row_content).padding(8).style(|_theme: &Theme| {
                     container::Style {
-                        background: Some(Color::from_rgb(0.08, 0.08, 0.08).into()),
+                        background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.03).into()),
                         border: Border {
-                            radius: border::Radius::from(6.0),
+                            radius: 6.0.into(),
                             ..Default::default()
                         },
                         ..Default::default()
                     }
                 }));
         }
-        connections_section =
-            connections_section.push(Scrollable::new(conn_list).height(Length::Fixed(300.0)));
+
+        connections_section = connections_section.push(Scrollable::new(conn_list).height(Length::Fill));
+    } else {
+        connections_section = connections_section.push(text("No active connections").size(12));
     }
 
-    let log_section = column![
+    let logs_section = column![
         row![
-            text("System Logs").font(bold_font),
-            Space::new().width(Length::Fill),
+            text(lang.tr("runtime_system_logs"))
+                .font(bold_font)
+                .width(Length::Fill),
             pick_list(
                 &["debug", "info", "warning", "error"][..],
                 Some(state.log_level.as_str()),
                 |l| Message::SetLogLevel(l.to_string())
             )
-            .text_size(11)
-            .padding(4)
+            .text_size(11),
         ]
         .align_y(Alignment::Center),
         Space::new().height(10),
-        Scrollable::new(
-            column(
-                state
-                    .logs
-                    .iter()
-                    .map(|l: &String| text(l.clone()).size(11).font(Font::MONOSPACE).into())
-                    .collect::<Vec<Element<Message>>>()
+        container(
+            Scrollable::new(
+                column(state.logs.iter().map(|l| text(l).size(11).into()))
+                    .spacing(2)
+                    .padding(5)
             )
-            .spacing(4)
+            .id(iced::widget::Id::new("log_scroller"))
+            .height(Length::Fill)
         )
-        .id(iced::widget::Id::new("log_scroller"))
-        .height(Length::Fill)
+        .style(|_theme| container::Style {
+            background: Some(Color::BLACK.into()),
+            border: Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
     ];
 
-    column![
+    let content = column![
         header,
         Space::new().height(20),
         traffic_section,
         Space::new().height(20),
-        card(connections_section),
+        container(card(connections_section)).height(Length::FillPortion(2)),
         Space::new().height(20),
-        card(log_section),
+        container(card(logs_section)).height(Length::FillPortion(1)),
     ]
-    .into()
+    .spacing(10);
+
+    content.into()
 }

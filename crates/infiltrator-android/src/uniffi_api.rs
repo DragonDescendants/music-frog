@@ -38,7 +38,7 @@ use mihomo_platform::{clear_android_bridge, get_android_bridge, get_home_dir};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 #[cfg(target_os = "android")]
-use serde_yaml::Value;
+use serde_yml::Value;
 use state_store::StateStore;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -1379,11 +1379,11 @@ async fn proxies_groups_internal() -> Result<Vec<ProxyGroupSummary>, FfiStatus> 
     let mut groups: Vec<ProxyGroupSummary> = proxies
         .into_iter()
         .filter_map(|(name, info)| {
-            info.all.map(|all| ProxyGroupSummary {
+            info.all().map(|all| ProxyGroupSummary {
                 name,
-                group_type: info.proxy_type,
-                current: info.now,
-                all,
+                group_type: info.proxy_type().to_string(),
+                current: Some(info.now().unwrap_or("").to_string()),
+                all: all.to_vec(),
             })
         })
         .collect();
@@ -1431,7 +1431,7 @@ fn resolve_proxy_url() -> Option<String> {
             let manager = ConfigManager::new().map_err(map_mihomo_error)?;
             let profile = manager.get_current().await.map_err(map_mihomo_error)?;
             let content = manager.load(&profile).await.map_err(map_mihomo_error)?;
-            let doc: Value = serde_yaml::from_str(&content)
+            let doc: Value = serde_yml::from_str(&content)
                 .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
             Ok::<Option<String>, FfiStatus>(build_proxy_url(&doc))
         })

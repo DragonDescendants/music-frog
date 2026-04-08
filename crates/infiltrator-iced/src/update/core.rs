@@ -96,6 +96,9 @@ impl AppState {
                 self.is_loading_proxies = false;
                 match result {
                     Ok(proxies) => {
+                        if let Some(tm) = &self.tray_manager {
+                            tm.update_groups(&proxies);
+                        }
                         self.proxies = proxies;
                     }
                     Err(e) => self.error_msg = Some(e),
@@ -116,6 +119,14 @@ impl AppState {
                 } else {
                     Task::none()
                 }
+            }
+            Message::FilterProxies(filter) => {
+                self.proxy_filter = filter;
+                Task::none()
+            }
+            Message::ToggleProxySort => {
+                self.proxy_sort_by_delay = !self.proxy_sort_by_delay;
+                Task::none()
             }
             Message::TrafficReceived(data) => {
                 self.traffic = Some(data.clone());
@@ -462,6 +473,26 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::AddDnsServerTemplate(server) => {
+                self.dns_nameservers.push(server);
+                Task::none()
+            }
+            Message::UpdateFallbackDnsServer(index, value) => {
+                if let Some(server) = self.dns_fallback_servers.get_mut(index) {
+                    *server = value;
+                }
+                Task::none()
+            }
+            Message::AddFallbackDnsServer => {
+                self.dns_fallback_servers.push(String::new());
+                Task::none()
+            }
+            Message::RemoveFallbackDnsServer(index) => {
+                if self.dns_fallback_servers.len() > index {
+                    self.dns_fallback_servers.remove(index);
+                }
+                Task::none()
+            }
             Message::SaveDns => {
                 if let Some(rt) = self.runtime.clone() {
                     self.is_saving_dns = true;
@@ -749,8 +780,8 @@ impl AppState {
                                 rt.client().get_proxies().await.map_err(|e| e.to_string())?;
                             let members = proxies
                                 .get(&name)
-                                .and_then(|p| p.all.as_ref())
-                                .cloned()
+                                .and_then(|p| p.all())
+                                .map(|all| all.to_vec())
                                 .unwrap_or_default();
                             for m in members {
                                 let _ = rt

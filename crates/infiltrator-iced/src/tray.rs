@@ -5,6 +5,7 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 pub struct TrayManager {
     pub tray_icon: TrayIcon,
     pub menu: Menu,
+    pub groups_menu: Submenu,
     pub system_proxy_item: CheckMenuItem,
     pub tun_mode_item: CheckMenuItem,
 }
@@ -22,6 +23,8 @@ impl TrayManager {
         let mode_direct = MenuItem::with_id("mode_direct", "直连模式", true, None);
         let _ = mode_menu.append_items(&[&mode_rule, &mode_global, &mode_direct]);
 
+        let groups_menu = Submenu::new("快速切换 (GLOBAL)", true);
+
         let system_proxy_item =
             CheckMenuItem::with_id("toggle_system_proxy", "系统代理", true, false, None);
         let tun_mode_item = CheckMenuItem::with_id("toggle_tun", "TUN 模式", true, false, None);
@@ -33,6 +36,8 @@ impl TrayManager {
             &show_item,
             &PredefinedMenuItem::separator(),
             &mode_menu,
+            &groups_menu,
+            &PredefinedMenuItem::separator(),
             &system_proxy_item,
             &tun_mode_item,
             &theme_item,
@@ -53,6 +58,7 @@ impl TrayManager {
         Self {
             tray_icon,
             menu,
+            groups_menu,
             system_proxy_item,
             tun_mode_item,
         }
@@ -61,6 +67,35 @@ impl TrayManager {
     pub fn update_status(&self, system_proxy: bool, tun: bool) {
         self.system_proxy_item.set_checked(system_proxy);
         self.tun_mode_item.set_checked(tun);
+    }
+
+    pub fn update_groups(&self, groups: &std::collections::HashMap<String, mihomo_api::Proxy>) {
+        // Clear existing items using remove_at
+        while !self.groups_menu.items().is_empty() {
+            let _ = self.groups_menu.remove_at(0);
+        }
+
+        if let Some(global) = groups.get("GLOBAL")
+            && let Some(all) = global.all()
+        {
+            let current = global.now().unwrap_or("");
+            for node in all {
+                let id = format!("proxy_GLOBAL_{}", node);
+                let is_active = node == current;
+                let label = if is_active {
+                    format!("● {}", node)
+                } else {
+                    node.clone()
+                };
+                let item = MenuItem::with_id(id, label, true, None);
+                let _ = self.groups_menu.append(&item);
+            }
+        }
+
+        if self.groups_menu.items().is_empty() {
+            let item = MenuItem::with_id("no_proxies", "暂无节点 (请先启动)", false, None);
+            let _ = self.groups_menu.append(&item);
+        }
     }
 }
 

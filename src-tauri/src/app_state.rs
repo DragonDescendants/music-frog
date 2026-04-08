@@ -8,7 +8,7 @@ use infiltrator_admin::{
 use infiltrator_core::AppSettings;
 use infiltrator_desktop::{MihomoRuntime, SystemProxyState};
 use log::warn;
-use mihomo_api::ProxyInfo;
+use mihomo_api::Proxy;
 use mihomo_version::VersionManager;
 use tauri::{
     AppHandle, Wry,
@@ -32,7 +32,7 @@ pub(crate) struct AppState {
     tray_info: Arc<RwLock<Option<TrayInfoItems>>>,
     system_proxy: Arc<RwLock<SystemProxyState>>,
     current_mode: Arc<RwLock<Option<String>>>,
-    proxy_groups: Arc<RwLock<HashMap<String, ProxyInfo>>>,
+    proxy_groups: Arc<RwLock<HashMap<String, Proxy>>>,
     tun_enabled: Arc<RwLock<bool>>,
     subscription_scheduler: Arc<RwLock<Option<SubscriptionScheduler>>>,
     tray_profile_map: Arc<RwLock<HashMap<String, String>>>,
@@ -207,12 +207,12 @@ impl AppState {
         }
     }
 
-    pub(crate) async fn set_proxy_groups(&self, groups: HashMap<String, ProxyInfo>) {
+    pub(crate) async fn set_proxy_groups(&self, groups: HashMap<String, Proxy>) {
         let mut guard = self.proxy_groups.write().await;
         *guard = groups;
     }
 
-    pub(crate) async fn refresh_proxy_groups(&self) -> anyhow::Result<HashMap<String, ProxyInfo>> {
+    pub(crate) async fn refresh_proxy_groups(&self) -> anyhow::Result<HashMap<String, Proxy>> {
         let runtime = self.runtime().await?;
         let proxies = runtime
             .client()
@@ -713,14 +713,7 @@ mod tests {
     async fn test_proxy_groups_management() {
         let state = AppState::default();
         let mut groups = HashMap::new();
-        let info = ProxyInfo {
-            name: "Group1".to_string(),
-            proxy_type: "Selector".to_string(),
-            udp: false,
-            now: None,
-            all: None,
-            history: vec![],
-        };
+        let info = Proxy::Unknown;
         groups.insert("Group1".to_string(), info);
         state.set_proxy_groups(groups).await;
         let stored_groups = state.proxy_groups.read().await;
@@ -776,17 +769,7 @@ mod tests {
     async fn test_proxy_groups_clear() {
         let state = AppState::default();
         let mut groups = HashMap::new();
-        groups.insert(
-            "G1".to_string(),
-            ProxyInfo {
-                name: "G1".into(),
-                proxy_type: "S".into(),
-                udp: false,
-                now: None,
-                all: None,
-                history: vec![],
-            },
-        );
+        groups.insert("G1".to_string(), Proxy::Unknown);
         state.set_proxy_groups(groups).await;
         state.set_proxy_groups(HashMap::new()).await;
         assert_eq!(state.proxy_groups.read().await.len(), 0);

@@ -20,7 +20,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = row![
         text(lang.tr("dns_title")).size(24).font(bold_font),
         Space::new().width(Length::Fill),
-        button(text("Flush Fake-IP Cache").size(12))
+        button(text(lang.tr("dns_flush_fakeip")).size(12))
             .on_press(Message::FlushFakeIpCache)
             .padding([6, 12])
             .style(button::secondary),
@@ -85,9 +85,40 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(button::secondary),
     );
 
-    // 3. DNS Templates (Quick Add)
+    // 3. Fallback Servers
+    let mut fallback_list = column![
+        text(lang.tr("dns_fallback")).font(bold_font),
+        Space::new().height(10),
+    ]
+    .spacing(8);
+
+    for (i, server) in state.dns_fallback_servers.iter().enumerate() {
+        fallback_list = fallback_list.push(
+            row![
+                text_input("e.g. 8.8.8.8", server)
+                    .on_input(move |v| Message::UpdateFallbackDnsServer(i, v))
+                    .padding(10)
+                    .size(14),
+                button(text("−").size(14))
+                    .on_press(Message::RemoveFallbackDnsServer(i))
+                    .style(button::danger)
+                    .padding([8, 12])
+            ]
+            .spacing(10)
+            .align_y(Alignment::Center),
+        );
+    }
+
+    fallback_list = fallback_list.push(
+        button(text(format!("+ {}", lang.tr("dns_add_fallback"))).size(12))
+            .on_press(Message::AddFallbackDnsServer)
+            .padding([6, 12])
+            .style(button::secondary),
+    );
+
+    // 4. DNS Templates (Quick Add)
     let templates = card(column![
-        text("Quick Templates").font(bold_font),
+        text("Quick Templates (Add to Nameservers)").font(bold_font),
         Space::new().height(10),
         row![
             template_button(
@@ -113,6 +144,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         enhanced_mode_section,
         Space::new().height(20),
         card(dns_list),
+        Space::new().height(20),
+        card(fallback_list),
         Space::new().height(20),
         templates,
     ]
@@ -146,7 +179,7 @@ fn mode_button<'a>(mode: String, label: String, current_mode: &str) -> Element<'
 
 fn template_button<'a>(label: String, url: String) -> Element<'a, Message> {
     button(text(label).size(11))
-        .on_press(Message::UpdateDnsServer(0, url))
+        .on_press(Message::AddDnsServerTemplate(url))
         .padding([6, 12])
         .style(button::secondary)
         .into()

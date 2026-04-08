@@ -14,7 +14,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = row![
         text(lang.tr("profiles_title")).size(24).font(bold_font),
         Space::new().width(Length::Fill),
-        button(text("Open Config Folder").size(12))
+        button(text(lang.tr("profiles_open_folder")).size(12))
             .on_press(Message::OpenConfigDir)
             .padding([6, 12])
             .style(button::secondary)
@@ -23,29 +23,26 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // Import Section
     let import_actions: Element<'_, Message> = if state.is_importing {
-        button(text("Importing...").size(12))
-            .padding([10, 20])
+        button(text(lang.tr("profiles_importing")).size(12))
+            .padding([6, 12])
+            .style(button::secondary)
             .into()
     } else {
-        button(text("Import").size(12))
+        button(text(lang.tr("profiles_import_btn")).size(12))
             .on_press(Message::ImportProfile)
-            .padding([10, 20])
+            .padding([6, 12])
             .style(button::primary)
             .into()
     };
 
-    let import_panel = card(column![
-        text("Import Subscription").font(bold_font),
-        Space::new().height(12),
+    let import_section = card(column![
+        text(lang.tr("profiles_import_sub")).font(bold_font),
+        Space::new().height(10),
         row![
-            text_input("Profile Name (e.g. MyProxy)", &state.import_name)
-                .on_input(Message::UpdateImportName)
-                .padding(10)
-                .width(Length::FillPortion(1)),
-            Space::new().width(10),
-            text_input("Subscription URL", &state.import_url)
+            text_input(lang.tr("profiles_sub_url").as_ref(), &state.import_url)
                 .on_input(Message::UpdateImportUrl)
                 .padding(10)
+                .size(14)
                 .width(Length::FillPortion(2)),
             Space::new().width(10),
             import_actions
@@ -78,8 +75,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         .style(button::secondary),
                 );
             } else {
+                let tag = lang.tr("active_tag").trim().to_string();
                 actions = actions.push(
-                    container(text("ACTIVE").size(10).font(bold_font))
+                    container(text(tag).size(10).font(bold_font))
                         .padding([4, 8])
                         .style(|_theme| container::Style {
                             background: Some(Color::from_rgb(0.2, 0.6, 0.2).into()),
@@ -92,42 +90,43 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 );
             }
 
-            let profile_card = container(
-                row![
-                    column![
-                        text(&profile.name).size(18).font(bold_font),
-                        text(profile.path.to_string_lossy().to_string())
-                            .size(12)
-                            .style(|_theme| text::Style {
-                                color: Some(Color::from_rgb(0.5, 0.5, 0.5))
-                            }),
+            profiles_list = profiles_list.push(
+                container(
+                    row![
+                        column![
+                            text(&profile.name).size(16).font(bold_font),
+                            text(profile.path.to_string_lossy().to_string())
+                                .size(12)
+                                .style(|_theme| text::Style {
+                                    color: Some(Color::from_rgb(0.5, 0.5, 0.5))
+                                }),
+                        ]
+                        .width(Length::Fill),
+                        actions
                     ]
-                    .width(Length::Fill),
-                    actions
-                ]
-                .align_y(Alignment::Center),
-            )
-            .padding(15)
-            .style(move |_theme| container::Style {
-                background: Some(Color::from_rgba(0.1, 0.1, 0.1, 0.3).into()),
-                border: iced::Border {
-                    radius: 8.0.into(),
-                    width: if is_active { 1.0 } else { 0.0 },
-                    color: Color::from_rgb(0.3, 0.6, 0.3),
-                },
-                ..Default::default()
-            });
-
-            profiles_list = profiles_list.push(profile_card);
+                    .align_y(Alignment::Center),
+                )
+                .padding(15)
+                .style(move |_theme| container::Style {
+                    background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into()),
+                    border: iced::Border {
+                        radius: 8.0.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
+            );
         }
     }
 
-    column![
+    let content = column![
         header,
-        Space::new().height(24),
-        import_panel,
-        Space::new().height(24),
-        Scrollable::new(profiles_list).height(Length::Fill)
+        Space::new().height(20),
+        import_section,
+        Space::new().height(20),
+        profiles_list,
     ]
-    .into()
+    .spacing(10);
+
+    Scrollable::new(content).height(Length::Fill).into()
 }

@@ -683,7 +683,15 @@ mod tests {
                 r#"{
                     "downloadTotal": 1000,
                     "uploadTotal": 2000,
-                    "connections": [{"id":"c1"}]
+                    "connections": [{
+                        "id":"c1",
+                        "metadata": {"network":"tcp", "type":"socks5", "sourceIP":"127.0.0.1", "destinationIP":"8.8.8.8", "sourcePort":"1234", "destinationPort":"443", "host":"", "dnsMode":"normal", "processPath":""},
+                        "uploadTotal": 100,
+                        "downloadTotal": 200,
+                        "start": "2024-01-01T00:00:00Z",
+                        "rule": "Match",
+                        "rulePayload": ""
+                    }]
                 }"#,
             )
             .create_async()
@@ -764,7 +772,26 @@ mod tests {
                 r#"{
                     "downloadTotal": 3000,
                     "uploadTotal": 4000,
-                    "connections": [{"id":"c1"},{"id":"c2"}]
+                    "connections": [
+                        {
+                            "id":"c1",
+                            "metadata": {"network":"tcp", "type":"socks5", "sourceIP":"127.0.0.1", "destinationIP":"8.8.8.8", "sourcePort":"1234", "destinationPort":"443", "host":"", "dnsMode":"normal", "processPath":""},
+                            "uploadTotal": 100,
+                            "downloadTotal": 200,
+                            "start": "2024-01-01T00:00:00Z",
+                            "rule": "Match",
+                            "rulePayload": ""
+                        },
+                        {
+                            "id":"c2",
+                            "metadata": {"network":"tcp", "type":"socks5", "sourceIP":"127.0.0.1", "destinationIP":"8.8.8.8", "sourcePort":"1234", "destinationPort":"443", "host":"", "dnsMode":"normal", "processPath":""},
+                            "uploadTotal": 100,
+                            "downloadTotal": 200,
+                            "start": "2024-01-01T00:00:00Z",
+                            "rule": "Match",
+                            "rulePayload": ""
+                        }
+                    ]
                 }"#,
             )
             .create_async()
@@ -815,9 +842,9 @@ mod tests {
             .with_body(
                 r#"{
                     "proxies": {
-                        "GLOBAL": {"type":"Selector","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
-                        "Proxy-A": {"type":"Shadowsocks","history":[{"time":"2026-02-06T00:00:00Z","delay":120}]},
-                        "Proxy-B": {"type":"Shadowsocks","history":[]}
+                        "GLOBAL": {"type":"Selector","name":"GLOBAL","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
+                        "Proxy-A": {"type":"Shadowsocks","name":"Proxy-A","udp":true,"history":[{"time":"2026-02-06T00:00:00Z","delay":120}],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"},
+                        "Proxy-B": {"type":"Shadowsocks","name":"Proxy-B","udp":true,"history":[],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"}
                     }
                 }"#,
             )
@@ -895,9 +922,9 @@ mod tests {
             .with_body(
                 r#"{
                     "proxies": {
-                        "GLOBAL": {"type":"Selector","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
-                        "Proxy-A": {"type":"Shadowsocks","history":[]},
-                        "Proxy-B": {"type":"Shadowsocks","history":[]}
+                        "GLOBAL": {"type":"Selector","name":"GLOBAL","now":"Proxy-A","all":["Proxy-A","Proxy-B"],"history":[]},
+                        "Proxy-A": {"type":"Shadowsocks","name":"Proxy-A","udp":true,"history":[],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"},
+                        "Proxy-B": {"type":"Shadowsocks","name":"Proxy-B","udp":true,"history":[],"alive":true,"server":"1.1.1.1","port":443,"cipher":"aes-256-gcm"}
                     }
                 }"#,
             )

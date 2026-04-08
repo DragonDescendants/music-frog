@@ -1033,35 +1033,19 @@ fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
         .clamp(MIN_DELAY_TIMEOUT_MS, MAX_DELAY_TIMEOUT_MS)
 }
 
-fn is_proxy_group_type(proxy_type: &str) -> bool {
-    matches!(
-        proxy_type,
-        "Selector"
-            | "URLTest"
-            | "Fallback"
-            | "LoadBalance"
-            | "Relay"
-            | "Direct"
-            | "Reject"
-            | "Pass"
-            | "Compatible"
-            | "RejectDrop"
-    )
-}
-
 fn build_runtime_proxy_delay_nodes(
-    proxies: std::collections::HashMap<String, mihomo_api::ProxyInfo>,
+    proxies: std::collections::HashMap<String, mihomo_api::Proxy>,
 ) -> Vec<RuntimeProxyDelayNode> {
     let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
         .into_iter()
         .filter_map(|(name, info)| {
-            if is_proxy_group_type(&info.proxy_type) {
+            if info.is_group() {
                 return None;
             }
-            let latest = info.history.last();
+            let latest = info.history().last();
             Some(RuntimeProxyDelayNode {
                 name,
-                proxy_type: info.proxy_type,
+                proxy_type: info.proxy_type().to_string(),
                 delay_ms: latest.map(|item| item.delay),
                 tested_at: latest.map(|item| item.time.clone()),
             })
@@ -1073,7 +1057,7 @@ fn build_runtime_proxy_delay_nodes(
 
 fn collect_delay_test_candidates(
     requested: Option<&[String]>,
-    proxies: &std::collections::HashMap<String, mihomo_api::ProxyInfo>,
+    proxies: &std::collections::HashMap<String, mihomo_api::Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,
 ) -> Vec<String> {
     match requested {
@@ -1098,7 +1082,7 @@ fn collect_delay_test_candidates(
                     });
                     continue;
                 };
-                if is_proxy_group_type(&info.proxy_type) {
+                if info.is_group() {
                     results.push(RuntimeDelayBatchResult {
                         proxy: name,
                         delay_ms: None,
@@ -1115,7 +1099,7 @@ fn collect_delay_test_candidates(
             let mut candidates: Vec<String> = proxies
                 .iter()
                 .filter_map(|(name, info)| {
-                    if is_proxy_group_type(&info.proxy_type) {
+                    if info.is_group() {
                         return None;
                     }
                     Some(name.clone())

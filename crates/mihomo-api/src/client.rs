@@ -1,5 +1,6 @@
 use crate::error::{MihomoError, Result};
 use crate::types::*;
+use crate::Proxy;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::{Value, json};
@@ -80,7 +81,7 @@ impl MihomoClient {
         Ok(list.rules)
     }
 
-    pub async fn get_proxies(&self) -> Result<HashMap<String, ProxyInfo>> {
+    pub async fn get_proxies(&self) -> Result<HashMap<String, Proxy>> {
         let url = self.build_url("/proxies")?;
         log::debug!("Fetching proxies from: {}", url);
         let req = self.client.get(url);
@@ -91,7 +92,7 @@ impl MihomoClient {
         Ok(data.proxies)
     }
 
-    pub async fn get_proxy(&self, name: &str) -> Result<ProxyInfo> {
+    pub async fn get_proxy(&self, name: &str) -> Result<Proxy> {
         let url = self.build_url(&format!("/proxies/{}", name))?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
@@ -299,6 +300,33 @@ impl MihomoClient {
         let req = self.add_auth(req);
         req.send().await?;
         Ok(())
+    }
+
+    pub async fn flush_fakeip_cache(&self) -> Result<()> {
+        let url = self.build_url("/cache/fakeip/flush")?;
+        let req = self.client.post(url);
+        let req = self.add_auth(req);
+        req.send().await?;
+        Ok(())
+    }
+
+    pub async fn get_dns_query(&self, name: &str, q_type: &str) -> Result<Value> {
+        let url = self.build_url_with_query(
+            "/dns/query",
+            &[("name", name.to_string()), ("type", q_type.to_string())],
+        )?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        Ok(resp.json().await?)
+    }
+
+    pub async fn get_script(&self) -> Result<Value> {
+        let url = self.build_url("/script")?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        Ok(resp.json().await?)
     }
 
     pub async fn stream_connections(

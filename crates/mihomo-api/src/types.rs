@@ -1,3 +1,4 @@
+use crate::proxy::Proxy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -83,45 +84,8 @@ pub struct ConfigResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct ProxyNode {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub proxy_type: String,
-    pub udp: bool,
-    pub history: Vec<ProxyHistory>,
-    pub delay: Option<u32>,
-    pub alive: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct ProxyGroup {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub group_type: String,
-    pub now: String,
-    pub all: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct ProxyHistory {
-    pub time: String,
-    pub delay: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct ProxyInfo {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub proxy_type: String,
-    pub udp: bool,
-    pub history: Vec<ProxyHistory>,
-    pub all: Option<Vec<String>>,
-    pub now: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ProxiesResponse {
-    pub proxies: HashMap<String, ProxyInfo>,
+    pub proxies: HashMap<String, Proxy>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -241,3 +205,4 @@ where
     let opt = Option::deserialize(deserializer)?;
     Ok(opt.unwrap_or_default())
 }
+

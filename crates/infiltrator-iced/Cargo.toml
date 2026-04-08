@@ -22,6 +22,7 @@ muda = "0.15"
 image = "0.25"
 single-instance = "0.3"
 is_elevated = "0.1"
+serde_yml = "0.0.12"
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

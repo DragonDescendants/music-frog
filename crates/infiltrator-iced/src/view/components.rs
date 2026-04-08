@@ -6,23 +6,68 @@ use std::collections::VecDeque;
 pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Element<'a, Message> {
     let is_active = route == *current_route;
 
-    button(
-        container(text(label).size(14))
-            .width(Length::Fill)
-            .padding([8, 16]),
+    let content = container(
+        row![
+            if is_active {
+                Element::from(
+                    container(Space::new().width(4).height(16)).style(|_theme: &Theme| {
+                        container::Style {
+                            background: Some(Color::from_rgb(0.3, 0.6, 1.0).into()),
+                            border: Border {
+                                radius: border::Radius {
+                                    top_left: 0.0,
+                                    top_right: 2.0,
+                                    bottom_right: 2.0,
+                                    bottom_left: 0.0,
+                                },
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        }
+                    }),
+                )
+            } else {
+                Element::from(Space::new().width(4).height(16))
+            },
+            Space::new().width(12),
+            text(label).size(14),
+        ]
+        .align_y(Alignment::Center),
     )
     .width(Length::Fill)
-    .style(move |_theme, status| {
-        let mut style = button::primary(_theme, status);
-        if !is_active {
-            style.background = None;
-            style.text_color = Color::from_rgb(0.6, 0.6, 0.6);
-        }
-        style
-    })
-    .on_press(Message::Navigate(route))
-    .into()
+    .padding([8, 0]);
+
+    button(content)
+        .width(Length::Fill)
+        .style(move |_theme, status| {
+            let mut style = button::primary(_theme, status);
+            if is_active {
+                style.background = Some(Color::from_rgba(0.3, 0.6, 1.0, 0.1).into());
+                style.text_color = Color::from_rgb(0.3, 0.6, 1.0);
+                style.border = Border {
+                    width: 0.0,
+                    ..Default::default()
+                };
+            } else {
+                style.background = None;
+                style.text_color = if status == button::Status::Hovered {
+                    Color::WHITE
+                } else {
+                    Color::from_rgb(0.6, 0.6, 0.6)
+                };
+                style.border = Border {
+                    width: 0.0,
+                    ..Default::default()
+                };
+            }
+            style
+        })
+        .on_press(Message::Navigate(route))
+        .into()
 }
+
+use iced::widget::row;
+use iced::Alignment;
 
 pub fn status_dot<'a>(active: bool) -> Element<'a, Message> {
     let color = if active {

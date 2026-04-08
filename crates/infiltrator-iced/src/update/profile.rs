@@ -270,6 +270,94 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::UpdateNewRuleType(t) => {
+                self.new_rule_type = t;
+                Task::none()
+            }
+            Message::UpdateNewRulePayload(p) => {
+                self.new_rule_payload = p;
+                Task::none()
+            }
+            Message::UpdateNewRuleTarget(t) => {
+                self.new_rule_target = t;
+                Task::none()
+            }
+            Message::AddCustomRule => {
+                let rule_type = self.new_rule_type.clone();
+                let payload = self.new_rule_payload.trim().to_string();
+                let target = self.new_rule_target.clone();
+
+                if payload.is_empty() {
+                    return Task::done(Message::ShowToast(
+                        "Payload cannot be empty".to_string(),
+                        ToastStatus::Error,
+                    ));
+                }
+
+                self.is_adding_rule = true;
+                Task::perform(
+                    async move {
+                        let cm = ConfigManager::new()
+                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+                        let current_name = cm
+                            .get_current()
+                            .await
+                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+
+                        let profiles = cm
+                            .list_profiles()
+                            .await
+                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+                        let profile = profiles
+                            .iter()
+                            .find(|p| p.name == current_name)
+                            .ok_or_else(|| "Profile not found".to_string())?;
+
+                        let content = tokio::fs::read_to_string(&profile.path)
+                            .await
+                            .map_err(|e: std::io::Error| e.to_string())?;
+                        let mut yaml: serde_yml::Value =
+                            serde_yml::from_str(&content).map_err(|e: serde_yml::Error| e.to_string())?;
+
+                        let rules = yaml
+                            .get_mut("rules")
+                            .and_then(|v| v.as_sequence_mut())
+                            .ok_or_else(|| "No rules found in profile".to_string())?;
+
+                        let new_rule =
+                            serde_yml::Value::String(format!("{},{},{}", rule_type, payload, target));
+                        rules.insert(0, new_rule);
+
+                        let new_content = serde_yml::to_string(&yaml).map_err(|e: serde_yml::Error| e.to_string())?;
+                        tokio::fs::write(&profile.path, new_content)
+                            .await
+                            .map_err(|e: std::io::Error| e.to_string())?;
+
+                        Ok(())
+                    },
+                    Message::RuleAdded,
+                )
+            }
+            Message::RuleAdded(result) => {
+                self.is_adding_rule = false;
+                match result {
+                    Ok(_) => {
+                        self.new_rule_payload.clear();
+                        Task::batch(vec![
+                            Task::done(Message::LoadRules),
+                            Task::done(Message::StartProxy), // Restart to apply
+                            Task::done(Message::ShowToast(
+                                "Rule added and core restarted".to_string(),
+                                ToastStatus::Success,
+                            )),
+                        ])
+                    }
+                    Err(e) => {
+                        self.error_msg = Some(e.clone());
+                        Task::done(Message::ShowToast(e, ToastStatus::Error))
+                    }
+                }
+            }
             _ => Task::none(),
         }
     }

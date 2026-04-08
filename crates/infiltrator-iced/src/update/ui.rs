@@ -85,6 +85,52 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::RequestAdminPrivilege => {
+                #[cfg(target_os = "windows")]
+                {
+                    if let Ok(exe) = std::env::current_exe() {
+                        let _ = std::process::Command::new("powershell")
+                            .arg("-Command")
+                            .arg(format!(
+                                "Start-Process -FilePath '{}' -Verb RunAs",
+                                exe.to_string_lossy()
+                            ))
+                            .spawn();
+                        return Task::done(Message::Exit);
+                    }
+                }
+                Task::none()
+            }
+            Message::TrayIconEvent(tray_icon::TrayIconEvent::Click { .. }) => {
+                Task::done(Message::ShowWindow)
+            }
+            Message::TrayIconEvent(_) => Task::none(),
+            Message::MenuEvent(event) => {
+                let id = event.id.as_ref();
+                match id {
+                    "show" => Task::done(Message::ShowWindow),
+                    "quit" => Task::done(Message::Exit),
+                    "toggle_theme" => Task::done(Message::ToggleTheme),
+                    "mode_rule" => Task::done(Message::SetProxyMode("rule".to_string())),
+                    "mode_global" => Task::done(Message::SetProxyMode("global".to_string())),
+                    "mode_direct" => Task::done(Message::SetProxyMode("direct".to_string())),
+                    "toggle_system_proxy" => {
+                        Task::done(Message::SetSystemProxy(!self.system_proxy_enabled))
+                    }
+                    "toggle_tun" => {
+                        Task::done(Message::SetTunEnabled(!self.tun_enabled.unwrap_or(false)))
+                    }
+                    _ => {
+                        if let Some(node_name) = id.strip_prefix("proxy_GLOBAL_") {
+                            return Task::done(Message::SelectProxy(
+                                "GLOBAL".to_string(),
+                                node_name.to_string(),
+                            ));
+                        }
+                        Task::none()
+                    }
+                }
+            }
             _ => Task::none(),
         }
     }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::locales::{Lang, Localizer};
 use iced::widget::text_editor;
-use mihomo_api::TrafficData;
+use mihomo_api::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, TrafficData};
 use mihomo_config::Profile;
 use std::path::PathBuf;
 
@@ -122,9 +122,23 @@ fn test_dns_server_list_manipulation() {
     let _ = state.update(Message::AddDnsServer);
     assert_eq!(state.dns_nameservers.len(), 2);
 
+    let _ = state.update(Message::AddDnsServerTemplate("https://1.1.1.1/dns-query".into()));
+    assert_eq!(state.dns_nameservers.len(), 3);
+    assert_eq!(state.dns_nameservers[2], "https://1.1.1.1/dns-query");
+
     let _ = state.update(Message::RemoveDnsServer(0));
-    assert_eq!(state.dns_nameservers.len(), 1);
+    assert_eq!(state.dns_nameservers.len(), 2);
     assert_eq!(state.dns_nameservers[0], "");
+
+    // Fallbacks
+    let _ = state.update(Message::AddFallbackDnsServer);
+    assert_eq!(state.dns_fallback_servers.len(), 1);
+
+    let _ = state.update(Message::UpdateFallbackDnsServer(0, "8.8.8.8".into()));
+    assert_eq!(state.dns_fallback_servers[0], "8.8.8.8");
+
+    let _ = state.update(Message::RemoveFallbackDnsServer(0));
+    assert_eq!(state.dns_fallback_servers.len(), 0);
 }
 
 #[test]
@@ -233,4 +247,103 @@ fn test_i18n_fallback() {
         "配置管理",
         "Should fallback to ZH for unsupported locales"
     );
+}
+
+#[test]
+fn test_proxy_filtering_and_sorting() {
+    let (mut state, _) = AppState::new();
+    let mut proxies = std::collections::HashMap::new();
+
+    // Group GLOBAL
+    proxies.insert(
+        "GLOBAL".to_string(),
+        Proxy::Selector(ProxyGroup {
+            name: "GLOBAL".to_string(),
+            now: "Proxy-A".to_string(),
+            all: vec!["Proxy-A".into(), "Proxy-B".into(), "Special".into()],
+            history: vec![],
+        }),
+    );
+
+    // Node A (100ms)
+    proxies.insert(
+        "Proxy-A".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Proxy-A".to_string(),
+                history: vec![ProxyHistory {
+                    time: "".into(),
+                    delay: 100,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    // Node B (50ms)
+    proxies.insert(
+        "Proxy-B".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Proxy-B".to_string(),
+                history: vec![ProxyHistory {
+                    time: "".into(),
+                    delay: 50,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    // Node Special (200ms)
+    proxies.insert(
+        "Special".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Special".to_string(),
+                history: vec![ProxyHistory {
+                    time: "".into(),
+                    delay: 200,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    state.proxies = proxies;
+
+    // Test Search
+    let _ = state.update(Message::FilterProxies("special".into()));
+    assert_eq!(state.proxy_filter, "special");
+
+    // Test Sort Toggle
+    let _ = state.update(Message::ToggleProxySort);
+    assert!(state.proxy_sort_by_delay);
+
+    // Verification of logic (manual check of sorting logic used in view)
+    let global = state.proxies.get("GLOBAL").unwrap();
+    let mut members = global.all().unwrap().to_vec();
+
+    // Apply filter
+    let filter = state.proxy_filter.to_lowercase();
+    members.retain(|m| m.to_lowercase().contains(&filter));
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0], "Special");
+
+    // Apply sort (on all members)
+    let mut all_members = global.all().unwrap().to_vec();
+    all_members.sort_by_key(|m| {
+        state
+            .proxies
+            .get(m)
+            .and_then(|p| p.history().last().map(|h| h.delay))
+            .unwrap_or(u32::MAX)
+    });
+
+    assert_eq!(all_members[0], "Proxy-B"); // 50ms
+    assert_eq!(all_members[1], "Proxy-A"); // 100ms
+    assert_eq!(all_members[2], "Special"); // 200ms
 }

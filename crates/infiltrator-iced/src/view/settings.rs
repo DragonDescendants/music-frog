@@ -13,9 +13,38 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let header = text(lang.tr("nav_settings")).size(24).font(bold_font);
 
+    // 0. UAC Prompt (if not admin)
+    let uac_banner = if !state.is_admin {
+        Some(
+            container(column![
+                text(lang.tr("admin_status")).font(bold_font).size(16),
+                Space::new().height(8),
+                text(lang.tr("settings_uac_desc")).size(13),
+                Space::new().height(15),
+                button(text(lang.tr("settings_uac_request")).size(12))
+                    .on_press(Message::RequestAdminPrivilege)
+                    .padding([8, 16])
+                    .style(button::primary),
+            ])
+            .padding(20)
+            .width(Length::Fill)
+            .style(|_theme: &Theme| container::Style {
+                background: Some(Color::from_rgba(0.8, 0.4, 0.0, 0.1).into()),
+                border: Border {
+                    radius: border::Radius::from(12.0),
+                    width: 1.0,
+                    color: Color::from_rgba(0.8, 0.4, 0.0, 0.5),
+                },
+                ..Default::default()
+            }),
+        )
+    } else {
+        None
+    };
+
     // 1. System Integration Card
     let system_section = card(column![
-        text("System Integration").font(bold_font),
+        text(lang.tr("settings_system_integration")).font(bold_font),
         Space::new().height(15),
         checkbox(state.autostart_enabled)
             .label(lang.tr("autostart").into_owned())
@@ -29,7 +58,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .label(lang.tr("dark_mode").into_owned())
             .on_toggle(|_| Message::ToggleTheme),
         Space::new().height(20),
-        button(text("Factory Reset (Irreversible)").size(12))
+        button(text(lang.tr("settings_factory_reset").into_owned()).size(12))
             .on_press(Message::FactoryReset)
             .padding([8, 16])
             .style(button::danger),
@@ -38,15 +67,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // 2. Advanced TUN Settings
     let tun_section = card(column![
         row![
-            text("TUN Mode").font(bold_font).width(Length::Fill),
+            text(lang.tr("tun_mode")).font(bold_font).width(Length::Fill),
             checkbox(state.tun_enabled.unwrap_or(false))
-                .label("Enable")
+                .label(lang.tr("use").into_owned())
                 .on_toggle(Message::SetTunEnabled),
         ]
         .align_y(Alignment::Center),
         Space::new().height(15),
         row![
-            text("Stack").size(14).width(Length::FillPortion(1)),
+            text(lang.tr("tun_stack")).size(14).width(Length::FillPortion(1)),
             pick_list(
                 &["gvisor", "mixed", "system"][..],
                 Some(state.tun_stack.as_str()),
@@ -57,25 +86,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .align_y(Alignment::Center),
         Space::new().height(10),
         checkbox(state.tun_auto_route)
-            .label("Auto Route")
+            .label(lang.tr("tun_auto_route").into_owned())
             .on_toggle(Message::SetTunAutoRoute),
         Space::new().height(10),
         checkbox(state.tun_strict_route)
-            .label("Strict Route")
+            .label(lang.tr("tun_strict_route").into_owned())
             .on_toggle(Message::SetTunStrictRoute),
     ]);
 
     // 3. Traffic Sniffer
     let sniffer_section = card(column![
         row![
-            text("Traffic Sniffer").font(bold_font).width(Length::Fill),
+            text(lang.tr("settings_sniffer")).font(bold_font).width(Length::Fill),
             checkbox(state.sniffer_enabled)
-                .label("Enable")
+                .label(lang.tr("use").into_owned())
                 .on_toggle(Message::SetSnifferEnabled),
         ]
         .align_y(Alignment::Center),
         Space::new().height(10),
-        text("Sniff traffic to restore domain names for better routing.")
+        text(lang.tr("settings_sniffer_desc"))
             .size(12)
             .style(|_theme| text::Style {
                 color: Some(Color::from_rgb(0.5, 0.5, 0.5))
@@ -85,13 +114,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // 4. Kernel Management
     let mut kernel_list = column![
         row![
-            text("Kernel Management")
+            text(lang.tr("settings_kernel_mgmt"))
                 .font(bold_font)
                 .width(Length::Fill),
             if state.is_checking_update {
-                Element::from(button(text("Checking...").size(11)).padding([6, 12]))
+                Element::from(button(text(lang.tr("settings_checking").into_owned()).size(11)).padding([6, 12]))
             } else {
-                button(text("Check Update").size(11))
+                button(text(lang.tr("settings_check_update").into_owned()).size(11))
                     .on_press(Message::CheckCoreUpdate)
                     .padding([6, 12])
                     .style(button::secondary)
@@ -108,11 +137,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         kernel_list = kernel_list.push(card(
             row![
                 column![
-                    text(format!("Latest Version: {}", latest)).font(bold_font),
+                    text(lang.tr("settings_latest_version").replace("{0}", latest)).font(bold_font),
                     text(if is_installed {
-                        "Already installed"
+                        lang.tr("settings_installed")
                     } else {
-                        "New version available"
+                        lang.tr("settings_available")
                     })
                     .size(11),
                 ]
@@ -131,7 +160,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             .spacing(4),
                         )
                     } else {
-                        button(text("Download").size(11))
+                        button(text(lang.tr("settings_download").into_owned()).size(11))
                             .on_press(Message::DownloadCore(latest.clone()))
                             .padding([6, 12])
                             .style(button::primary)
@@ -146,7 +175,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     if state.installed_kernels.is_empty() {
-        kernel_list = kernel_list.push(text("No kernels found.").size(14));
+        kernel_list = kernel_list.push(text(lang.tr("settings_no_kernels")).size(14));
     } else {
         for kernel in &state.installed_kernels {
             let is_default = kernel.is_default;
@@ -155,7 +184,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
             if !is_default {
                 action_area = action_area.push(
-                    button(text("Delete").size(11))
+                    button(text(lang.tr("settings_delete").into_owned()).size(11))
                         .on_press(Message::DeleteKernel(kernel.version.clone()))
                         .padding([6, 12])
                         .style(button::danger),
@@ -177,7 +206,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 );
             } else {
                 action_area = action_area.push(
-                    button(text("Set Default").size(11))
+                    button(text(lang.tr("settings_set_default").into_owned()).size(11))
                         .on_press(Message::SetDefaultKernel(kernel.version.clone()))
                         .padding([6, 12])
                         .style(button::secondary),
@@ -209,19 +238,22 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         }
     }
 
-    let content = column![
-        header,
-        Space::new().height(20),
-        system_section,
-        Space::new().height(20),
-        tun_section,
-        Space::new().height(20),
-        sniffer_section,
-        Space::new().height(20),
-        card(kernel_list),
-        Space::new().height(40),
-    ]
-    .spacing(10);
+    let mut content = column![header, Space::new().height(20)].spacing(10);
+
+    if let Some(banner) = uac_banner {
+        content = content.push(banner);
+        content = content.push(Space::new().height(10));
+    }
+
+    content = content
+        .push(system_section)
+        .push(Space::new().height(10))
+        .push(tun_section)
+        .push(Space::new().height(10))
+        .push(sniffer_section)
+        .push(Space::new().height(10))
+        .push(card(kernel_list))
+        .push(Space::new().height(40));
 
     Scrollable::new(content).height(Length::Fill).into()
 }

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use mihomo_config::ConfigManager;
 use serde::{Deserialize, Serialize};
-use serde_yaml::{Mapping, Value};
+use serde_yml::{Mapping, Value};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -78,14 +78,14 @@ pub async fn save_tun_config(patch: TunConfigPatch) -> Result<TunConfig> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    let mut doc: Value = serde_yaml::from_str(&content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
     let mut config = extract_tun_config(&doc)?;
     config.apply_patch(patch);
     validate_tun_config(&config)?;
     apply_tun_config(&mut doc, &config)?;
 
-    let updated = serde_yaml::to_string(&doc).context("serialize profile yaml")?;
+    let updated = serde_yml::to_string(&doc).context("serialize profile yaml")?;
     manager
         .save(&profile, &updated)
         .await
@@ -103,7 +103,7 @@ async fn load_profile_doc() -> Result<Value> {
         .load(&profile)
         .await
         .context("read profile config")?;
-    serde_yaml::from_str(&content).context("parse profile yaml")
+    serde_yml::from_str(&content).context("parse profile yaml")
 }
 
 fn extract_tun_config(doc: &Value) -> Result<TunConfig> {
@@ -111,7 +111,7 @@ fn extract_tun_config(doc: &Value) -> Result<TunConfig> {
         .get("tun")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_yaml::from_value(value).context("decode tun config")?;
+    let config = serde_yml::from_value(value).context("decode tun config")?;
     Ok(config)
 }
 
@@ -123,7 +123,7 @@ fn apply_tun_config(doc: &mut Value, config: &TunConfig) -> Result<()> {
         map.remove(Value::String("tun".to_string()));
         return Ok(());
     }
-    let tun_value = serde_yaml::to_value(config).context("encode tun config")?;
+    let tun_value = serde_yml::to_value(config).context("encode tun config")?;
     map.insert(Value::String("tun".to_string()), tun_value);
     Ok(())
 }
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_extract_tun_default() {
-        let doc: Value = serde_yaml::from_str("port: 7890\n").expect("yaml");
+        let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
         let config = extract_tun_config(&doc).expect("tun config");
         assert!(config.enable.is_none());
     }
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_apply_tun_config_removes_empty() {
-        let mut doc: Value = serde_yaml::from_str("tun:\n  enable: true\n").expect("yaml");
+        let mut doc: Value = serde_yml::from_str("tun:\n  enable: true\n").expect("yaml");
         let config = TunConfig::default();
         apply_tun_config(&mut doc, &config).expect("apply tun");
         let map = doc.as_mapping().expect("mapping");
