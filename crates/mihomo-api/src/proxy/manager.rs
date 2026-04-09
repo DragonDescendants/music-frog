@@ -1,4 +1,4 @@
-use crate::proxy::{Proxy, ProxyGroup, ProxyHistory, Proxies};
+use crate::proxy::{Proxies, Proxy, ProxyGroup, ProxyHistory};
 use crate::{MihomoClient, Result};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
@@ -97,12 +97,14 @@ mod tests {
             "proxies": {
                 "DIRECT": {
                     "type": "Direct",
+                    "name": "DIRECT",
                     "udp": true,
                     "history": [],
                     "alive": true
                 },
                 "Proxy-A": {
                     "type": "Shadowsocks",
+                    "name": "Proxy-A",
                     "udp": true,
                     "history": [{"time": "2024-01-01T00:00:00Z", "delay": 100}],
                     "alive": true,
@@ -140,6 +142,7 @@ mod tests {
             "proxies": {
                 "GLOBAL": {
                     "type": "Selector",
+                    "name": "GLOBAL",
                     "now": "Proxy-A",
                     "all": ["Proxy-A", "Proxy-B"],
                     "history": []

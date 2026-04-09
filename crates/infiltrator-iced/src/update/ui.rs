@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use crate::types::{Message, Route};
+use crate::types::{InfiltratorError, Message, Route};
 use iced::{Task, Theme, window};
 
 impl AppState {
@@ -7,17 +7,29 @@ impl AppState {
         match message {
             Message::Navigate(route) => {
                 self.current_route = route;
+                self.transition.opacity = 0.0;
+                self.transition.is_animating = true;
+
+                let mut tasks = vec![];
                 if route == Route::Proxies || route == Route::Overview {
-                    return Task::done(Message::LoadProxies);
+                    tasks.push(Task::done(Message::LoadProxies));
                 }
                 if route == Route::Overview || route == Route::Runtime {
-                    return Task::done(Message::FetchIpInfo);
+                    tasks.push(Task::done(Message::FetchIpInfo));
                 }
                 if route == Route::Rules {
-                    return Task::batch(vec![
-                        Task::done(Message::LoadRules),
-                        Task::done(Message::LoadProviders),
-                    ]);
+                    tasks.push(Task::done(Message::LoadRules));
+                    tasks.push(Task::done(Message::LoadProviders));
+                }
+                Task::batch(tasks)
+            }
+            Message::TickTransition => {
+                if self.transition.is_animating {
+                    self.transition.opacity += 0.1;
+                    if self.transition.opacity >= 1.0 {
+                        self.transition.opacity = 1.0;
+                        self.transition.is_animating = false;
+                    }
                 }
                 Task::none()
             }
@@ -85,6 +97,29 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::SetSystemProxy(enabled) => {
+                self.system_proxy_enabled = enabled;
+                Task::perform(
+                    async move {
+                        let endpoint = if enabled {
+                            Some("127.0.0.1:7890")
+                        } else {
+                            None
+                        };
+                        infiltrator_desktop::proxy::apply_system_proxy(endpoint)
+                            .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
+                    },
+                    Message::SystemProxySet,
+                )
+            }
+            Message::SystemProxySet(result) => match result {
+                Ok(_) => Task::none(),
+                Err(e) => {
+                    self.system_proxy_enabled = !self.system_proxy_enabled;
+                    self.error_msg = Some(e.to_string());
+                    Task::none()
+                }
+            },
             Message::RequestAdminPrivilege => {
                 #[cfg(target_os = "windows")]
                 {
@@ -98,6 +133,14 @@ impl AppState {
                             .spawn();
                         return Task::done(Message::Exit);
                     }
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let lang = Lang(&self.lang);
+                    return Task::done(Message::ShowToast(
+                        lang.tr("settings_uac_unsupported").to_string(),
+                        ToastStatus::Warning,
+                    ));
                 }
                 Task::none()
             }

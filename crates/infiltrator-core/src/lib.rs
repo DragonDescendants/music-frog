@@ -1,6 +1,7 @@
 pub mod app_routing;
 pub mod config;
 pub mod dns;
+pub mod error;
 pub mod fake_ip;
 pub mod profiles;
 pub mod proxy_providers;

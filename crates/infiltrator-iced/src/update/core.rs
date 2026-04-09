@@ -1,52 +1,109 @@
 use crate::autostart;
 use crate::state::AppState;
-use crate::types::{Message, RuntimeConfig, ToastStatus};
+use crate::types::{InfiltratorError, Message, RuntimeConfig, RuntimeStatus, ToastStatus};
 use iced::{Task, stream};
 use infiltrator_desktop::MihomoRuntime;
-use mihomo_version::VersionManager;
+use mihomo_version::{VersionManager, channel::Channel};
 use std::sync::Arc;
 
 impl AppState {
+    pub fn cancel_all_tasks(&mut self) {
+        self.last_task_id += 1;
+    }
+
+    pub fn recompute_filtered_groups(&mut self) {
+        let mut groups: Vec<_> = self.proxies.iter().filter(|(_, p)| p.is_group()).collect();
+
+        // Sort groups: GLOBAL first, then by type
+        groups.sort_by(|(na, pa), (nb, pb)| {
+            if *na == "GLOBAL" {
+                return std::cmp::Ordering::Less;
+            }
+            if *nb == "GLOBAL" {
+                return std::cmp::Ordering::Greater;
+            }
+            pa.proxy_type().cmp(pb.proxy_type())
+        });
+
+        let mut result = Vec::new();
+        for (group_name, group_info) in groups {
+            let mut members: Vec<String> =
+                group_info.all().map(|all| all.to_vec()).unwrap_or_default();
+
+            // 1. Filter
+            if !self.proxy_filter.is_empty() {
+                let filter = self.proxy_filter.to_lowercase();
+                members.retain(|m| m.to_lowercase().contains(&filter));
+            }
+
+            if members.is_empty() && !self.proxy_filter.is_empty() {
+                continue;
+            }
+
+            // 2. Sort by delay
+            if self.proxy_sort_by_delay {
+                members.sort_by_key(|m| {
+                    self.proxies
+                        .get(m)
+                        .and_then(|p| p.history().last().map(|h| h.delay))
+                        .unwrap_or(u32::MAX)
+                });
+            }
+
+            result.push((group_name.clone(), members));
+        }
+        self.filtered_groups = result;
+    }
+
     pub fn update_core(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::FetchIpInfo => Task::perform(
-                async {
-                    let client = reqwest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(5))
-                        .build()
-                        .map_err(|e| e.to_string())?;
-                    let resp = client
-                        .get("https://api.ipify.org")
-                        .send()
-                        .await
-                        .map_err(|e| e.to_string())?
-                        .text()
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    Ok(resp)
-                },
-                Message::IpInfoReceived,
-            ),
+            Message::FetchIpInfo => {
+                self.cancel_all_tasks();
+                let task_id = self.last_task_id;
+                Task::perform(
+                    async move {
+                        let client = reqwest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(5))
+                            .build()
+                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
+                        let resp = client
+                            .get("https://api.ipify.org")
+                            .send()
+                            .await
+                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?
+                            .text()
+                            .await
+                            .map_err(|e| InfiltratorError::Internal(e.to_string()))?;
+                        Ok(resp)
+                    },
+                    move |res| Message::IpInfoReceived(res, task_id),
+                )
+            }
             Message::StartProxy => {
-                self.is_starting = true;
+                self.cancel_all_tasks();
+                self.status = RuntimeStatus::Starting;
                 self.error_msg = None;
                 Task::perform(
                     async {
-                        let vm = VersionManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                        let data_dir = mihomo_platform::get_home_dir()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+                        let vm = VersionManager::new().map_err(|e: mihomo_api::MihomoError| {
+                            InfiltratorError::Mihomo(e.to_string())
+                        })?;
+                        let data_dir = mihomo_platform::get_home_dir().map_err(
+                            |e: mihomo_api::MihomoError| InfiltratorError::Mihomo(e.to_string()),
+                        )?;
                         let candidates = vec![];
                         let r = MihomoRuntime::bootstrap(&vm, true, &candidates, &data_dir)
                             .await
-                            .map_err(|e: anyhow::Error| e.to_string())?;
+                            .map_err(|e: anyhow::Error| InfiltratorError::Mihomo(e.to_string()))?;
                         Ok(Arc::new(r))
                     },
                     Message::ProxyStarted,
                 )
             }
             Message::StopProxy => {
+                self.cancel_all_tasks();
                 let rt = self.runtime.take();
+                self.status = RuntimeStatus::Stopped;
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
@@ -56,36 +113,41 @@ impl AppState {
                     |_| Message::ProxyStopped,
                 )
             }
-            Message::ProxyStarted(result) => {
-                self.is_starting = false;
-                match result {
-                    Ok(runtime) => {
-                        self.runtime = Some(runtime);
-                        Task::batch(vec![
-                            Task::done(Message::FetchRuntimeConfig),
-                            Task::done(Message::LoadProxies),
-                            Task::done(Message::FetchIpInfo),
-                        ])
-                    }
-                    Err(e) => {
-                        self.error_msg = Some(e);
-                        Task::none()
-                    }
+            Message::ProxyStarted(result) => match result {
+                Ok(runtime) => {
+                    self.status = RuntimeStatus::Running;
+                    self.runtime = Some(runtime);
+                    Task::batch(vec![
+                        Task::done(Message::FetchRuntimeConfig),
+                        Task::done(Message::LoadProxies),
+                        Task::done(Message::FetchIpInfo),
+                    ])
                 }
-            }
+                Err(e) => {
+                    self.status = RuntimeStatus::Error(e.clone());
+                    self.error_msg = Some(e.to_string());
+                    Task::none()
+                }
+            },
             Message::ProxyStopped => {
                 self.traffic = None;
                 self.connections = None;
                 self.logs.clear();
                 self.proxy_mode = None;
                 self.tun_enabled = None;
+                self.status = RuntimeStatus::Stopped;
                 Task::none()
             }
             Message::LoadProxies => {
                 if let Some(rt) = self.runtime.clone() {
                     self.is_loading_proxies = true;
                     Task::perform(
-                        async move { rt.client().get_proxies().await.map_err(|e| e.to_string()) },
+                        async move {
+                            rt.client()
+                                .get_proxies()
+                                .await
+                                .map_err(InfiltratorError::from)
+                        },
                         Message::ProxiesLoaded,
                     )
                 } else {
@@ -100,8 +162,9 @@ impl AppState {
                             tm.update_groups(&proxies);
                         }
                         self.proxies = proxies;
+                        self.recompute_filtered_groups();
                     }
-                    Err(e) => self.error_msg = Some(e),
+                    Err(e) => self.error_msg = Some(e.to_string()),
                 }
                 Task::none()
             }
@@ -112,7 +175,7 @@ impl AppState {
                             rt.client()
                                 .switch_proxy(&group, &name)
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
                         |_| Message::LoadProxies,
                     )
@@ -122,10 +185,14 @@ impl AppState {
             }
             Message::FilterProxies(filter) => {
                 self.proxy_filter = filter;
-                Task::none()
+                Task::done(Message::UpdateFilteredGroups)
             }
             Message::ToggleProxySort => {
                 self.proxy_sort_by_delay = !self.proxy_sort_by_delay;
+                Task::done(Message::UpdateFilteredGroups)
+            }
+            Message::UpdateFilteredGroups => {
+                self.recompute_filtered_groups();
                 Task::none()
             }
             Message::TrafficReceived(data) => {
@@ -140,10 +207,12 @@ impl AppState {
                 self.memory = Some(data);
                 Task::none()
             }
-            Message::IpInfoReceived(result) => {
-                match result {
-                    Ok(ip) => self.public_ip = Some(ip),
-                    Err(_) => self.public_ip = Some("Failed to fetch IP".to_string()),
+            Message::IpInfoReceived(result, task_id) => {
+                if task_id == self.last_task_id {
+                    match result {
+                        Ok(ip) => self.public_ip = Some(ip),
+                        Err(e) => self.error_msg = Some(e.to_string()),
+                    }
                 }
                 Task::none()
             }
@@ -153,7 +222,7 @@ impl AppState {
             }
             Message::LogReceived(log) => {
                 self.logs.push_back(log);
-                if self.logs.len() > 500 {
+                if self.logs.len() > 100 {
                     self.logs.pop_front();
                 }
                 iced::widget::operation::snap_to(
@@ -161,27 +230,76 @@ impl AppState {
                     iced::widget::scrollable::RelativeOffset::END,
                 )
             }
+            Message::SetLogLevel(level) => {
+                self.log_level = level.clone();
+                if let Some(rt) = self.runtime.clone() {
+                    Task::perform(
+                        async move {
+                            rt.client()
+                                .patch_config(serde_json::json!({ "log-level": level }))
+                                .await
+                                .map_err(InfiltratorError::from)
+                        },
+                        Message::OperationResult,
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            Message::CloseConnection(id) => {
+                if let Some(rt) = self.runtime.clone() {
+                    Task::perform(
+                        async move {
+                            rt.client()
+                                .close_connection(&id)
+                                .await
+                                .map_err(InfiltratorError::from)
+                        },
+                        Message::OperationResult,
+                    )
+                } else {
+                    Task::none()
+                }
+            }
+            Message::CloseAllConnections => {
+                if let Some(rt) = self.runtime.clone() {
+                    Task::perform(
+                        async move {
+                            rt.client()
+                                .close_all_connections()
+                                .await
+                                .map_err(InfiltratorError::from)
+                        },
+                        Message::OperationResult,
+                    )
+                } else {
+                    Task::none()
+                }
+            }
             Message::FetchRuntimeConfig => {
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
-                            let mode = rt.current_mode().await.unwrap_or_default();
-                            let config =
-                                rt.client().get_config().await.map_err(|e| e.to_string())?;
-                            let (dns, fallback, enhanced) = if let Some(d) = config.dns {
-                                (
-                                    d.nameserver,
-                                    d.fallback.unwrap_or_default(),
-                                    d.enhanced_mode,
-                                )
-                            } else {
-                                (vec![], vec![], "fake-ip".to_string())
-                            };
-                            let (tun_en, tun_st, tun_ar, tun_sr) = if let Some(t) = config.tun {
-                                (t.enable, t.stack, t.auto_route, t.strict_route)
-                            } else {
-                                (false, "gvisor".to_string(), true, false)
-                            };
+                            let config = rt
+                                .client()
+                                .get_config()
+                                .await
+                                .map_err(InfiltratorError::from)?;
+                            let mode = config.mode;
+                            let (tun_en, tun_st, tun_ar, tun_sr) = config
+                                .tun
+                                .map(|t| (t.enable, t.stack, t.auto_route, t.strict_route))
+                                .unwrap_or((false, String::new(), false, false));
+                            let (dns, fallback, enhanced) = config
+                                .dns
+                                .map(|d| {
+                                    (
+                                        d.nameserver,
+                                        d.fallback.unwrap_or_default(),
+                                        d.enhanced_mode,
+                                    )
+                                })
+                                .unwrap_or((vec![], vec![], String::new()));
                             let sniff = config.sniffer.map(|s| s.enable).unwrap_or(false);
                             Ok(RuntimeConfig {
                                 mode,
@@ -219,12 +337,14 @@ impl AppState {
                 Task::none()
             }
             Message::SetProxyMode(mode) => {
+                self.proxy_mode = Some(mode.clone());
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.set_mode(&mode)
+                            rt.client()
+                                .patch_config(serde_json::json!({ "mode": mode }))
                                 .await
-                                .map_err(|e: anyhow::Error| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
                         Message::ModeSetResult,
                     )
@@ -232,15 +352,24 @@ impl AppState {
                     Task::none()
                 }
             }
+            Message::ModeSetResult(result) => match result {
+                Ok(_) => Task::done(Message::FetchRuntimeConfig),
+                Err(e) => {
+                    self.error_msg = Some(e.to_string());
+                    Task::none()
+                }
+            },
             Message::SetTunEnabled(enabled) => {
+                self.tun_enabled = Some(enabled);
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
-                            rt.set_tun_enabled(enabled)
+                            rt.client()
+                                .patch_config(serde_json::json!({ "tun": { "enable": enabled } }))
                                 .await
-                                .map_err(|e: anyhow::Error| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
-                        Message::ModeSetResult,
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
@@ -252,43 +381,47 @@ impl AppState {
                     Task::perform(
                         async move {
                             rt.client()
-                                .patch_config(serde_json::json!({"tun": {"stack": stack}}))
+                                .patch_config(serde_json::json!({ "tun": { "stack": stack } }))
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
-                        Message::ModeSetResult,
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
                 }
             }
-            Message::SetTunAutoRoute(auto) => {
-                self.tun_auto_route = auto;
+            Message::SetTunAutoRoute(enabled) => {
+                self.tun_auto_route = enabled;
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
-                                .patch_config(serde_json::json!({"tun": {"auto-route": auto}}))
+                                .patch_config(
+                                    serde_json::json!({ "tun": { "auto-route": enabled } }),
+                                )
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
-                        Message::ModeSetResult,
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
                 }
             }
-            Message::SetTunStrictRoute(strict) => {
-                self.tun_strict_route = strict;
+            Message::SetTunStrictRoute(enabled) => {
+                self.tun_strict_route = enabled;
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
-                                .patch_config(serde_json::json!({"tun": {"strict-route": strict}}))
+                                .patch_config(
+                                    serde_json::json!({ "tun": { "strict-route": enabled } }),
+                                )
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
-                        Message::ModeSetResult,
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
@@ -300,37 +433,11 @@ impl AppState {
                     Task::perform(
                         async move {
                             rt.client()
-                                .patch_config(serde_json::json!({"sniffer": {"enable": enabled}}))
+                                .patch_config(
+                                    serde_json::json!({ "sniffer": { "enable": enabled } }),
+                                )
                                 .await
-                                .map_err(|e| e.to_string())
-                        },
-                        Message::ModeSetResult,
-                    )
-                } else {
-                    Task::none()
-                }
-            }
-            Message::ModeSetResult(result) => {
-                if let Err(e) = result {
-                    self.error_msg = Some(e);
-                } else {
-                    return Task::done(Message::FetchRuntimeConfig);
-                }
-                Task::none()
-            }
-            Message::SetLogLevel(level) => {
-                self.log_level = level;
-                self.logs.clear();
-                Task::none()
-            }
-            Message::CloseConnection(id) => {
-                if let Some(rt) = self.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            rt.client()
-                                .close_connection(&id)
-                                .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
                         Message::OperationResult,
                     )
@@ -338,34 +445,48 @@ impl AppState {
                     Task::none()
                 }
             }
-            Message::CloseAllConnections => {
-                if let Some(rt) = self.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            rt.client()
-                                .close_all_connections()
-                                .await
-                                .map_err(|e| e.to_string())
-                        },
-                        Message::OperationResult,
-                    )
-                } else {
+            Message::OperationResult(result) => match result {
+                Ok(_) => Task::done(Message::FetchRuntimeConfig),
+                Err(e) => {
+                    self.error_msg = Some(e.to_string());
                     Task::none()
                 }
-            }
-            Message::OperationResult(result) => {
-                if let Err(e) = result {
-                    self.error_msg = Some(e);
-                }
-                Task::none()
-            }
+            },
             Message::LoadRules => {
                 if let Some(rt) = self.runtime.clone() {
                     self.is_loading_rules = true;
-                    Task::perform(
-                        async move { rt.client().get_rules().await.map_err(|e| e.to_string()) },
-                        Message::RulesLoaded,
-                    )
+                    self.is_loading_providers = true;
+                    let rt2 = rt.clone();
+                    Task::batch(vec![
+                        Task::perform(
+                            async move {
+                                rt.client()
+                                    .get_rules()
+                                    .await
+                                    .map_err(InfiltratorError::from)
+                            },
+                            Message::RulesLoaded,
+                        ),
+                        Task::perform(
+                            async move {
+                                let proxies = rt2
+                                    .client()
+                                    .get_proxy_providers()
+                                    .await
+                                    .map_err(InfiltratorError::from)?;
+                                let rules = rt2
+                                    .client()
+                                    .get_rule_providers()
+                                    .await
+                                    .map_err(InfiltratorError::from)?;
+                                Ok((
+                                    proxies.into_values().collect(),
+                                    rules.into_values().collect(),
+                                ))
+                            },
+                            Message::ProvidersLoaded,
+                        ),
+                    ])
                 } else {
                     Task::none()
                 }
@@ -373,49 +494,19 @@ impl AppState {
             Message::RulesLoaded(result) => {
                 self.is_loading_rules = false;
                 match result {
-                    Ok(rules) => {
-                        self.rules = rules;
-                    }
-                    Err(e) => {
-                        self.error_msg = Some(e);
-                    }
+                    Ok(rules) => self.rules = rules,
+                    Err(e) => self.error_msg = Some(e.to_string()),
                 }
                 Task::none()
-            }
-            Message::LoadProviders => {
-                if let Some(rt) = self.runtime.clone() {
-                    self.is_loading_providers = true;
-                    Task::perform(
-                        async move {
-                            let p = rt
-                                .client()
-                                .get_proxy_providers()
-                                .await
-                                .map_err(|e| e.to_string())?;
-                            let r = rt
-                                .client()
-                                .get_rule_providers()
-                                .await
-                                .map_err(|e| e.to_string())?;
-                            Ok((
-                                p.into_values().collect::<Vec<_>>(),
-                                r.into_values().collect::<Vec<_>>(),
-                            ))
-                        },
-                        Message::ProvidersLoaded,
-                    )
-                } else {
-                    Task::none()
-                }
             }
             Message::ProvidersLoaded(result) => {
                 self.is_loading_providers = false;
                 match result {
-                    Ok((p, r)) => {
-                        self.proxy_providers = p;
-                        self.rule_providers = r;
+                    Ok((proxies, rules)) => {
+                        self.proxy_providers = proxies;
+                        self.rule_providers = rules;
                     }
-                    Err(e) => self.error_msg = Some(e),
+                    Err(e) => self.error_msg = Some(e.to_string()),
                 }
                 Task::none()
             }
@@ -426,9 +517,9 @@ impl AppState {
                             rt.client()
                                 .update_proxy_provider(&name)
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
-                        |_| Message::LoadProviders,
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
@@ -441,21 +532,17 @@ impl AppState {
                             rt.client()
                                 .update_rule_provider(&name)
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map_err(InfiltratorError::from)
                         },
-                        |_| Message::LoadProviders,
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
                 }
             }
-            Message::FilterRules(filter) => {
-                self.rules_filter = filter;
-                Task::none()
-            }
-            Message::UpdateDnsServer(index, value) => {
-                if let Some(server) = self.dns_nameservers.get_mut(index) {
-                    *server = value;
+            Message::UpdateDnsServer(index, server) => {
+                if index < self.dns_nameservers.len() {
+                    self.dns_nameservers[index] = server;
                 }
                 Task::none()
             }
@@ -467,14 +554,14 @@ impl AppState {
                 self.dns_nameservers.push(String::new());
                 Task::none()
             }
+            Message::AddDnsServerTemplate(server) => {
+                self.dns_nameservers.push(server);
+                Task::none()
+            }
             Message::RemoveDnsServer(index) => {
                 if self.dns_nameservers.len() > index {
                     self.dns_nameservers.remove(index);
                 }
-                Task::none()
-            }
-            Message::AddDnsServerTemplate(server) => {
-                self.dns_nameservers.push(server);
                 Task::none()
             }
             Message::UpdateFallbackDnsServer(index, value) => {
@@ -501,9 +588,12 @@ impl AppState {
                     let enhanced = self.dns_enhanced_mode.clone();
                     Task::perform(
                         async move {
-                            rt.client().patch_config(serde_json::json!({
-                                "dns": { "enable": true, "enhanced-mode": enhanced, "nameserver": servers, "fallback": fallbacks }
-                            })).await.map_err(|e| e.to_string())
+                            rt.client()
+                                .patch_config(serde_json::json!({
+                                    "dns": { "enable": true, "enhanced-mode": enhanced, "nameserver": servers, "fallback": fallbacks }
+                                }))
+                                .await
+                                .map_err(InfiltratorError::from)
                         },
                         Message::DnsSaved,
                     )
@@ -513,244 +603,27 @@ impl AppState {
             }
             Message::DnsSaved(result) => {
                 self.is_saving_dns = false;
-                if let Err(e) = result {
-                    self.error_msg = Some(e.clone());
-                    return Task::done(Message::ShowToast(e, ToastStatus::Error));
-                }
-                Task::done(Message::ShowToast(
-                    "DNS settings saved".to_string(),
-                    ToastStatus::Success,
-                ))
-            }
-            Message::SetAutostart(enabled) => {
-                self.autostart_enabled = enabled;
-                Task::perform(
-                    async move {
-                        autostart::set_autostart_enabled(enabled)
-                            .map_err(|e: anyhow::Error| e.to_string())
-                    },
-                    Message::AutostartSet,
-                )
-            }
-            Message::AutostartSet(result) => {
-                if let Err(e) = result {
-                    self.error_msg = Some(e);
-                    self.autostart_enabled = !self.autostart_enabled;
-                }
-                Task::none()
-            }
-            Message::SetSystemProxy(enabled) => {
-                self.system_proxy_enabled = enabled;
-                let endpoint = if enabled {
-                    Some("127.0.0.1:7890")
-                } else {
-                    None
-                };
-                Task::perform(
-                    async move {
-                        infiltrator_desktop::proxy::apply_system_proxy(endpoint)
-                            .map_err(|e: anyhow::Error| e.to_string())
-                    },
-                    Message::SystemProxySet,
-                )
-            }
-            Message::SystemProxySet(result) => {
-                if let Err(e) = result {
-                    self.error_msg = Some(e);
-                    self.system_proxy_enabled = !self.system_proxy_enabled;
-                }
-                if let Some(tm) = &self.tray_manager {
-                    tm.update_status(self.system_proxy_enabled, self.tun_enabled.unwrap_or(false));
-                }
-                Task::none()
-            }
-            Message::LoadKernels => Task::perform(
-                async {
-                    let vm = VersionManager::new()
-                        .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                    vm.list_installed()
-                        .await
-                        .map_err(|e: mihomo_api::MihomoError| e.to_string())
-                },
-                Message::KernelsLoaded,
-            ),
-            Message::KernelsLoaded(result) => {
                 match result {
-                    Ok(kernels) => {
-                        self.installed_kernels = kernels;
-                    }
+                    Ok(_) => Task::done(Message::ShowToast(
+                        "DNS settings saved".to_string(),
+                        ToastStatus::Success,
+                    )),
                     Err(e) => {
-                        self.error_msg = Some(e);
-                    }
-                }
-                Task::none()
-            }
-            Message::SetDefaultKernel(version) => Task::perform(
-                async move {
-                    let vm = VersionManager::new()
-                        .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                    vm.set_default(&version)
-                        .await
-                        .map_err(|e: mihomo_api::MihomoError| e.to_string())
-                },
-                |_| Message::LoadKernels,
-            ),
-            Message::CheckCoreUpdate => {
-                self.is_checking_update = true;
-                Task::perform(
-                    async {
-                        let info = mihomo_version::channel::fetch_latest(
-                            mihomo_version::channel::Channel::Stable,
-                        )
-                        .await
-                        .map_err(|e| e.to_string())?;
-                        Ok(info.version)
-                    },
-                    Message::CoreUpdateInfo,
-                )
-            }
-            Message::CoreUpdateInfo(result) => {
-                self.is_checking_update = false;
-                match result {
-                    Ok(v) => self.latest_core_version = Some(v),
-                    Err(e) => self.error_msg = Some(e),
-                }
-                Task::none()
-            }
-            Message::DownloadCore(version) => {
-                self.download_progress = 0.0;
-                Task::run(
-                    stream::channel(
-                        10,
-                        move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                            use iced::futures::SinkExt;
-                            let vm = match VersionManager::new() {
-                                Ok(vm) => vm,
-                                Err(e) => {
-                                    let _ = output
-                                        .send(Message::CoreDownloadFinished(Err(e.to_string())))
-                                        .await;
-                                    return;
-                                }
-                            };
-                            let res = vm
-                                .install_with_progress(&version, |p| {
-                                    let total = p.total.unwrap_or(0);
-                                    let progress = if total > 0 {
-                                        p.downloaded as f32 / total as f32
-                                    } else {
-                                        0.0
-                                    };
-                                    let _ =
-                                        output.try_send(Message::CoreDownloadProgress(progress));
-                                })
-                                .await;
-                            match res {
-                                Ok(_) => {
-                                    let _ = output
-                                        .send(Message::CoreDownloadFinished(Ok(version)))
-                                        .await;
-                                }
-                                Err(e) => {
-                                    let _ = output
-                                        .send(Message::CoreDownloadFinished(Err(e.to_string())))
-                                        .await;
-                                }
-                            }
-                        },
-                    ),
-                    |msg| msg,
-                )
-            }
-            Message::CoreDownloadProgress(p) => {
-                self.download_progress = p;
-                Task::none()
-            }
-            Message::CoreDownloadFinished(result) => {
-                self.download_progress = 0.0;
-                match result {
-                    Ok(_) => Task::batch(vec![
-                        Task::done(Message::LoadKernels),
-                        Task::done(Message::ShowToast(
-                            "Kernel updated successfully".to_string(),
-                            ToastStatus::Success,
-                        )),
-                    ]),
-                    Err(e) => {
-                        self.error_msg = Some(e.clone());
-                        Task::done(Message::ShowToast(e, ToastStatus::Error))
+                        self.error_msg = Some(e.to_string());
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
                 }
             }
-            Message::DeleteKernel(version) => Task::perform(
-                async move {
-                    let vm = VersionManager::new()
-                        .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                    vm.uninstall(&version)
-                        .await
-                        .map_err(|e: mihomo_api::MihomoError| e.to_string())
-                },
-                |_| Message::LoadKernels,
-            ),
-            Message::FactoryReset => Task::perform(
-                async {
-                    let data_dir = mihomo_platform::get_home_dir().map_err(|e| e.to_string())?;
-                    if data_dir.exists() {
-                        tokio::fs::remove_dir_all(&data_dir)
-                            .await
-                            .map_err(|e| e.to_string())?;
-                    }
-                    Ok(())
-                },
-                |_: Result<(), String>| Message::Exit,
-            ),
-            Message::OpenConfigDir => Task::perform(
-                async {
-                    let data_dir = mihomo_platform::get_home_dir().map_err(|e| e.to_string())?;
-                    #[cfg(target_os = "windows")]
-                    {
-                        std::process::Command::new("explorer")
-                            .arg(data_dir)
-                            .spawn()
-                            .map_err(|e| e.to_string())?;
-                    }
-                    #[cfg(target_os = "macos")]
-                    {
-                        std::process::Command::new("open")
-                            .arg(data_dir)
-                            .spawn()
-                            .map_err(|e| e.to_string())?;
-                    }
-                    #[cfg(target_os = "linux")]
-                    {
-                        std::process::Command::new("xdg-open")
-                            .arg(data_dir)
-                            .spawn()
-                            .map_err(|e| e.to_string())?;
-                    }
-                    Ok(())
-                },
-                |res: Result<(), String>| match res {
-                    Ok(_) => Message::ShowToast("Folder opened".to_string(), ToastStatus::Info),
-                    Err(e) => Message::ShowToast(e, ToastStatus::Error),
-                },
-            ),
             Message::FlushFakeIpCache => {
                 if let Some(rt) = self.runtime.clone() {
                     Task::perform(
                         async move {
                             rt.client()
-                                .patch_config(serde_json::json!({"dns": {"fake-ip-filter": []}}))
+                                .flush_fakeip_cache()
                                 .await
-                                .map_err(|e| e.to_string())?;
-                            Ok(())
+                                .map_err(InfiltratorError::from)
                         },
-                        |_: Result<(), String>| {
-                            Message::ShowToast(
-                                "Fake-IP Cache Flushed (Filter Reset)".to_string(),
-                                ToastStatus::Success,
-                            )
-                        },
+                        Message::OperationResult,
                     )
                 } else {
                     Task::none()
@@ -758,26 +631,36 @@ impl AppState {
             }
             Message::TestProxyDelay(name) => {
                 if let Some(rt) = self.runtime.clone() {
+                    let n = name.clone();
                     Task::perform(
                         async move {
                             rt.client()
-                                .test_delay(&name, "http://www.gstatic.com/generate_204", 5000)
+                                .test_delay(&n, "http://www.gstatic.com/generate_204", 3000)
                                 .await
-                                .map_err(|e| e.to_string())
+                                .map(|d| d as u64)
+                                .map_err(InfiltratorError::from)
                         },
-                        |_| Message::LoadProxies,
+                        move |res| Message::ProxyTested(name, res),
                     )
                 } else {
                     Task::none()
                 }
             }
-            Message::TestGroupDelay(group_name) => {
+            Message::ProxyTested(name, result) => match result {
+                Ok(delay) => Task::done(Message::ShowToast(
+                    format!("{}: {}ms", name, delay),
+                    ToastStatus::Success,
+                )),
+                Err(e) => Task::done(Message::ShowToast(
+                    format!("{}: {}", name, e),
+                    ToastStatus::Error,
+                )),
+            },
+            Message::TestGroupDelay(name) => {
                 if let Some(rt) = self.runtime.clone() {
-                    let name = group_name.clone();
+                    let proxies = self.proxies.clone();
                     Task::perform(
                         async move {
-                            let proxies =
-                                rt.client().get_proxies().await.map_err(|e| e.to_string())?;
                             let members = proxies
                                 .get(&name)
                                 .and_then(|p| p.all())
@@ -791,12 +674,127 @@ impl AppState {
                             }
                             Ok(())
                         },
-                        |_: Result<(), String>| Message::LoadProxies,
+                        |_: Result<(), InfiltratorError>| Message::LoadProxies,
                     )
                 } else {
                     Task::none()
                 }
             }
+            Message::SetAutostart(enabled) => {
+                self.autostart_enabled = enabled;
+                Task::perform(
+                    async move {
+                        autostart::set_autostart_enabled(enabled)
+                            .map_err(|e: anyhow::Error| InfiltratorError::Internal(e.to_string()))
+                    },
+                    Message::AutostartSet,
+                )
+            }
+            Message::AutostartSet(result) => {
+                if let Err(e) = result {
+                    self.autostart_enabled = !self.autostart_enabled;
+                    self.error_msg = Some(e.to_string());
+                }
+                Task::none()
+            }
+            Message::CheckCoreUpdate => {
+                self.is_checking_update = true;
+                Task::perform(
+                    async {
+                        let vm = VersionManager::new().map_err(InfiltratorError::from)?;
+                        vm.install_channel(Channel::Stable)
+                            .await
+                            .map_err(InfiltratorError::from)
+                    },
+                    Message::CoreUpdateInfo,
+                )
+            }
+            Message::CoreUpdateInfo(result) => {
+                self.is_checking_update = false;
+                match result {
+                    Ok(version) => {
+                        self.latest_core_version = Some(version);
+                        Task::none()
+                    }
+                    Err(e) => {
+                        self.error_msg = Some(e.to_string());
+                        Task::none()
+                    }
+                }
+            }
+            Message::DownloadCore(version) => {
+                let stream = stream::channel(
+                    100,
+                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                        let vm = match VersionManager::new() {
+                            Ok(v) => v,
+                            Err(e) => {
+                                let _ = output.try_send(Message::CoreDownloadFinished(Err(
+                                    InfiltratorError::from(e),
+                                )));
+                                return;
+                            }
+                        };
+
+                        match vm.install(&version).await {
+                            Ok(_) => {
+                                let _ = output.try_send(Message::CoreDownloadFinished(Ok(version)));
+                            }
+                            Err(e) => {
+                                let _ = output.try_send(Message::CoreDownloadFinished(Err(
+                                    InfiltratorError::from(e),
+                                )));
+                            }
+                        }
+                    },
+                );
+                Task::run(stream, |m| m)
+            }
+            Message::CoreDownloadProgress(progress) => {
+                self.download_progress = progress;
+                Task::none()
+            }
+            Message::CoreDownloadFinished(result) => {
+                self.download_progress = 0.0;
+                match result {
+                    Ok(_) => Task::done(Message::LoadKernels),
+                    Err(e) => {
+                        self.error_msg = Some(e.to_string());
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                    }
+                }
+            }
+            Message::LoadKernels => Task::perform(
+                async {
+                    let vm = VersionManager::new().map_err(InfiltratorError::from)?;
+                    vm.list_installed().await.map_err(InfiltratorError::from)
+                },
+                Message::KernelsLoaded,
+            ),
+            Message::KernelsLoaded(result) => {
+                match result {
+                    Ok(versions) => self.installed_kernels = versions,
+                    Err(e) => self.error_msg = Some(e.to_string()),
+                }
+                Task::none()
+            }
+            Message::SetDefaultKernel(version) => Task::perform(
+                async move {
+                    let vm = VersionManager::new().map_err(InfiltratorError::from)?;
+                    vm.set_default(&version)
+                        .await
+                        .map_err(InfiltratorError::from)
+                },
+                |_| Message::LoadKernels,
+            ),
+            Message::DeleteKernel(version) => Task::perform(
+                async move {
+                    let vm = VersionManager::new().map_err(InfiltratorError::from)?;
+                    vm.uninstall(&version).await.map_err(InfiltratorError::from)
+                },
+                |_| Message::LoadKernels,
+            ),
+            Message::FactoryReset => Task::none(),
             _ => Task::none(),
         }
     }

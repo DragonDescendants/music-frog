@@ -1,5 +1,6 @@
 use crate::locales::{Lang, Localizer};
 use crate::view::components::card;
+use crate::view::icons;
 use crate::{AppState, Message};
 use iced::widget::{Scrollable, Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Color, Element, Font, Length};
@@ -14,10 +15,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = row![
         text(lang.tr("profiles_title")).size(24).font(bold_font),
         Space::new().width(Length::Fill),
-        button(text(lang.tr("profiles_open_folder")).size(12))
-            .on_press(Message::OpenConfigDir)
-            .padding([6, 12])
-            .style(button::secondary)
+        button(
+            row![
+                text(icons::EDITOR).size(12),
+                text(lang.tr("profiles_open_folder")).size(12)
+            ]
+            .spacing(8)
+        )
+        .on_press(Message::OpenConfigDir)
+        .padding([6, 12])
+        .style(button::secondary)
     ]
     .align_y(Alignment::Center);
 
@@ -28,11 +35,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(button::secondary)
             .into()
     } else {
-        button(text(lang.tr("profiles_import_btn")).size(12))
-            .on_press(Message::ImportProfile)
-            .padding([6, 12])
-            .style(button::primary)
-            .into()
+        button(
+            row![
+                text(icons::ADD).size(12),
+                text(lang.tr("profiles_import_btn")).size(12)
+            ]
+            .spacing(8),
+        )
+        .on_press(Message::ImportProfile)
+        .padding([6, 12])
+        .style(button::primary)
+        .into()
     };
 
     let import_section = card(column![
@@ -69,10 +82,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         .style(button::secondary),
                 );
                 actions = actions.push(
-                    button(text(lang.tr("edit")).size(12))
-                        .on_press(Message::EditProfile(profile.path.clone()))
-                        .padding([6, 12])
-                        .style(button::secondary),
+                    button(
+                        row![text(icons::EDITOR).size(12), text(lang.tr("edit")).size(12)]
+                            .spacing(8),
+                    )
+                    .on_press(Message::EditProfile(profile.path.clone()))
+                    .padding([6, 12])
+                    .style(button::secondary),
                 );
             } else {
                 let tag = lang.tr("active_tag").trim().to_string();

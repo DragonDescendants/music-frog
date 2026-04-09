@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "PascalCase")]
 pub enum Proxy {
     // Standard Protocols
@@ -17,19 +17,19 @@ pub enum Proxy {
     Snell(Snell),
     Direct(Direct),
     Reject(Reject),
-    
+
     // Group Types
     Selector(ProxyGroup),
     URLTest(ProxyGroup),
     Fallback(ProxyGroup),
     LoadBalance(ProxyGroup),
-    
+
     // Catch-all for unknown types to ensure forward compatibility
     #[serde(other)]
     Unknown,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct ProxyBase {
     pub name: String,
     pub udp: bool,
@@ -38,22 +38,34 @@ pub struct ProxyBase {
     pub delay: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct ProxyHistory {
     pub time: String,
     pub delay: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Shadowsocks {
     #[serde(flatten)]
     pub base: ProxyBase,
     pub server: String,
     pub port: u16,
     pub cipher: String,
+    pub plugin: Option<String>,
+    #[serde(rename = "plugin-opts")]
+    pub plugin_opts: Option<ShadowsocksPluginOpts>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct ShadowsocksPluginOpts {
+    pub mode: Option<String>,
+    pub host: Option<String>,
+    pub path: Option<String>,
+    pub tls: Option<bool>,
+    pub headers: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Vmess {
     #[serde(flatten)]
     pub base: ProxyBase,
@@ -65,18 +77,48 @@ pub struct Vmess {
     pub cipher: String,
     pub tls: bool,
     pub network: String,
+    pub sni: Option<String>,
+    #[serde(rename = "client-fingerprint")]
+    pub client_fingerprint: Option<String>,
+    #[serde(rename = "ws-opts")]
+    pub ws_opts: Option<WsOpts>,
+    #[serde(rename = "grpc-opts")]
+    pub grpc_opts: Option<GrpcOpts>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct WsOpts {
+    pub path: Option<String>,
+    pub headers: Option<HashMap<String, String>>,
+    #[serde(rename = "max-early-data")]
+    pub max_early_data: Option<u32>,
+    #[serde(rename = "early-data-header-name")]
+    pub early_data_header_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct GrpcOpts {
+    #[serde(rename = "grpc-service-name")]
+    pub grpc_service_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Trojan {
     #[serde(flatten)]
     pub base: ProxyBase,
     pub server: String,
     pub port: u16,
     pub sni: Option<String>,
+    pub alpn: Option<Vec<String>>,
+    #[serde(rename = "network")]
+    pub network: Option<String>,
+    #[serde(rename = "ws-opts")]
+    pub ws_opts: Option<WsOpts>,
+    #[serde(rename = "grpc-opts")]
+    pub grpc_opts: Option<GrpcOpts>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Hysteria2 {
     #[serde(flatten)]
     pub base: ProxyBase,
@@ -84,36 +126,55 @@ pub struct Hysteria2 {
     pub port: u16,
     pub auth: Option<String>,
     pub sni: Option<String>,
+    pub alpn: Option<Vec<String>>,
+    pub fingerprint: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct WireGuard {
     #[serde(flatten)]
     pub base: ProxyBase,
     pub server: String,
     pub port: u16,
     pub ip: String,
+    pub mtu: Option<u16>,
+    #[serde(rename = "remote-dns-resolve")]
+    pub remote_dns_resolve: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Tuic {
     #[serde(flatten)]
     pub base: ProxyBase,
     pub server: String,
     pub port: u16,
     pub uuid: String,
+    pub alpn: Option<Vec<String>>,
+    pub sni: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Vless {
     #[serde(flatten)]
     pub base: ProxyBase,
     pub server: String,
     pub port: u16,
     pub uuid: String,
+    pub tls: bool,
+    pub sni: Option<String>,
+    #[serde(rename = "reality-opts")]
+    pub reality_opts: Option<RealityOpts>,
+    #[serde(rename = "client-fingerprint")]
+    pub client_fingerprint: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct RealityOpts {
+    pub public_key: Option<String>,
+    pub short_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Http {
     #[serde(flatten)]
     pub base: ProxyBase,
@@ -121,7 +182,7 @@ pub struct Http {
     pub port: u16,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Socks5 {
     #[serde(flatten)]
     pub base: ProxyBase,
@@ -129,7 +190,7 @@ pub struct Socks5 {
     pub port: u16,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Snell {
     #[serde(flatten)]
     pub base: ProxyBase,
@@ -137,19 +198,19 @@ pub struct Snell {
     pub port: u16,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Direct {
     #[serde(flatten)]
     pub base: ProxyBase,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Reject {
     #[serde(flatten)]
     pub base: ProxyBase,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct ProxyGroup {
     pub name: String,
     pub now: String,
@@ -303,4 +364,3 @@ impl Proxy {
 }
 
 pub type Proxies = HashMap<String, Proxy>;
-

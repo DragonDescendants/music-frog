@@ -102,6 +102,10 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "settings_factory_reset" => "恢复出厂设置 (不可逆)".into(),
         "settings_uac_request" => "以管理员身份重启".into(),
         "settings_uac_desc" => "开启 TUN 模式需要管理员权限。点击下方按钮尝试提升权限。".into(),
+        "settings_uac_unsupported" => {
+            "自动权限提升仅支持 Windows。请手动以 sudo 或管理员身份运行本应用以开启 TUN 模式。"
+                .into()
+        }
         "settings_download" => "下载".into(),
         "settings_delete" => "删除".into(),
         "settings_set_default" => "设为默认".into(),
@@ -111,6 +115,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "status_starting" => "启动中...".into(),
         "status_running" => "运行中".into(),
         "status_stopped" => "已停止".into(),
+        "status_error" => "运行出错".into(),
         "status_label" => "状态: {0}".into(),
         "error_label" => "错误: {0}".into(),
 
@@ -213,7 +218,9 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "settings_title" => "Settings & Core".into(),
         "settings_system_integration" => "System Integration".into(),
         "settings_sniffer" => "Traffic Sniffer".into(),
-        "settings_sniffer_desc" => "Sniff traffic to restore domain names for better routing.".into(),
+        "settings_sniffer_desc" => {
+            "Sniff traffic to restore domain names for better routing.".into()
+        }
         "settings_kernel_mgmt" => "Kernel Management".into(),
         "settings_check_update" => "Check Update".into(),
         "settings_checking" => "Checking...".into(),
@@ -221,7 +228,9 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "settings_no_kernels" => "No kernels found.".into(),
         "settings_factory_reset" => "Factory Reset (Irreversible)".into(),
         "settings_uac_request" => "Restart as Administrator".into(),
-        "settings_uac_desc" => "TUN mode requires administrative privileges. Click the button below to elevate.".into(),
+        "settings_uac_desc" => {
+            "TUN mode requires administrative privileges. Click the button below to elevate.".into()
+        }
         "settings_download" => "Download".into(),
         "settings_delete" => "Delete".into(),
         "settings_set_default" => "Set Default".into(),
@@ -231,6 +240,7 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "status_starting" => "Starting...".into(),
         "status_running" => "Running".into(),
         "status_stopped" => "Stopped".into(),
+        "status_error" => "Runtime Error".into(),
         "status_label" => "Status: {0}".into(),
         "error_label" => "Error: {0}".into(),
 

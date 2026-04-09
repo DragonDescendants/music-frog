@@ -1,6 +1,7 @@
 pub mod components;
 pub mod dns;
 pub mod editor;
+pub mod icons;
 pub mod overview;
 pub mod profiles;
 pub mod proxies;

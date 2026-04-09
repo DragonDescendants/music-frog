@@ -1,7 +1,7 @@
 use crate::locales::{Lang, Localizer};
-use crate::view::components::{nav_button, status_dot};
+use crate::view::components::nav_button;
 use crate::{AppState, Message, Route};
-use iced::widget::{Space, column, container, row, text};
+use iced::widget::{Space, column, container, image, row, text};
 use iced::{Alignment, Color, Element, Length};
 
 pub fn sidebar(state: &AppState) -> Element<'_, Message> {
@@ -11,14 +11,23 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         ..Default::default()
     };
 
-    container(column![
+    let logo = container(
         row![
-            status_dot(state.runtime.is_some()),
-            Space::new().width(8),
-            text(lang.tr("app_title")).size(18).font(bold_font),
+            image("src-tauri/icons/icon.png").width(32).height(32),
+            Space::new().width(12),
+            column![
+                text("MusicFrog").size(16).font(bold_font),
+                text("Infiltrator").size(10).style(|_| text::Style {
+                    color: Some(Color::from_rgb(0.4, 0.4, 0.4))
+                }),
+            ]
         ]
-        .align_y(Alignment::Center)
-        .padding(20),
+        .align_y(Alignment::Center),
+    )
+    .padding(20);
+
+    container(column![
+        logo,
         Space::new().height(10),
         nav_button(
             lang.tr("nav_overview").into_owned(),

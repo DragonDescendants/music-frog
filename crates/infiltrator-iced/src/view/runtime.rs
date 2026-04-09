@@ -1,4 +1,5 @@
 use crate::locales::{Lang, Localizer};
+use crate::types::RuntimeStatus;
 use crate::utils::format_bytes;
 use crate::view::components::{TrafficChart, card};
 use crate::{AppState, Message};
@@ -12,7 +13,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ..Default::default()
     };
 
-    if state.runtime.is_none() && !state.is_starting {
+    if !matches!(
+        state.status,
+        RuntimeStatus::Running | RuntimeStatus::Starting
+    ) {
         return container(card(text(lang.tr("proxy_not_running"))))
             .width(Length::Fill)
             .height(Length::Fill)
@@ -171,7 +175,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 }));
         }
 
-        connections_section = connections_section.push(Scrollable::new(conn_list).height(Length::Fill));
+        connections_section =
+            connections_section.push(Scrollable::new(conn_list).height(Length::Fill));
     } else {
         connections_section = connections_section.push(text("No active connections").size(12));
     }

@@ -1,9 +1,9 @@
 use crate::state::AppState;
-use crate::types::{Message, ToastStatus};
-use dav_client::DavClient;
+use crate::types::{InfiltratorError, Message, ToastStatus};
+use dav_client::{DavClient, client::WebDavClient};
 use iced::Task;
 use iced::widget::text_editor;
-use mihomo_config::{ConfigManager, Profile};
+use mihomo_config::ConfigManager;
 
 impl AppState {
     pub fn update_profile(&mut self, message: Message) -> Task<Message> {
@@ -12,11 +12,14 @@ impl AppState {
                 self.is_loading_profiles = true;
                 Task::perform(
                     async {
-                        let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+                        let cm = ConfigManager::new().map_err(|e: mihomo_api::MihomoError| {
+                            InfiltratorError::Mihomo(e.to_string())
+                        })?;
                         cm.list_profiles()
                             .await
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())
+                            .map_err(|e: mihomo_api::MihomoError| {
+                                InfiltratorError::Mihomo(e.to_string())
+                            })
                     },
                     Message::ProfilesLoaded,
                 )
@@ -24,19 +27,36 @@ impl AppState {
             Message::ProfilesLoaded(result) => {
                 self.is_loading_profiles = false;
                 match result {
-                    Ok(p) => self.profiles = p,
-                    Err(e) => self.error_msg = Some(e),
-                }
-                Task::none()
-            }
-            Message::SetActiveProfile(name) => Task::perform(
-                async move {
-                    if let Ok(cm) = ConfigManager::new() {
-                        let _ = cm.set_current(&name).await;
+                    Ok(profiles) => {
+                        self.profiles = profiles;
+                        Task::none()
                     }
-                },
-                |_| Message::LoadProfiles,
-            ),
+                    Err(e) => {
+                        self.error_msg = Some(e.to_string());
+                        Task::none()
+                    }
+                }
+            }
+            Message::SetActiveProfile(name) => {
+                self.error_msg = None;
+                Task::perform(
+                    async move {
+                        let cm = ConfigManager::new().map_err(|e: mihomo_api::MihomoError| {
+                            InfiltratorError::Mihomo(e.to_string())
+                        })?;
+                        cm.set_current(&name)
+                            .await
+                            .map_err(|e: mihomo_api::MihomoError| {
+                                InfiltratorError::Mihomo(e.to_string())
+                            })?;
+                        Ok(())
+                    },
+                    |result: Result<(), InfiltratorError>| match result {
+                        Ok(_) => Message::StartProxy,
+                        Err(e) => Message::ShowToast(e.to_string(), ToastStatus::Error),
+                    },
+                )
+            }
             Message::UpdateImportUrl(url) => {
                 self.import_url = url;
                 Task::none()
@@ -46,38 +66,17 @@ impl AppState {
                 Task::none()
             }
             Message::ImportProfile => {
-                let url = self.import_url.trim().to_string();
-                let name = self.import_name.trim().to_string();
-                if url.is_empty() || name.is_empty() {
-                    self.error_msg = Some("URL and Name cannot be empty".to_string());
+                let url = self.import_url.clone();
+                if url.is_empty() {
                     return Task::none();
                 }
                 self.is_importing = true;
                 Task::perform(
                     async move {
-                        let client = reqwest::Client::builder()
-                            .timeout(std::time::Duration::from_secs(30))
-                            .build()
-                            .map_err(|e| e.to_string())?;
-                        let content = client
-                            .get(&url)
-                            .send()
-                            .await
-                            .map_err(|e| e.to_string())?
-                            .text()
-                            .await
-                            .map_err(|e| e.to_string())?;
-                        let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                        cm.save(&name, &content)
-                            .await
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-
-                        let mut profile =
-                            Profile::new(name.clone(), std::path::PathBuf::new(), false);
-                        profile.subscription_url = Some(url);
-                        profile.auto_update_enabled = true;
-                        let _ = cm.update_profile_metadata(&name, &profile).await;
+                        let _profile_info =
+                            infiltrator_core::profiles::create_profile_from_url("Downloaded", &url)
+                                .await
+                                .map_err(|e| InfiltratorError::Mihomo(e.to_string()))?;
                         Ok(())
                     },
                     Message::ProfileImported,
@@ -88,7 +87,6 @@ impl AppState {
                 match result {
                     Ok(_) => {
                         self.import_url.clear();
-                        self.import_name.clear();
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::ShowToast(
@@ -98,19 +96,19 @@ impl AppState {
                         ])
                     }
                     Err(e) => {
-                        self.error_msg = Some(e.clone());
-                        Task::done(Message::ShowToast(e, ToastStatus::Error))
+                        self.error_msg = Some(e.to_string());
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
                 }
             }
             Message::EditProfile(path) => {
-                self.editor_path = Some(path.clone());
+                let p = path.clone();
                 Task::perform(
                     async move {
-                        let content = tokio::fs::read_to_string(&path)
+                        let content = tokio::fs::read_to_string(&p)
                             .await
-                            .map_err(|e| e.to_string())?;
-                        Ok((path, content))
+                            .map_err(|e| InfiltratorError::Io(e.to_string()))?;
+                        Ok((p, content))
                     },
                     Message::ProfileContentLoaded,
                 )
@@ -119,10 +117,10 @@ impl AppState {
                 Ok((path, content)) => {
                     self.editor_path = Some(path);
                     self.editor_content = text_editor::Content::with_text(&content);
-                    Task::none()
+                    Task::done(Message::Navigate(crate::types::Route::Editor))
                 }
                 Err(e) => {
-                    self.error_msg = Some(e);
+                    self.error_msg = Some(e.to_string());
                     Task::none()
                 }
             },
@@ -135,9 +133,10 @@ impl AppState {
                     let content = self.editor_content.text();
                     Task::perform(
                         async move {
-                            tokio::fs::write(path, content)
+                            tokio::fs::write(&path, content)
                                 .await
-                                .map_err(|e: std::io::Error| e.to_string())
+                                .map_err(|e| InfiltratorError::Io(e.to_string()))?;
+                            Ok(())
                         },
                         Message::ProfileSaved,
                     )
@@ -145,48 +144,55 @@ impl AppState {
                     Task::none()
                 }
             }
-            Message::ProfileSaved(result) => {
-                if let Err(e) = result {
-                    self.error_msg = Some(e.clone());
-                    return Task::done(Message::ShowToast(e, ToastStatus::Error));
-                }
-                Task::done(Message::ShowToast(
+            Message::ProfileSaved(result) => match result {
+                Ok(_) => Task::done(Message::ShowToast(
                     "Profile saved".to_string(),
                     ToastStatus::Success,
-                ))
-            }
-            Message::UpdateWebDavUrl(s) => {
-                self.webdav_url = s;
+                )),
+                Err(e) => {
+                    self.error_msg = Some(e.to_string());
+                    Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                }
+            },
+            Message::UpdateWebDavUrl(url) => {
+                self.webdav_url = url;
                 Task::none()
             }
-            Message::UpdateWebDavUser(s) => {
-                self.webdav_user = s;
+            Message::UpdateWebDavUser(user) => {
+                self.webdav_user = user;
                 Task::none()
             }
-            Message::UpdateWebDavPass(s) => {
-                self.webdav_pass = s;
+            Message::UpdateWebDavPass(pass) => {
+                self.webdav_pass = pass;
                 Task::none()
             }
             Message::SyncUpload => {
-                self.is_syncing = true;
                 let url = self.webdav_url.clone();
                 let user = self.webdav_user.clone();
                 let pass = self.webdav_pass.clone();
+                self.is_syncing = true;
                 Task::perform(
                     async move {
-                        let client = dav_client::client::WebDavClient::new(&url, &user, &pass)
-                            .map_err(|e: anyhow::Error| e.to_string())?;
-                        let data_dir = mihomo_platform::get_home_dir()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                        let settings_path = data_dir.join("settings.toml");
-                        if settings_path.exists() {
-                            let content = tokio::fs::read(settings_path)
+                        let client = WebDavClient::new(&url, &user, &pass)
+                            .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
+                        let cm = ConfigManager::new().map_err(|e: mihomo_api::MihomoError| {
+                            InfiltratorError::Mihomo(e.to_string())
+                        })?;
+                        let profiles =
+                            cm.list_profiles()
                                 .await
-                                .map_err(|e: std::io::Error| e.to_string())?;
-                            let _ = client
-                                .put("settings.toml", &content, None)
+                                .map_err(|e: mihomo_api::MihomoError| {
+                                    InfiltratorError::Mihomo(e.to_string())
+                                })?;
+
+                        for profile in profiles {
+                            let content = tokio::fs::read_to_string(&profile.path)
                                 .await
-                                .map_err(|e: anyhow::Error| e.to_string())?;
+                                .map_err(|e| InfiltratorError::Io(e.to_string()))?;
+                            client
+                                .put(&format!("{}.yaml", profile.name), content.as_bytes(), None)
+                                .await
+                                .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
                         }
                         Ok(())
                     },
@@ -194,20 +200,38 @@ impl AppState {
                 )
             }
             Message::SyncDownload => {
-                self.is_syncing = true;
                 let url = self.webdav_url.clone();
                 let user = self.webdav_user.clone();
                 let pass = self.webdav_pass.clone();
+                self.is_syncing = true;
                 Task::perform(
                     async move {
-                        let client = dav_client::client::WebDavClient::new(&url, &user, &pass)
-                            .map_err(|e: anyhow::Error| e.to_string())?;
-                        let data_dir = mihomo_platform::get_home_dir()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                        if let Ok(content) = client.get("settings.toml").await {
-                            tokio::fs::write(data_dir.join("settings.toml"), content)
-                                .await
-                                .map_err(|e: std::io::Error| e.to_string())?;
+                        let client = WebDavClient::new(&url, &user, &pass)
+                            .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
+                        let files = client
+                            .list("")
+                            .await
+                            .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
+                        let _cm = ConfigManager::new().map_err(|e: mihomo_api::MihomoError| {
+                            InfiltratorError::Mihomo(e.to_string())
+                        })?;
+
+                        for file in files {
+                            if file.path.ends_with(".yaml") {
+                                let content = client
+                                    .get(&file.path)
+                                    .await
+                                    .map_err(|e| InfiltratorError::Sync(e.to_string()))?;
+                                let data_dir = mihomo_platform::get_home_dir().map_err(
+                                    |e: mihomo_api::MihomoError| {
+                                        InfiltratorError::Mihomo(e.to_string())
+                                    },
+                                )?;
+                                let path = data_dir.join("profiles").join(file.path);
+                                tokio::fs::write(path, content)
+                                    .await
+                                    .map_err(|e| InfiltratorError::Io(e.to_string()))?;
+                            }
                         }
                         Ok(())
                     },
@@ -218,57 +242,14 @@ impl AppState {
                 self.is_syncing = false;
                 match result {
                     Ok(_) => Task::done(Message::ShowToast(
-                        "Sync successful".to_string(),
+                        "Sync completed".to_string(),
                         ToastStatus::Success,
                     )),
                     Err(e) => {
-                        self.error_msg = Some(e.clone());
-                        Task::done(Message::ShowToast(e, ToastStatus::Error))
+                        self.error_msg = Some(e.to_string());
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
                 }
-            }
-            Message::TickSubUpdate => {
-                let profiles_to_update: Vec<_> = self
-                    .profiles
-                    .iter()
-                    .filter(|p| p.auto_update_enabled && p.subscription_url.is_some())
-                    .cloned()
-                    .collect();
-                if profiles_to_update.is_empty() {
-                    return Task::none();
-                }
-                Task::batch(profiles_to_update.into_iter().map(|p| {
-                    let url = p.subscription_url.unwrap();
-                    let name = p.name;
-                    Task::perform(
-                        async move {
-                            let client = reqwest::Client::builder()
-                                .timeout(std::time::Duration::from_secs(30))
-                                .build()
-                                .map_err(|e| e.to_string())?;
-                            let content = client
-                                .get(&url)
-                                .send()
-                                .await
-                                .map_err(|e| e.to_string())?
-                                .text()
-                                .await
-                                .map_err(|e| e.to_string())?;
-                            let cm = ConfigManager::new()
-                                .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                            cm.save(&name, &content)
-                                .await
-                                .map_err(|e: mihomo_api::MihomoError| e.to_string())
-                        },
-                        Message::ProfileImported,
-                    )
-                }))
-            }
-            Message::TickWebDavSync => {
-                if !self.webdav_url.is_empty() && !self.webdav_user.is_empty() {
-                    return Task::done(Message::SyncUpload);
-                }
-                Task::none()
             }
             Message::UpdateNewRuleType(t) => {
                 self.new_rule_type = t;
@@ -297,41 +278,57 @@ impl AppState {
                 self.is_adding_rule = true;
                 Task::perform(
                     async move {
-                        let cm = ConfigManager::new()
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
-                        let current_name = cm
-                            .get_current()
-                            .await
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+                        let cm = ConfigManager::new().map_err(|e: mihomo_api::MihomoError| {
+                            InfiltratorError::Mihomo(e.to_string())
+                        })?;
+                        let current_name =
+                            cm.get_current()
+                                .await
+                                .map_err(|e: mihomo_api::MihomoError| {
+                                    InfiltratorError::Mihomo(e.to_string())
+                                })?;
 
-                        let profiles = cm
-                            .list_profiles()
-                            .await
-                            .map_err(|e: mihomo_api::MihomoError| e.to_string())?;
+                        let profiles =
+                            cm.list_profiles()
+                                .await
+                                .map_err(|e: mihomo_api::MihomoError| {
+                                    InfiltratorError::Mihomo(e.to_string())
+                                })?;
                         let profile = profiles
                             .iter()
                             .find(|p| p.name == current_name)
-                            .ok_or_else(|| "Profile not found".to_string())?;
+                            .ok_or_else(|| {
+                                InfiltratorError::Config("Profile not found".to_string())
+                            })?;
 
                         let content = tokio::fs::read_to_string(&profile.path)
                             .await
-                            .map_err(|e: std::io::Error| e.to_string())?;
+                            .map_err(|e: std::io::Error| InfiltratorError::Io(e.to_string()))?;
                         let mut yaml: serde_yml::Value =
-                            serde_yml::from_str(&content).map_err(|e: serde_yml::Error| e.to_string())?;
+                            serde_yml::from_str(&content).map_err(|e: serde_yml::Error| {
+                                InfiltratorError::Config(e.to_string())
+                            })?;
 
                         let rules = yaml
                             .get_mut("rules")
                             .and_then(|v| v.as_sequence_mut())
-                            .ok_or_else(|| "No rules found in profile".to_string())?;
+                            .ok_or_else(|| {
+                                InfiltratorError::Config("No rules found in profile".to_string())
+                            })?;
 
-                        let new_rule =
-                            serde_yml::Value::String(format!("{},{},{}", rule_type, payload, target));
+                        let new_rule = serde_yml::Value::String(format!(
+                            "{},{},{}",
+                            rule_type, payload, target
+                        ));
                         rules.insert(0, new_rule);
 
-                        let new_content = serde_yml::to_string(&yaml).map_err(|e: serde_yml::Error| e.to_string())?;
+                        let new_content =
+                            serde_yml::to_string(&yaml).map_err(|e: serde_yml::Error| {
+                                InfiltratorError::Config(e.to_string())
+                            })?;
                         tokio::fs::write(&profile.path, new_content)
                             .await
-                            .map_err(|e: std::io::Error| e.to_string())?;
+                            .map_err(|e: std::io::Error| InfiltratorError::Io(e.to_string()))?;
 
                         Ok(())
                     },
@@ -345,7 +342,7 @@ impl AppState {
                         self.new_rule_payload.clear();
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            Task::done(Message::StartProxy), // Restart to apply
+                            Task::done(Message::StartProxy),
                             Task::done(Message::ShowToast(
                                 "Rule added and core restarted".to_string(),
                                 ToastStatus::Success,
@@ -353,10 +350,16 @@ impl AppState {
                         ])
                     }
                     Err(e) => {
-                        self.error_msg = Some(e.clone());
-                        Task::done(Message::ShowToast(e, ToastStatus::Error))
+                        self.error_msg = Some(e.to_string());
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }
                 }
+            }
+            Message::TickWebDavSync => {
+                if !self.webdav_url.is_empty() && !self.webdav_user.is_empty() {
+                    return Task::done(Message::SyncUpload);
+                }
+                Task::none()
             }
             _ => Task::none(),
         }

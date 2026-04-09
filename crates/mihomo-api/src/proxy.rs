@@ -6,4 +6,4 @@ pub mod types_test;
 
 pub use manager::ProxyManager;
 pub use test::{test_all_delays, test_delay};
-pub use types::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Proxies};
+pub use types::{Proxies, Proxy, ProxyBase, ProxyGroup, ProxyHistory};

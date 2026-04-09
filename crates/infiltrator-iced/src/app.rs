@@ -2,7 +2,7 @@ use crate::autostart;
 use crate::locales::{Lang, Localizer, get_system_language};
 use crate::state::AppState;
 use crate::tray::TrayManager;
-use crate::types::{Message, Route};
+use crate::types::{InfiltratorError, Message, Route, RuntimeStatus};
 use iced::Task;
 use mihomo_config::ConfigManager;
 
@@ -20,12 +20,17 @@ impl AppState {
             Self {
                 current_route: Route::default(),
                 runtime: None,
-                is_starting: false,
+                status: RuntimeStatus::Stopped,
                 error_msg: None,
                 profiles: Vec::new(),
                 is_loading_profiles: true,
                 proxies: std::collections::HashMap::new(),
                 is_loading_proxies: false,
+                filtered_groups: Vec::new(),
+                transition: crate::types::Transition {
+                    opacity: 1.0,
+                    is_animating: false,
+                },
                 proxy_filter: String::new(),
                 proxy_sort_by_delay: false,
                 traffic: None,
@@ -73,6 +78,7 @@ impl AppState {
                 latest_core_version: None,
                 download_progress: 0.0,
                 is_checking_update: false,
+                last_task_id: 0,
                 toasts: Vec::new(),
                 theme: iced::Theme::Dark,
                 editor_content: iced::widget::text_editor::Content::new(),
@@ -91,13 +97,12 @@ impl AppState {
                 ),
                 Task::perform(
                     async {
-                        if let Ok(cm) = ConfigManager::new() {
-                            cm.list_profiles().await.unwrap_or_default()
-                        } else {
-                            vec![]
-                        }
+                        let cm = ConfigManager::new().map_err(InfiltratorError::from)?;
+                        cm.list_profiles()
+                            .await
+                            .map_err(InfiltratorError::from)
                     },
-                    |p| Message::ProfilesLoaded(Ok(p)),
+                    Message::ProfilesLoaded,
                 ),
                 Task::done(Message::LoadKernels),
             ]),

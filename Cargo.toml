@@ -62,4 +62,6 @@ jni = "0.21"
 tokio-stream = "0.1"
 uniffi = "0.30"
 uniffi_bindgen = "0.30"
+muda = "0.15"
+tray-icon = "0.19"
 

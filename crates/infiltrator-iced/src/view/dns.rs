@@ -1,5 +1,6 @@
 use crate::locales::{Lang, Localizer};
 use crate::view::components::card;
+use crate::view::icons;
 use crate::{AppState, Message};
 use iced::widget::{Scrollable, Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Color, Element, Font, Length};
@@ -25,7 +26,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .padding([6, 12])
             .style(button::secondary),
         Space::new().width(10),
-        button(text(save_text).size(12))
+        button(row![text(icons::SAVE).size(12), text(save_text).size(12)].spacing(8))
             .on_press(Message::SaveDns)
             .padding([6, 12])
             .style(button::primary)
@@ -68,7 +69,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .on_input(move |v| Message::UpdateDnsServer(i, v))
                 .padding(10)
                 .size(14),
-                button(text("−").size(14))
+                button(text(icons::REMOVE).size(14))
                     .on_press(Message::RemoveDnsServer(i))
                     .style(button::danger)
                     .padding([8, 12])
@@ -79,7 +80,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     dns_list = dns_list.push(
-        button(text(format!("+ {}", lang.tr("dns_add"))).size(12))
+        button(row![text(icons::ADD).size(12), text(lang.tr("dns_add")).size(12)].spacing(8))
             .on_press(Message::AddDnsServer)
             .padding([6, 12])
             .style(button::secondary),
@@ -99,7 +100,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .on_input(move |v| Message::UpdateFallbackDnsServer(i, v))
                     .padding(10)
                     .size(14),
-                button(text("−").size(14))
+                button(text(icons::REMOVE).size(14))
                     .on_press(Message::RemoveFallbackDnsServer(i))
                     .style(button::danger)
                     .padding([8, 12])
@@ -110,10 +111,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     fallback_list = fallback_list.push(
-        button(text(format!("+ {}", lang.tr("dns_add_fallback"))).size(12))
-            .on_press(Message::AddFallbackDnsServer)
-            .padding([6, 12])
-            .style(button::secondary),
+        button(
+            row![
+                text(icons::ADD).size(12),
+                text(lang.tr("dns_add_fallback")).size(12)
+            ]
+            .spacing(8),
+        )
+        .on_press(Message::AddFallbackDnsServer)
+        .padding([6, 12])
+        .style(button::secondary),
     );
 
     // 4. DNS Templates (Quick Add)
@@ -178,7 +185,7 @@ fn mode_button<'a>(mode: String, label: String, current_mode: &str) -> Element<'
 }
 
 fn template_button<'a>(label: String, url: String) -> Element<'a, Message> {
-    button(text(label).size(11))
+    button(row![text(icons::ADD).size(11), text(label).size(11)].spacing(6))
         .on_press(Message::AddDnsServerTemplate(url))
         .padding([6, 12])
         .style(button::secondary)

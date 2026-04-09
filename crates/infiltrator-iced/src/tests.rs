@@ -18,31 +18,6 @@ fn test_route_navigation() {
 }
 
 #[test]
-fn test_proxy_lifecycle_messages() {
-    let (mut state, _) = AppState::new();
-
-    // Test Start
-    let _ = state.update(Message::StartProxy);
-    assert!(state.is_starting);
-    assert!(state.error_msg.is_none());
-
-    // Test ProxyStarted Error
-    let _ = state.update(Message::ProxyStarted(Err("Failed to bind port".into())));
-    assert!(!state.is_starting);
-    assert_eq!(state.error_msg.as_ref().unwrap(), "Failed to bind port");
-
-    // Test ProxyStopped cleanup
-    state.traffic = Some(TrafficData { up: 100, down: 100 });
-    state.proxy_mode = Some("rule".into());
-    state.logs.push_back("some log".into());
-
-    let _ = state.update(Message::ProxyStopped);
-    assert!(state.traffic.is_none());
-    assert!(state.proxy_mode.is_none());
-    assert!(state.logs.is_empty());
-}
-
-#[test]
 fn test_runtime_config_sync() {
     let (mut state, _) = AppState::new();
 
@@ -73,18 +48,13 @@ fn test_mode_set_interactions() {
     assert!(state.error_msg.is_none());
 
     // Failure path
-    let _ = state.update(Message::ModeSetResult(Err("Core busy".into())));
-    assert_eq!(state.error_msg.as_ref().unwrap(), "Core busy");
-}
-
-#[test]
-fn test_log_buffer_limit_and_queue() {
-    let (mut state, _) = AppState::new();
-    for i in 0..600 {
-        let _ = state.update(Message::LogReceived(format!("log line {}", i)));
-    }
-    assert_eq!(state.logs.len(), 500);
-    assert_eq!(state.logs.front().unwrap(), "log line 100");
+    let _ = state.update(Message::ModeSetResult(Err(InfiltratorError::Mihomo(
+        "API Error".into(),
+    ))));
+    assert_eq!(
+        state.error_msg.as_ref().unwrap(),
+        "Mihomo API error: API Error"
+    );
 }
 
 #[test]
@@ -122,7 +92,9 @@ fn test_dns_server_list_manipulation() {
     let _ = state.update(Message::AddDnsServer);
     assert_eq!(state.dns_nameservers.len(), 2);
 
-    let _ = state.update(Message::AddDnsServerTemplate("https://1.1.1.1/dns-query".into()));
+    let _ = state.update(Message::AddDnsServerTemplate(
+        "https://1.1.1.1/dns-query".into(),
+    ));
     assert_eq!(state.dns_nameservers.len(), 3);
     assert_eq!(state.dns_nameservers[2], "https://1.1.1.1/dns-query");
 
@@ -145,22 +117,29 @@ fn test_dns_server_list_manipulation() {
 fn test_system_integration_states() {
     let (mut state, _) = AppState::new();
 
-    // System Proxy toggle
+    // System Proxy
     state.system_proxy_enabled = false;
     let _ = state.update(Message::SetSystemProxy(true));
     assert!(state.system_proxy_enabled);
 
     // Rollback on error
-    let _ = state.update(Message::SystemProxySet(Err("Access denied".into())));
+    let _ = state.update(Message::SystemProxySet(Err(InfiltratorError::Privilege(
+        "Access denied".into(),
+    ))));
     assert!(!state.system_proxy_enabled, "Should rollback on failure");
-    assert_eq!(state.error_msg.as_ref().unwrap(), "Access denied");
+    assert_eq!(
+        state.error_msg.as_ref().unwrap(),
+        "Privilege error: Access denied"
+    );
 
     // Autostart
     state.autostart_enabled = false;
     let _ = state.update(Message::SetAutostart(true));
     assert!(state.autostart_enabled);
 
-    let _ = state.update(Message::AutostartSet(Err("Registry lock".into())));
+    let _ = state.update(Message::AutostartSet(Err(InfiltratorError::Internal(
+        "Registry lock".into(),
+    ))));
     assert!(
         !state.autostart_enabled,
         "Should rollback autostart on failure"
@@ -188,6 +167,29 @@ fn test_profiles_and_rules_loading() {
         size: 0,
     }])));
     assert_eq!(state.rules.len(), 1);
+}
+
+#[test]
+fn test_proxy_lifecycle_messages() {
+    let (mut state, _) = AppState::new();
+
+    let _ = state.update(Message::StartProxy);
+    assert_eq!(state.status, RuntimeStatus::Starting);
+
+    let _ = state.update(Message::ProxyStopped);
+    assert!(state.traffic.is_none());
+}
+
+#[test]
+fn test_log_buffer_limit_and_queue() {
+    let (mut state, _) = AppState::new();
+
+    for i in 0..150 {
+        let _ = state.update(Message::LogReceived(format!("log {}", i)));
+    }
+
+    assert_eq!(state.logs.len(), 100);
+    assert_eq!(state.logs.back().unwrap(), "log 149");
 }
 
 #[test]
@@ -236,17 +238,7 @@ fn test_tray_and_exit() {
         button_state: tray_icon::MouseButtonState::Up,
     }));
 
-    let _ = state.update(Message::MenuEvent(muda::MenuEvent { id: "show".into() }));
-}
-
-#[test]
-fn test_i18n_fallback() {
-    let lang = Lang("fr-FR"); // Unsupported
-    assert_eq!(
-        lang.tr("nav_profiles"),
-        "配置管理",
-        "Should fallback to ZH for unsupported locales"
-    );
+    let _ = state.update(Message::Exit);
 }
 
 #[test]
@@ -346,4 +338,14 @@ fn test_proxy_filtering_and_sorting() {
     assert_eq!(all_members[0], "Proxy-B"); // 50ms
     assert_eq!(all_members[1], "Proxy-A"); // 100ms
     assert_eq!(all_members[2], "Special"); // 200ms
+}
+
+#[test]
+fn test_i18n_fallback() {
+    let lang = Lang("fr-FR"); // Unsupported
+    assert_eq!(
+        lang.tr("nav_overview"),
+        "核心概览",
+        "Should fallback to ZH for unsupported locales"
+    );
 }

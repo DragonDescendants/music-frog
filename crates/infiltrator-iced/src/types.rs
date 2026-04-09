@@ -1,4 +1,5 @@
 use iced::{widget::text_editor, window};
+pub use infiltrator_core::error::InfiltratorError;
 use infiltrator_desktop::MihomoRuntime;
 use mihomo_api::{ConnectionSnapshot, Rule, TrafficData};
 use mihomo_config::Profile;
@@ -31,6 +32,21 @@ pub enum ToastStatus {
     Error,
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Transition {
+    pub opacity: f32,
+    pub is_animating: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum RuntimeStatus {
+    #[default]
+    Stopped,
+    Starting,
+    Running,
+    Error(InfiltratorError),
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     pub mode: String,
@@ -49,23 +65,23 @@ pub enum Message {
     Navigate(Route),
     StartProxy,
     StopProxy,
-    ProxyStarted(Result<Arc<MihomoRuntime>, String>),
+    ProxyStarted(Result<Arc<MihomoRuntime>, InfiltratorError>),
     ProxyStopped,
     LoadProfiles,
-    ProfilesLoaded(Result<Vec<Profile>, String>),
+    ProfilesLoaded(Result<Vec<Profile>, InfiltratorError>),
     SetActiveProfile(String),
     UpdateImportUrl(String),
     UpdateImportName(String),
     ImportProfile,
-    ProfileImported(Result<(), String>),
+    ProfileImported(Result<(), InfiltratorError>),
     LoadProxies,
-    ProxiesLoaded(Result<HashMap<String, mihomo_api::Proxy>, String>),
+    ProxiesLoaded(Result<HashMap<String, mihomo_api::Proxy>, InfiltratorError>),
     SelectProxy(String, String),
     FilterProxies(String),
     ToggleProxySort,
     TrafficReceived(TrafficData),
     MemoryReceived(mihomo_api::MemoryData),
-    IpInfoReceived(Result<String, String>),
+    IpInfoReceived(Result<String, InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
     SetLogLevel(String),
@@ -73,17 +89,17 @@ pub enum Message {
     CloseAllConnections,
     FetchRuntimeConfig,
     FetchIpInfo,
-    RuntimeConfigFetched(Result<RuntimeConfig, String>),
+    RuntimeConfigFetched(Result<RuntimeConfig, InfiltratorError>),
     SetProxyMode(String),
     SetTunEnabled(bool),
     SetTunStack(String),
     SetTunAutoRoute(bool),
     SetTunStrictRoute(bool),
     SetSnifferEnabled(bool),
-    ModeSetResult(Result<(), String>),
-    OperationResult(Result<(), String>),
+    ModeSetResult(Result<(), InfiltratorError>),
+    OperationResult(Result<(), InfiltratorError>),
     LoadRules,
-    RulesLoaded(Result<Vec<Rule>, String>),
+    RulesLoaded(Result<Vec<Rule>, InfiltratorError>),
     LoadProviders,
     ProvidersLoaded(
         Result<
@@ -91,22 +107,24 @@ pub enum Message {
                 Vec<mihomo_api::ProxyProvider>,
                 Vec<mihomo_api::RuleProvider>,
             ),
-            String,
+            InfiltratorError,
         >,
     ),
     UpdateProxyProvider(String),
     UpdateRuleProvider(String),
     FilterRules(String),
+    UpdateFilteredGroups,
     UpdateNewRuleType(String),
     UpdateNewRulePayload(String),
     UpdateNewRuleTarget(String),
     AddCustomRule,
-    RuleAdded(Result<(), String>),
+    RuleAdded(Result<(), InfiltratorError>),
     TickSubUpdate,
     TickWebDavSync,
     TrayIconEvent(TrayIconEvent),
     MenuEvent(MenuEvent),
     Exit,
+    TickTransition,
     UpdateDnsServer(usize, String),
     UpdateDnsEnhancedMode(String),
     AddDnsServer,
@@ -116,30 +134,30 @@ pub enum Message {
     AddFallbackDnsServer,
     RemoveFallbackDnsServer(usize),
     SaveDns,
-    DnsSaved(Result<(), String>),
+    DnsSaved(Result<(), InfiltratorError>),
     SetAutostart(bool),
-    AutostartSet(Result<(), String>),
+    AutostartSet(Result<(), InfiltratorError>),
     UpdateWebDavUrl(String),
     UpdateWebDavUser(String),
     UpdateWebDavPass(String),
     SyncUpload,
     SyncDownload,
-    SyncFinished(Result<(), String>),
+    SyncFinished(Result<(), InfiltratorError>),
     SetSystemProxy(bool),
-    SystemProxySet(Result<(), String>),
+    SystemProxySet(Result<(), InfiltratorError>),
     RequestAdminPrivilege,
     EditProfile(PathBuf),
-    ProfileContentLoaded(Result<(PathBuf, String), String>),
+    ProfileContentLoaded(Result<(PathBuf, String), InfiltratorError>),
     EditorAction(text_editor::Action),
     SaveProfile,
-    ProfileSaved(Result<(), String>),
+    ProfileSaved(Result<(), InfiltratorError>),
     LoadKernels,
-    KernelsLoaded(Result<Vec<VersionInfo>, String>),
+    KernelsLoaded(Result<Vec<VersionInfo>, InfiltratorError>),
     CheckCoreUpdate,
-    CoreUpdateInfo(Result<String, String>), // Latest version string
+    CoreUpdateInfo(Result<String, InfiltratorError>), // Latest version string
     DownloadCore(String),
     CoreDownloadProgress(f32),
-    CoreDownloadFinished(Result<String, String>),
+    CoreDownloadFinished(Result<String, InfiltratorError>),
     DeleteKernel(String),
     SetDefaultKernel(String),
     FactoryReset,
@@ -147,6 +165,7 @@ pub enum Message {
     FlushFakeIpCache,
     TestProxyDelay(String),
     TestGroupDelay(String),
+    ProxyTested(String, Result<u64, InfiltratorError>),
     WindowClosed(window::Id),
     HideWindow,
     ShowWindow,
@@ -162,20 +181,20 @@ impl std::fmt::Debug for Message {
             Message::StartProxy => write!(f, "StartProxy"),
             Message::StopProxy => write!(f, "StopProxy"),
             Message::ProxyStarted(Ok(_)) => write!(f, "ProxyStarted(Ok)"),
-            Message::ProxyStarted(Err(e)) => write!(f, "ProxyStarted(Err({}))", e),
+            Message::ProxyStarted(Err(e)) => write!(f, "ProxyStarted(Err({:?}))", e),
             Message::ProxyStopped => write!(f, "ProxyStopped"),
             Message::LoadProfiles => write!(f, "LoadProfiles"),
             Message::ProfilesLoaded(Ok(p)) => write!(f, "ProfilesLoaded(Ok({} profiles))", p.len()),
-            Message::ProfilesLoaded(Err(e)) => write!(f, "ProfilesLoaded(Err({}))", e),
+            Message::ProfilesLoaded(Err(e)) => write!(f, "ProfilesLoaded(Err({:?}))", e),
             Message::SetActiveProfile(name) => write!(f, "SetActiveProfile({})", name),
             Message::UpdateImportUrl(url) => write!(f, "UpdateImportUrl({})", url),
             Message::UpdateImportName(name) => write!(f, "UpdateImportName({})", name),
             Message::ImportProfile => write!(f, "ImportProfile"),
             Message::ProfileImported(Ok(_)) => write!(f, "ProfileImported(Ok)"),
-            Message::ProfileImported(Err(e)) => write!(f, "ProfileImported(Err({}))", e),
+            Message::ProfileImported(Err(e)) => write!(f, "ProfileImported(Err({:?}))", e),
             Message::LoadProxies => write!(f, "LoadProxies"),
             Message::ProxiesLoaded(Ok(p)) => write!(f, "ProxiesLoaded(Ok({} proxies))", p.len()),
-            Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({}))", e),
+            Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({:?}))", e),
             Message::SelectProxy(g, n) => write!(f, "SelectProxy({}, {})", g, n),
             Message::FilterProxies(s) => write!(f, "FilterProxies({})", s),
             Message::ToggleProxySort => write!(f, "ToggleProxySort"),
@@ -187,8 +206,12 @@ impl std::fmt::Debug for Message {
                 "MemoryReceived(in_use: {}, os_limit: {})",
                 m.in_use, m.os_limit
             ),
-            Message::IpInfoReceived(Ok(ip)) => write!(f, "IpInfoReceived(Ok({}))", ip),
-            Message::IpInfoReceived(Err(e)) => write!(f, "IpInfoReceived(Err({}))", e),
+            Message::IpInfoReceived(Ok(ip), id) => {
+                write!(f, "IpInfoReceived(Ok({}), taskId: {})", ip, id)
+            }
+            Message::IpInfoReceived(Err(e), id) => {
+                write!(f, "IpInfoReceived(Err({:?}), taskId: {})", e, id)
+            }
             Message::ConnectionsReceived(c) => write!(
                 f,
                 "ConnectionsReceived({} connections)",
@@ -215,7 +238,9 @@ impl std::fmt::Debug for Message {
                     config.sniffer_enabled
                 )
             }
-            Message::RuntimeConfigFetched(Err(e)) => write!(f, "RuntimeConfigFetched(Err({}))", e),
+            Message::RuntimeConfigFetched(Err(e)) => {
+                write!(f, "RuntimeConfigFetched(Err({:?}))", e)
+            }
             Message::SetProxyMode(m) => write!(f, "SetProxyMode({})", m),
             Message::SetTunEnabled(t) => write!(f, "SetTunEnabled({})", t),
             Message::SetTunStack(s) => write!(f, "SetTunStack({})", s),
@@ -223,12 +248,12 @@ impl std::fmt::Debug for Message {
             Message::SetTunStrictRoute(s) => write!(f, "SetTunStrictRoute({})", s),
             Message::SetSnifferEnabled(s) => write!(f, "SetSnifferEnabled({})", s),
             Message::ModeSetResult(Ok(_)) => write!(f, "ModeSetResult(Ok)"),
-            Message::ModeSetResult(Err(e)) => write!(f, "ModeSetResult(Err({}))", e),
+            Message::ModeSetResult(Err(e)) => write!(f, "ModeSetResult(Err({:?}))", e),
             Message::OperationResult(Ok(_)) => write!(f, "OperationResult(Ok)"),
-            Message::OperationResult(Err(e)) => write!(f, "OperationResult(Err({}))", e),
+            Message::OperationResult(Err(e)) => write!(f, "OperationResult(Err({:?}))", e),
             Message::LoadRules => write!(f, "LoadRules"),
             Message::RulesLoaded(Ok(r)) => write!(f, "RulesLoaded(Ok({} rules))", r.len()),
-            Message::RulesLoaded(Err(e)) => write!(f, "RulesLoaded(Err({}))", e),
+            Message::RulesLoaded(Err(e)) => write!(f, "RulesLoaded(Err({:?}))", e),
             Message::LoadProviders => write!(f, "LoadProviders"),
             Message::ProvidersLoaded(Ok((p, r))) => write!(
                 f,
@@ -236,21 +261,23 @@ impl std::fmt::Debug for Message {
                 p.len(),
                 r.len()
             ),
-            Message::ProvidersLoaded(Err(e)) => write!(f, "ProvidersLoaded(Err({}))", e),
+            Message::ProvidersLoaded(Err(e)) => write!(f, "ProvidersLoaded(Err({:?}))", e),
             Message::UpdateProxyProvider(p) => write!(f, "UpdateProxyProvider({})", p),
             Message::UpdateRuleProvider(p) => write!(f, "UpdateRuleProvider({})", p),
             Message::FilterRules(s) => write!(f, "FilterRules({})", s),
+            Message::UpdateFilteredGroups => write!(f, "UpdateFilteredGroups"),
             Message::UpdateNewRuleType(s) => write!(f, "UpdateNewRuleType({})", s),
             Message::UpdateNewRulePayload(s) => write!(f, "UpdateNewRulePayload({})", s),
             Message::UpdateNewRuleTarget(s) => write!(f, "UpdateNewRuleTarget({})", s),
             Message::AddCustomRule => write!(f, "AddCustomRule"),
             Message::RuleAdded(Ok(_)) => write!(f, "RuleAdded(Ok)"),
-            Message::RuleAdded(Err(e)) => write!(f, "RuleAdded(Err({}))", e),
+            Message::RuleAdded(Err(e)) => write!(f, "RuleAdded(Err({:?}))", e),
             Message::TickSubUpdate => write!(f, "TickSubUpdate"),
             Message::TickWebDavSync => write!(f, "TickWebDavSync"),
             Message::TrayIconEvent(_) => write!(f, "TrayIconEvent"),
             Message::MenuEvent(e) => write!(f, "MenuEvent({:?})", e),
             Message::Exit => write!(f, "Exit"),
+            Message::TickTransition => write!(f, "TickTransition"),
             Message::UpdateDnsServer(i, s) => write!(f, "UpdateDnsServer({}, {})", i, s),
             Message::UpdateDnsEnhancedMode(m) => write!(f, "UpdateDnsEnhancedMode({})", m),
             Message::AddDnsServer => write!(f, "AddDnsServer"),
@@ -262,49 +289,57 @@ impl std::fmt::Debug for Message {
             Message::AddFallbackDnsServer => write!(f, "AddFallbackDnsServer"),
             Message::RemoveFallbackDnsServer(i) => write!(f, "RemoveFallbackDnsServer({})", i),
             Message::SaveDns => write!(f, "SaveDns"),
-            Message::DnsSaved(Err(e)) => write!(f, "DnsSaved(Err({}))", e),
             Message::DnsSaved(Ok(_)) => write!(f, "DnsSaved(Ok)"),
+            Message::DnsSaved(Err(e)) => write!(f, "DnsSaved(Err({:?}))", e),
             Message::SetAutostart(b) => write!(f, "SetAutostart({})", b),
             Message::AutostartSet(Ok(_)) => write!(f, "AutostartSet(Ok)"),
-            Message::AutostartSet(Err(e)) => write!(f, "AutostartSet(Err({}))", e),
+            Message::AutostartSet(Err(e)) => write!(f, "AutostartSet(Err({:?}))", e),
             Message::UpdateWebDavUrl(s) => write!(f, "UpdateWebDavUrl({})", s),
             Message::UpdateWebDavUser(s) => write!(f, "UpdateWebDavUser({})", s),
             Message::UpdateWebDavPass(_) => write!(f, "UpdateWebDavPass(***)"),
             Message::SyncUpload => write!(f, "SyncUpload"),
             Message::SyncDownload => write!(f, "SyncDownload"),
             Message::SyncFinished(Ok(_)) => write!(f, "SyncFinished(Ok)"),
-            Message::SyncFinished(Err(e)) => write!(f, "SyncFinished(Err({}))", e),
+            Message::SyncFinished(Err(e)) => write!(f, "SyncFinished(Err({:?}))", e),
             Message::SetSystemProxy(b) => write!(f, "SetSystemProxy({})", b),
             Message::SystemProxySet(Ok(_)) => write!(f, "SystemProxySet(Ok)"),
-            Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({}))", e),
+            Message::SystemProxySet(Err(e)) => write!(f, "SystemProxySet(Err({:?}))", e),
             Message::RequestAdminPrivilege => write!(f, "RequestAdminPrivilege"),
             Message::EditProfile(p) => write!(f, "EditProfile({:?})", p),
             Message::ProfileContentLoaded(Ok((p, _))) => {
                 write!(f, "ProfileContentLoaded(Ok({:?}))", p)
             }
-            Message::ProfileContentLoaded(Err(e)) => write!(f, "ProfileContentLoaded(Err({}))", e),
+            Message::ProfileContentLoaded(Err(e)) => {
+                write!(f, "ProfileContentLoaded(Err({:?}))", e)
+            }
             Message::EditorAction(_) => write!(f, "EditorAction"),
             Message::SaveProfile => write!(f, "SaveProfile"),
             Message::ProfileSaved(Ok(_)) => write!(f, "ProfileSaved(Ok)"),
-            Message::ProfileSaved(Err(e)) => write!(f, "ProfileSaved(Err({}))", e),
+            Message::ProfileSaved(Err(e)) => write!(f, "ProfileSaved(Err({:?}))", e),
             Message::LoadKernels => write!(f, "LoadKernels"),
-            Message::KernelsLoaded(Ok(v)) => write!(f, "KernelsLoaded(Ok({} versions))", v.len()),
-            Message::KernelsLoaded(Err(e)) => write!(f, "KernelsLoaded(Err({}))", e),
+            Message::KernelsLoaded(Ok(k)) => write!(f, "KernelsLoaded(Ok({} kernels))", k.len()),
+            Message::KernelsLoaded(Err(e)) => write!(f, "KernelsLoaded(Err({:?}))", e),
             Message::CheckCoreUpdate => write!(f, "CheckCoreUpdate"),
             Message::CoreUpdateInfo(Ok(v)) => write!(f, "CoreUpdateInfo(Ok({}))", v),
-            Message::CoreUpdateInfo(Err(e)) => write!(f, "CoreUpdateInfo(Err({}))", e),
+            Message::CoreUpdateInfo(Err(e)) => write!(f, "CoreUpdateInfo(Err({:?}))", e),
             Message::DownloadCore(v) => write!(f, "DownloadCore({})", v),
-            Message::CoreDownloadProgress(p) => write!(f, "CoreDownloadProgress({})", p),
+            Message::CoreDownloadProgress(p) => {
+                write!(f, "CoreDownloadProgress({:.2}%)", p * 100.0)
+            }
             Message::CoreDownloadFinished(Ok(v)) => write!(f, "CoreDownloadFinished(Ok({}))", v),
-            Message::CoreDownloadFinished(Err(e)) => write!(f, "CoreDownloadFinished(Err({}))", e),
+            Message::CoreDownloadFinished(Err(e)) => {
+                write!(f, "CoreDownloadFinished(Err({:?}))", e)
+            }
             Message::DeleteKernel(v) => write!(f, "DeleteKernel({})", v),
             Message::SetDefaultKernel(v) => write!(f, "SetDefaultKernel({})", v),
             Message::FactoryReset => write!(f, "FactoryReset"),
             Message::OpenConfigDir => write!(f, "OpenConfigDir"),
             Message::FlushFakeIpCache => write!(f, "FlushFakeIpCache"),
-            Message::TestProxyDelay(n) => write!(f, "TestProxyDelay({})", n),
+            Message::TestProxyDelay(p) => write!(f, "TestProxyDelay({})", p),
             Message::TestGroupDelay(g) => write!(f, "TestGroupDelay({})", g),
-            Message::WindowClosed(_) => write!(f, "WindowClosed"),
+            Message::ProxyTested(p, Ok(d)) => write!(f, "ProxyTested({}, Ok({}ms))", p, d),
+            Message::ProxyTested(p, Err(e)) => write!(f, "ProxyTested({}, Err({:?}))", p, e),
+            Message::WindowClosed(id) => write!(f, "WindowClosed({:?})", id),
             Message::HideWindow => write!(f, "HideWindow"),
             Message::ShowWindow => write!(f, "ShowWindow"),
             Message::ToggleTheme => write!(f, "ToggleTheme"),

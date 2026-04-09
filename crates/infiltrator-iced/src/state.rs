@@ -1,5 +1,5 @@
 use crate::tray::TrayManager;
-use crate::types::{Route, ToastStatus};
+use crate::types::{Route, RuntimeStatus, ToastStatus};
 use iced::Theme;
 use iced::widget::text_editor;
 use infiltrator_desktop::MihomoRuntime;
@@ -13,12 +13,14 @@ use std::sync::Arc;
 pub struct AppState {
     pub current_route: Route,
     pub runtime: Option<Arc<MihomoRuntime>>,
-    pub is_starting: bool,
+    pub status: RuntimeStatus,
     pub error_msg: Option<String>,
     pub profiles: Vec<Profile>,
     pub is_loading_profiles: bool,
     pub proxies: HashMap<String, mihomo_api::Proxy>,
     pub is_loading_proxies: bool,
+    pub filtered_groups: Vec<(String, Vec<String>)>,
+    pub transition: crate::types::Transition,
     pub proxy_filter: String,
     pub proxy_sort_by_delay: bool,
     pub traffic: Option<TrafficData>,
@@ -64,6 +66,7 @@ pub struct AppState {
     pub latest_core_version: Option<String>,
     pub download_progress: f32,
     pub is_checking_update: bool,
+    pub last_task_id: usize,
     pub toasts: Vec<(String, ToastStatus)>,
     pub theme: Theme,
     pub editor_content: text_editor::Content,

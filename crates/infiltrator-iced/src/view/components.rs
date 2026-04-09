@@ -3,33 +3,46 @@ use iced::widget::{Space, button, canvas, container, text};
 use iced::{Border, Color, Element, Length, Point, Rectangle, Renderer, Theme, border, mouse};
 use std::collections::VecDeque;
 
+use crate::view::icons;
+
 pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Element<'a, Message> {
     let is_active = route == *current_route;
+    let icon = match route {
+        Route::Overview => icons::DASHBOARD,
+        Route::Profiles => icons::PROFILE,
+        Route::Proxies => icons::PROXY,
+        Route::Runtime => icons::ACTIVITY,
+        Route::Rules => icons::RULES,
+        Route::Dns => icons::DNS,
+        Route::Sync => icons::SYNC,
+        Route::Settings => icons::SETTINGS,
+        Route::Editor => icons::EDITOR,
+    };
 
     let content = container(
         row![
             if is_active {
-                Element::from(
-                    container(Space::new().width(4).height(16)).style(|_theme: &Theme| {
-                        container::Style {
-                            background: Some(Color::from_rgb(0.3, 0.6, 1.0).into()),
-                            border: Border {
-                                radius: border::Radius {
-                                    top_left: 0.0,
-                                    top_right: 2.0,
-                                    bottom_right: 2.0,
-                                    bottom_left: 0.0,
-                                },
-                                ..Default::default()
+                Element::from(container(Space::new().width(4).height(16)).style(
+                    |_theme: &Theme| container::Style {
+                        background: Some(Color::from_rgb(0.3, 0.6, 1.0).into()),
+                        border: Border {
+                            radius: border::Radius {
+                                top_left: 0.0,
+                                top_right: 2.0,
+                                bottom_right: 2.0,
+                                bottom_left: 0.0,
                             },
                             ..Default::default()
-                        }
-                    }),
-                )
+                        },
+                        ..Default::default()
+                    },
+                ))
             } else {
                 Element::from(Space::new().width(4).height(16))
             },
             Space::new().width(12),
+            text(icon).size(14),
+            Space::new().width(8),
             text(label).size(14),
         ]
         .align_y(Alignment::Center),
@@ -66,8 +79,8 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         .into()
 }
 
-use iced::widget::row;
 use iced::Alignment;
+use iced::widget::row;
 
 pub fn status_dot<'a>(active: bool) -> Element<'a, Message> {
     let color = if active {
@@ -88,18 +101,37 @@ pub fn status_dot<'a>(active: bool) -> Element<'a, Message> {
         .into()
 }
 
-pub fn card<'a, T: Into<Element<'a, Message>>>(content: T) -> Element<'a, Message> {
+pub fn card<'a, Message: 'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     container(content)
         .width(Length::Fill)
         .style(|_theme: &Theme| container::Style {
-            background: Some(Color::from_rgba(0.1, 0.1, 0.1, 0.5).into()),
+            background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.02).into()),
             border: Border {
                 radius: border::Radius::from(12.0),
-                ..Default::default()
+                width: 1.0,
+                color: Color::from_rgba(1.0, 1.0, 1.0, 0.04),
             },
             ..Default::default()
         })
         .padding(20)
+        .into()
+}
+
+pub fn premium_card<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .style(|_theme: &Theme| container::Style {
+            background: Some(Color::from_rgba(0.3, 0.6, 1.0, 0.03).into()),
+            border: Border {
+                radius: border::Radius::from(16.0),
+                width: 1.0,
+                color: Color::from_rgba(0.3, 0.6, 1.0, 0.1),
+            },
+            ..Default::default()
+        })
+        .padding(25)
         .into()
 }
 

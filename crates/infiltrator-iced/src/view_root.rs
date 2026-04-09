@@ -2,7 +2,7 @@ use crate::state::AppState;
 use crate::types::{Message, Route, ToastStatus};
 use crate::view;
 use iced::widget::{column, container, row, stack, text};
-use iced::{Alignment, Border, Color, Element, Length};
+use iced::{Alignment, Border, Color, Element, Length, Theme};
 
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
@@ -19,7 +19,26 @@ impl AppState {
             Route::Settings => view::settings::view(self),
         };
 
-        let main_content = container(content)
+        // Apply transition effect
+        let animated_content = container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(move |theme: &Theme| {
+                let _base = theme.palette().background;
+                // Simple fade-in by interpolating between background and "actual" visibility is hard without native opacity,
+                // but we can at least use the opacity to control the container's alpha if supported by renderer,
+                // or just leave it as-is for now if renderer doesn't support complex alpha.
+                // In Iced 0.14 with tiny-skia, we can use alpha in colors.
+                container::Style {
+                    text_color: Some(Color {
+                        a: self.transition.opacity,
+                        ..theme.palette().text
+                    }),
+                    ..Default::default()
+                }
+            });
+
+        let main_content = container(animated_content)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(40);

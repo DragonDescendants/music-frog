@@ -17,7 +17,9 @@ impl AppState {
             | Message::ShowWindow
             | Message::Exit
             | Message::ShowToast(_, _)
-            | Message::RemoveToast(_) => self.update_ui(message),
+            | Message::RemoveToast(_)
+            | Message::SetSystemProxy(_)
+            | Message::SystemProxySet(_) => self.update_ui(message),
 
             // Profiles & Sync
             Message::LoadProfiles
