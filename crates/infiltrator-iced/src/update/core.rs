@@ -541,8 +541,8 @@ impl AppState {
                 }
             }
             Message::UpdateDnsServer(index, server) => {
-                if index < self.dns_nameservers.len() {
-                    self.dns_nameservers[index] = server;
+                if let Some(target) = self.dns_nameservers.get_mut(index) {
+                    *target = server;
                 }
                 Task::none()
             }

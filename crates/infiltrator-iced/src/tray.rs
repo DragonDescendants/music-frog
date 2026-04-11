@@ -3,7 +3,7 @@ use std::path::Path;
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 pub struct TrayManager {
-    pub tray_icon: TrayIcon,
+    pub tray_icon: Option<TrayIcon>,
     pub menu: Menu,
     pub groups_menu: Submenu,
     pub system_proxy_item: CheckMenuItem,
@@ -53,7 +53,8 @@ impl TrayManager {
             builder = builder.with_icon(i);
         }
 
-        let tray_icon = builder.build().unwrap();
+        // 这里的 build() 可能因为系统不支持或资源冲突失败，包装在 Option 中
+        let tray_icon = builder.build().ok();
 
         Self {
             tray_icon,
@@ -70,7 +71,6 @@ impl TrayManager {
     }
 
     pub fn update_groups(&self, groups: &std::collections::HashMap<String, mihomo_api::Proxy>) {
-        // Clear existing items using remove_at
         while !self.groups_menu.items().is_empty() {
             let _ = self.groups_menu.remove_at(0);
         }

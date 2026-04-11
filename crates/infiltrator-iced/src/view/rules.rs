@@ -2,9 +2,7 @@ use crate::locales::{Lang, Localizer};
 use crate::view::components::card;
 use crate::view::icons;
 use crate::{AppState, Message};
-use iced::widget::{
-    Scrollable, Space, button, column, container, pick_list, row, text, text_input,
-};
+use iced::widget::{Scrollable, Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Font, Length, Theme, border};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -23,7 +21,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut available_targets: Vec<String> = state
         .proxies
         .iter()
-        .filter(|(_, p)| p.is_group())
+        .filter(|(_, p): &(&String, &mihomo_api::Proxy)| p.is_group())
         .map(|(name, _)| name.clone())
         .collect();
     available_targets.sort();
@@ -78,20 +76,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             Space::new().width(15),
             column![
                 text(" ").size(12),
-                button(
-                    row![
-                        text(icons::ADD).size(12),
-                        text(lang.tr("rules_add_btn")).size(12)
-                    ]
-                    .spacing(8)
-                )
-                .on_press(Message::AddCustomRule)
-                .padding([8, 16])
-                .style(if state.is_adding_rule {
-                    button::secondary
-                } else {
-                    button::primary
-                }),
+                button(row![text(icons::ADD).size(12), text(lang.tr("rules_add_btn")).size(12)].spacing(8))
+                    .on_press(Message::AddCustomRule)
+                    .padding([8, 16])
+                    .style(if state.is_adding_rule { button::secondary } else { button::primary }),
             ]
             .spacing(5),
         ]
@@ -128,17 +116,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         if state.is_loading_rules || state.is_loading_providers {
             Element::from(text("..."))
         } else {
-            button(
-                row![
-                    text(icons::REFRESH).size(12),
-                    text(lang.tr("refresh")).size(12)
-                ]
-                .spacing(8),
-            )
-            .on_press(Message::LoadRules)
-            .padding([6, 12])
-            .style(button::secondary)
-            .into()
+            button(row![text(icons::REFRESH).size(12), text(lang.tr("refresh")).size(12)].spacing(8))
+                .on_press(Message::LoadRules)
+                .padding([6, 12])
+                .style(button::secondary)
+                .into()
         }
     ]
     .align_y(Alignment::Center);
@@ -152,10 +134,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     if state.proxy_providers.is_empty() {
         proxy_providers_list =
-            proxy_providers_list.push(text(lang.tr("rules_no_providers")).size(12).style(|_| {
-                text::Style {
-                    color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
-                }
+            proxy_providers_list.push(text(lang.tr("rules_no_providers")).size(12).style(|_| text::Style {
+                color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
             }));
     } else {
         for provider in &state.proxy_providers {
@@ -174,16 +154,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             }),
                         ]
                         .width(Length::Fill),
-                        button(
-                            row![
-                                text(icons::UPDATE).size(10),
-                                text(lang.tr("btn_update")).size(10)
-                            ]
-                            .spacing(6)
-                        )
-                        .on_press(Message::UpdateProxyProvider(provider.name.clone()))
-                        .padding([4, 8])
-                        .style(button::secondary)
+                        button(row![text(icons::UPDATE).size(10), text(lang.tr("btn_update")).size(10)].spacing(6))
+                            .on_press(Message::UpdateProxyProvider(provider.name.clone()))
+                            .padding([4, 8])
+                            .style(button::secondary)
                     ]
                     .align_y(Alignment::Center),
                 )
@@ -208,10 +182,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     if state.rule_providers.is_empty() {
         rule_providers_list =
-            rule_providers_list.push(text(lang.tr("rules_no_providers")).size(12).style(|_| {
-                text::Style {
-                    color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
-                }
+            rule_providers_list.push(text(lang.tr("rules_no_providers")).size(12).style(|_| text::Style {
+                color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
             }));
     } else {
         for provider in &state.rule_providers {
@@ -230,16 +202,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             }),
                         ]
                         .width(Length::Fill),
-                        button(
-                            row![
-                                text(icons::UPDATE).size(10),
-                                text(lang.tr("btn_update")).size(10)
-                            ]
-                            .spacing(6)
-                        )
-                        .on_press(Message::UpdateRuleProvider(provider.name.clone()))
-                        .padding([4, 8])
-                        .style(button::secondary)
+                        button(row![text(icons::UPDATE).size(10), text(lang.tr("btn_update")).size(10)].spacing(6))
+                            .on_press(Message::UpdateRuleProvider(provider.name.clone()))
+                            .padding([4, 8])
+                            .style(button::secondary)
                     ]
                     .align_y(Alignment::Center),
                 )

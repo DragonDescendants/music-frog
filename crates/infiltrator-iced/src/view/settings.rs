@@ -57,6 +57,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .on_toggle(Message::SetSystemProxy)
             .size(18),
         Space::new().height(15),
+        row![
+            text(lang.tr("theme")).size(14).width(Length::Fill),
+            button(text(if state.theme == Theme::Dark { "Dark Mode" } else { "Light Mode" }).size(12))
+                .on_press(Message::ToggleTheme)
+                .padding([6, 12])
+                .style(button::secondary)
+        ].align_y(Alignment::Center),
+        Space::new().height(15),
         button(text(lang.tr("settings_factory_reset")).size(12))
             .on_press(Message::FactoryReset)
             .padding([8, 16])
@@ -70,11 +78,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         row![
             text(lang.tr("tun_stack")).size(14),
             Space::new().width(10),
-            pick_list(
-                &["gvisor", "mixed", "system"][..],
-                Some(state.tun_stack.as_str()),
-                |s| { Message::SetTunStack(s.to_string()) }
-            )
+            pick_list(&["gvisor", "mixed", "system"][..], Some(state.tun_stack.as_str()), |s| {
+                Message::SetTunStack(s.to_string())
+            })
             .width(Length::Fixed(150.0)),
         ]
         .align_y(Alignment::Center),
@@ -109,23 +115,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // 4. Kernel Management
     let mut kernel_list = column![
         row![
-            text(lang.tr("settings_kernel_mgmt"))
-                .font(bold_font)
-                .width(Length::Fill),
+            text(lang.tr("settings_kernel_mgmt")).font(bold_font).width(Length::Fill),
             if state.is_checking_update {
                 Element::from(text(lang.tr("settings_checking")).size(12))
             } else {
-                button(
-                    row![
-                        text(icons::REFRESH).size(12),
-                        text(lang.tr("settings_check_update")).size(12)
-                    ]
-                    .spacing(8),
-                )
-                .on_press(Message::CheckCoreUpdate)
-                .padding([6, 12])
-                .style(button::secondary)
-                .into()
+                button(row![text(icons::REFRESH).size(12), text(lang.tr("settings_check_update")).size(12)].spacing(8))
+                    .on_press(Message::CheckCoreUpdate)
+                    .padding([6, 12])
+                    .style(button::secondary)
+                    .into()
             }
         ]
         .align_y(Alignment::Center),
@@ -135,24 +133,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     if let Some(latest) = &state.latest_core_version {
         kernel_list = kernel_list.push(
-            container(
-                row![
-                    text(format!("{} {}", lang.tr("settings_available"), latest))
-                        .size(13)
-                        .width(Length::Fill),
-                    button(
-                        row![
-                            text(icons::UPDATE).size(12),
-                            text(lang.tr("settings_download")).size(12)
-                        ]
-                        .spacing(8)
-                    )
+            container(row![
+                text(format!("{} {}", lang.tr("settings_available"), latest)).size(13).width(Length::Fill),
+                button(row![text(icons::UPDATE).size(12), text(lang.tr("settings_download")).size(12)].spacing(8))
                     .on_press(Message::DownloadCore(latest.clone()))
                     .padding([6, 12])
                     .style(button::primary)
-                ]
-                .align_y(Alignment::Center),
-            )
+            ].align_y(Alignment::Center))
             .padding(10)
             .style(|_| container::Style {
                 background: Some(Color::from_rgba(0.2, 0.5, 0.2, 0.1).into()),
@@ -161,12 +148,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     ..Default::default()
                 },
                 ..Default::default()
-            }),
+            })
         );
     }
 
     if state.installed_kernels.is_empty() {
-        kernel_list = kernel_list.push(text(lang.tr("settings_no_kernels")).size(12));
+        kernel_list = kernel_list.push(Element::from(text(lang.tr("settings_no_kernels")).size(12)));
     } else {
         for kernel in &state.installed_kernels {
             kernel_list = kernel_list.push(
@@ -174,15 +161,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     row![
                         column![
                             text(&kernel.version).size(14).font(bold_font),
-                            text(if kernel.is_default {
-                                lang.tr("active_tag")
-                            } else {
-                                "".into()
-                            })
-                            .size(10)
-                            .style(|_| text::Style {
-                                color: Some(Color::from_rgb(0.3, 0.6, 1.0))
-                            }),
+                            text(if kernel.is_default { lang.tr("active_tag") } else { "".into() })
+                                .size(10)
+                                .style(|_| text::Style {
+                                    color: Some(Color::from_rgb(0.3, 0.6, 1.0))
+                                }),
                         ]
                         .width(Length::Fill),
                         if !kernel.is_default {
@@ -198,11 +181,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                                     .style(button::danger),
                             ])
                         } else {
-                            Element::from(text(lang.tr("settings_installed")).size(11).style(
-                                |_| text::Style {
-                                    color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
-                                },
-                            ))
+                            Element::from(text(lang.tr("settings_installed")).size(11).style(|_| text::Style {
+                                color: Some(Color::from_rgb(0.4, 0.4, 0.4))
+                            }))
                         }
                     ]
                     .align_y(Alignment::Center),

@@ -1,14 +1,18 @@
 use crate::state::AppState;
 use crate::types::{InfiltratorError, Message, Route};
 use iced::{Task, Theme, window};
+use std::time::Instant;
 
 impl AppState {
     pub fn update_ui(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Navigate(route) => {
-                self.current_route = route;
-                self.transition.opacity = 0.0;
-                self.transition.is_animating = true;
+                if self.current_route != route {
+                    // 记录旧页面并启动计时器
+                    self.transition.previous_route = Some(self.current_route);
+                    self.transition.start_time = Some(Instant::now());
+                    self.current_route = route;
+                }
 
                 let mut tasks = vec![];
                 if route == Route::Proxies || route == Route::Overview {
@@ -23,12 +27,18 @@ impl AppState {
                 }
                 Task::batch(tasks)
             }
-            Message::TickTransition => {
-                if self.transition.is_animating {
-                    self.transition.opacity += 0.1;
-                    if self.transition.opacity >= 1.0 {
-                        self.transition.opacity = 1.0;
-                        self.transition.is_animating = false;
+            Message::TickFrame(now) => {
+                let delta = now.duration_since(self.last_frame_time).as_secs_f32();
+                if delta > 0.0 {
+                    self.fps = (1.0 / delta) as u32;
+                }
+                self.last_frame_time = now;
+
+                if let Some(start) = self.transition.start_time {
+                    // 动画结束清理
+                    if now.duration_since(start) >= self.transition.duration {
+                        self.transition.previous_route = None;
+                        self.transition.start_time = None;
                     }
                 }
                 Task::none()
@@ -61,6 +71,7 @@ impl AppState {
                 } else {
                     let (_, task) = window::open(window::Settings {
                         size: (1000.0, 700.0).into(),
+                        exit_on_close_request: false,
                         ..Default::default()
                     });
                     task.map(|_: window::Id| Message::Navigate(Route::Overview))
@@ -71,13 +82,12 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
-                            let _ = r.shutdown().await;
+                            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), r.shutdown()).await;
                         }
                     },
                     |_| Message::ProxyStopped,
-                )
-                .then(|_| {
-                    std::process::exit(0);
+                ).then(|_| {
+                    iced::exit()
                 })
             }
             Message::ShowToast(content, status) => {
@@ -101,25 +111,23 @@ impl AppState {
                 self.system_proxy_enabled = enabled;
                 Task::perform(
                     async move {
-                        let endpoint = if enabled {
-                            Some("127.0.0.1:7890")
-                        } else {
-                            None
-                        };
+                        let endpoint = if enabled { Some("127.0.0.1:7890") } else { None };
                         infiltrator_desktop::proxy::apply_system_proxy(endpoint)
                             .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
                     },
                     Message::SystemProxySet,
                 )
             }
-            Message::SystemProxySet(result) => match result {
-                Ok(_) => Task::none(),
-                Err(e) => {
-                    self.system_proxy_enabled = !self.system_proxy_enabled;
-                    self.error_msg = Some(e.to_string());
-                    Task::none()
+            Message::SystemProxySet(result) => {
+                match result {
+                    Ok(_) => Task::none(),
+                    Err(e) => {
+                        self.system_proxy_enabled = !self.system_proxy_enabled;
+                        self.error_msg = Some(e.to_string());
+                        Task::none()
+                    }
                 }
-            },
+            }
             Message::RequestAdminPrivilege => {
                 #[cfg(target_os = "windows")]
                 {
@@ -136,10 +144,11 @@ impl AppState {
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
+                    use crate::locales::{Lang, Localizer};
                     let lang = Lang(&self.lang);
                     return Task::done(Message::ShowToast(
                         lang.tr("settings_uac_unsupported").to_string(),
-                        ToastStatus::Warning,
+                        crate::types::ToastStatus::Warning,
                     ));
                 }
                 Task::none()

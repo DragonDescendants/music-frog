@@ -127,6 +127,7 @@ fn translate_zh_cn(key: &str) -> Cow<'static, str> {
         "admin_authorized" => "🛡️ 已获得管理员权限 (WinTun 就绪)".into(),
         "admin_unauthorized" => "⚠️ 未获得管理员权限 (无法开启 TUN)".into(),
         "autostart" => "开机自启动".into(),
+        "theme" => "界面主题".into(),
         "dark_mode" => "深色模式".into(),
 
         "proxy_mode" => "代理模式".into(),
@@ -252,6 +253,7 @@ fn translate_en(key: &str) -> Cow<'static, str> {
         "admin_authorized" => "🛡️ Admin Authorized (WinTun Ready)".into(),
         "admin_unauthorized" => "⚠️ Not Admin (TUN unavailable)".into(),
         "autostart" => "Start on Boot".into(),
+        "theme" => "Appearance".into(),
         "dark_mode" => "Dark Mode".into(),
 
         "proxy_mode" => "Proxy Mode".into(),

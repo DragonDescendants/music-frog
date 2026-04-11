@@ -1,7 +1,7 @@
 use crate::locales::{Lang, Localizer};
-use crate::types::RuntimeStatus;
 use crate::utils::format_bytes;
 use crate::view::components::{TrafficChart, card};
+use crate::types::RuntimeStatus;
 use crate::{AppState, Message};
 use iced::widget::{Canvas, Scrollable, Space, button, column, container, pick_list, row, text};
 use iced::{Alignment, Border, Color, Element, Font, Length, Theme};
@@ -13,10 +13,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ..Default::default()
     };
 
-    if !matches!(
-        state.status,
-        RuntimeStatus::Running | RuntimeStatus::Starting
-    ) {
+    if !matches!(state.status, RuntimeStatus::Running | RuntimeStatus::Starting) {
         return container(card(text(lang.tr("proxy_not_running"))))
             .width(Length::Fill)
             .height(Length::Fill)
@@ -38,13 +35,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         color: Some(Color::from_rgb(0.5, 0.5, 0.5))
                     }),
                 if let Some(ip) = &state.public_ip {
-                    text(format!("Public IP: {}", ip))
+                    Element::from(text(format!("Public IP: {}", ip))
                         .size(10)
                         .style(|_theme| text::Style {
                             color: Some(Color::from_rgb(0.4, 0.4, 0.4)),
-                        })
+                        }))
                 } else {
-                    text("").size(0)
+                    Element::from(Space::new().width(0).height(0))
                 }
             ],
             Space::new().width(Length::Fill),
@@ -63,13 +60,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         }),
                     Space::new().width(15),
                     if let Some(m) = &state.memory {
-                        text(format!("MEM: {}", format_bytes(m.in_use)))
+                        Element::from(text(format!("MEM: {}", format_bytes(m.in_use)))
                             .size(10)
                             .style(|_theme| text::Style {
                                 color: Some(Color::from_rgb(0.5, 0.5, 0.5)),
-                            })
+                            }))
                     } else {
-                        text("").size(0)
+                        Element::from(Space::new().width(0).height(0))
                     }
                 ]
             } else {
@@ -175,8 +172,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 }));
         }
 
-        connections_section =
-            connections_section.push(Scrollable::new(conn_list).height(Length::Fill));
+        connections_section = connections_section.push(Scrollable::new(conn_list).height(Length::Fill));
     } else {
         connections_section = connections_section.push(text("No active connections").size(12));
     }

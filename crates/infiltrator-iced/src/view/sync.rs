@@ -75,9 +75,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         sync_form,
         Space::new().height(20),
         if state.is_syncing {
-            text("Syncing...").size(14)
+            Element::from(text("Syncing...").size(14))
         } else {
-            text("").size(0)
+            Element::from(Space::new().width(0).height(0))
         }
     ]
     .spacing(10);

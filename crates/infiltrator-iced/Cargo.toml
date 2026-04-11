@@ -33,7 +33,10 @@ version = "0.14.0"
 authors = ["MusicFrog"]
 description = "A native high-performance proxy client."
 icons = ["../../src-tauri/icons/icon.png"]
-resources = ["../../vendor/mihomo.exe"]
+resources = [
+    "../../src-tauri/icons/icon.png",
+    "../../vendor/mihomo.exe"
+]
 
 [package.metadata.packager.wix]
-language = "zh-CN"
+languages = ["zh-CN"]

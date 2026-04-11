@@ -3,11 +3,23 @@ use crate::types::{Message, Route, ToastStatus};
 use crate::view;
 use iced::widget::{column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
+use std::time::Instant;
 
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
         let sidebar = view::sidebar::sidebar(self);
-        let content: Element<Message> = match self.current_route {
+        
+        // 声明式动画进度计算
+        let progress = if let Some(start) = self.transition.start_time {
+            let elapsed = Instant::now().duration_since(start).as_millis() as f32;
+            let duration = self.transition.duration.as_millis() as f32;
+            (elapsed / duration).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+
+        // 核心性能优化：不再同时渲染两个页面。转场时只渲染新页面并做淡入。
+        let main_content = container(match self.current_route {
             Route::Overview => view::overview::view(self),
             Route::Profiles => view::profiles::view(self),
             Route::Proxies => view::proxies::view(self),
@@ -17,37 +29,37 @@ impl AppState {
             Route::Sync => view::sync::view(self),
             Route::Editor => view::editor::view(self),
             Route::Settings => view::settings::view(self),
-        };
-
-        // Apply transition effect
-        let animated_content = container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(move |theme: &Theme| {
-                let _base = theme.palette().background;
-                // Simple fade-in by interpolating between background and "actual" visibility is hard without native opacity,
-                // but we can at least use the opacity to control the container's alpha if supported by renderer,
-                // or just leave it as-is for now if renderer doesn't support complex alpha.
-                // In Iced 0.14 with tiny-skia, we can use alpha in colors.
-                container::Style {
-                    text_color: Some(Color {
-                        a: self.transition.opacity,
-                        ..theme.palette().text
-                    }),
-                    ..Default::default()
-                }
-            });
-
-        let main_content = container(animated_content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(40);
+        })
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(48)
+        .style(move |theme: &Theme| {
+            let is_dark = theme == &Theme::Dark;
+            container::Style {
+                background: Some(if is_dark {
+                    Color::from_rgb(0.02, 0.04, 0.10) 
+                } else {
+                    Color::from_rgb(0.98, 0.98, 1.0)
+                }.into()),
+                // 仅对文字颜色进行透明度插值，这在 CPU 渲染下极快
+                text_color: Some(Color { a: progress, ..theme.palette().text }),
+                ..Default::default()
+            }
+        });
 
         let main_view = row![sidebar, main_content];
 
-        if self.toasts.is_empty() {
-            main_view.into()
-        } else {
+        // FPS 诊断显示 (调试用)
+        let fps_counter = container(
+            text(format!("{} FPS", self.fps))
+                .size(10)
+                .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2)) })
+        )
+        .padding(10);
+
+        let mut layers: Vec<Element<Message>> = vec![main_view.into()];
+
+        if !self.toasts.is_empty() {
             let mut toast_column = column![].spacing(10);
             for (content, status) in &self.toasts {
                 let color = match status {
@@ -59,29 +71,41 @@ impl AppState {
 
                 toast_column = toast_column.push(
                     container(text(content.clone()).size(13))
-                        .padding([10, 20])
+                        .padding([12, 24])
                         .style(move |_| container::Style {
-                            background: Some(Color::from_rgb(0.1, 0.1, 0.1).into()),
+                            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.9).into()),
                             border: Border {
-                                radius: 8.0.into(),
+                                radius: 12.0.into(),
                                 width: 1.0,
                                 color,
                             },
+                            text_color: Some(Color::WHITE),
                             ..Default::default()
                         }),
                 );
             }
 
-            stack![
-                main_view,
+            layers.push(
                 container(toast_column)
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .padding(20)
+                    .padding(30)
                     .align_x(Alignment::End)
                     .align_y(Alignment::End)
-            ]
-            .into()
+                    .into()
+            );
         }
+
+        // 叠加 FPS 计数器
+        layers.push(
+            container(fps_counter)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Alignment::End)
+                .align_y(Alignment::Start)
+                .into()
+        );
+
+        stack(layers).into()
     }
 }

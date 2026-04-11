@@ -1,5 +1,5 @@
 use crate::tray::TrayManager;
-use crate::types::{Route, RuntimeStatus, ToastStatus};
+use crate::types::{Route, RuntimeStatus, ToastStatus, Transition};
 use iced::Theme;
 use iced::widget::text_editor;
 use infiltrator_desktop::MihomoRuntime;
@@ -9,6 +9,7 @@ use mihomo_version::manager::VersionInfo;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub struct AppState {
     pub current_route: Route,
@@ -20,7 +21,7 @@ pub struct AppState {
     pub proxies: HashMap<String, mihomo_api::Proxy>,
     pub is_loading_proxies: bool,
     pub filtered_groups: Vec<(String, Vec<String>)>,
-    pub transition: crate::types::Transition,
+    pub transition: Transition,
     pub proxy_filter: String,
     pub proxy_sort_by_delay: bool,
     pub traffic: Option<TrafficData>,
@@ -69,6 +70,8 @@ pub struct AppState {
     pub last_task_id: usize,
     pub toasts: Vec<(String, ToastStatus)>,
     pub theme: Theme,
+    pub fps: u32,
+    pub last_frame_time: Instant,
     pub editor_content: text_editor::Content,
     pub editor_path: Option<PathBuf>,
 }

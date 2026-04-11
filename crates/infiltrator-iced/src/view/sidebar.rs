@@ -1,8 +1,8 @@
 use crate::locales::{Lang, Localizer};
 use crate::view::components::nav_button;
 use crate::{AppState, Message, Route};
-use iced::widget::{Space, column, container, image, row, text};
-use iced::{Alignment, Color, Element, Length};
+use iced::widget::{Space, column, container, row, text, image};
+use iced::{Alignment, Color, Element, Length, Theme};
 
 pub fn sidebar(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
@@ -11,20 +11,26 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
         ..Default::default()
     };
 
+    // EMBEDDED LOGO: Ensure startup never fails due to missing files
+    const LOGO_BYTES: &[u8] = include_bytes!("../../../../src-tauri/icons/icon.png");
+    
     let logo = container(
         row![
-            image("src-tauri/icons/icon.png").width(32).height(32),
+            image::Image::new(image::Handle::from_bytes(LOGO_BYTES))
+                .width(32)
+                .height(32),
             Space::new().width(12),
             column![
                 text("MusicFrog").size(16).font(bold_font),
-                text("Infiltrator").size(10).style(|_| text::Style {
-                    color: Some(Color::from_rgb(0.4, 0.4, 0.4))
+                text("Infiltrator").size(10).style(|_theme: &Theme| {
+                    let is_dark = _theme == &Theme::Dark;
+                    text::Style {
+                        color: Some(if is_dark { Color::from_rgb(0.4, 0.4, 0.4) } else { Color::from_rgb(0.6, 0.6, 0.6) })
+                    }
                 }),
             ]
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding(20);
+        ].align_y(Alignment::Center)
+    ).padding(20);
 
     container(column![
         logo,
@@ -70,21 +76,30 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
             &state.current_route
         ),
         Space::new().height(Length::Fill),
-        // Bottom version info
         container(
             text(format!("v{}", env!("CARGO_PKG_VERSION")))
                 .size(10)
-                .style(|_theme| text::Style {
-                    color: Some(Color::from_rgb(0.4, 0.4, 0.4))
+                .style(|_theme: &Theme| {
+                    let is_dark = _theme == &Theme::Dark;
+                    text::Style {
+                        color: Some(if is_dark { Color::from_rgb(0.4, 0.4, 0.4) } else { Color::from_rgb(0.6, 0.6, 0.6) })
+                    }
                 })
         )
         .padding(20)
     ])
     .width(220)
     .height(Length::Fill)
-    .style(|_theme| container::Style {
-        background: Some(Color::from_rgb(0.08, 0.08, 0.08).into()),
-        ..Default::default()
+    .style(|_theme: &Theme| {
+        let is_dark = _theme == &Theme::Dark;
+        container::Style {
+            background: Some(if is_dark {
+                Color::from_rgb(0.08, 0.08, 0.08)
+            } else {
+                Color::from_rgb(0.95, 0.95, 0.95)
+            }.into()),
+            ..Default::default()
+        }
     })
     .into()
 }

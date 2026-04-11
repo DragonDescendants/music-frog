@@ -8,6 +8,7 @@ use muda::MenuEvent;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tray_icon::TrayIconEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -32,10 +33,21 @@ pub enum ToastStatus {
     Error,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transition {
-    pub opacity: f32,
-    pub is_animating: bool,
+    pub previous_route: Option<Route>,
+    pub start_time: Option<Instant>,
+    pub duration: std::time::Duration,
+}
+
+impl Default for Transition {
+    fn default() -> Self {
+        Self {
+            previous_route: None,
+            start_time: None,
+            duration: std::time::Duration::from_millis(300),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -121,10 +133,10 @@ pub enum Message {
     RuleAdded(Result<(), InfiltratorError>),
     TickSubUpdate,
     TickWebDavSync,
+    TickFrame(Instant),
     TrayIconEvent(TrayIconEvent),
     MenuEvent(MenuEvent),
     Exit,
-    TickTransition,
     UpdateDnsServer(usize, String),
     UpdateDnsEnhancedMode(String),
     AddDnsServer,
@@ -274,10 +286,10 @@ impl std::fmt::Debug for Message {
             Message::RuleAdded(Err(e)) => write!(f, "RuleAdded(Err({:?}))", e),
             Message::TickSubUpdate => write!(f, "TickSubUpdate"),
             Message::TickWebDavSync => write!(f, "TickWebDavSync"),
+            Message::TickFrame(now) => write!(f, "TickFrame({:?})", now),
             Message::TrayIconEvent(_) => write!(f, "TrayIconEvent"),
             Message::MenuEvent(e) => write!(f, "MenuEvent({:?})", e),
             Message::Exit => write!(f, "Exit"),
-            Message::TickTransition => write!(f, "TickTransition"),
             Message::UpdateDnsServer(i, s) => write!(f, "UpdateDnsServer({}, {})", i, s),
             Message::UpdateDnsEnhancedMode(m) => write!(f, "UpdateDnsEnhancedMode({})", m),
             Message::AddDnsServer => write!(f, "AddDnsServer"),
