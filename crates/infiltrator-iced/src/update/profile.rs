@@ -41,6 +41,22 @@ impl AppState {
         }
     }
 
+    fn invalidate_rules_dns_views(&mut self) {
+        self.rules_loaded_once = false;
+        self.advanced_configs_loaded_once = false;
+        self.rules_render_cache.clear();
+        self.rules_filtered_indices.clear();
+        self.rules_page = 0;
+        self.rules_heavy_ready = false;
+        self.dns_heavy_ready = false;
+        self.rule_providers_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.proxy_providers_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.sniffer_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.dns_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.fake_ip_editor_state = crate::types::EditorLazyState::Unloaded;
+        self.tun_editor_state = crate::types::EditorLazyState::Unloaded;
+    }
+
     pub fn update_profile(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::LoadProfiles => {
@@ -91,8 +107,7 @@ impl AppState {
                 self.is_loading_profiles = false;
                 match result {
                     Ok(_) => {
-                        self.rules_loaded_once = false;
-                        self.advanced_configs_loaded_once = false;
+                        self.invalidate_rules_dns_views();
                         self.profiles_filter.clear();
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
@@ -111,8 +126,7 @@ impl AppState {
             }
             Message::SetActiveProfile(name) => {
                 self.error_msg = None;
-                self.rules_loaded_once = false;
-                self.advanced_configs_loaded_once = false;
+                self.invalidate_rules_dns_views();
                 Task::perform(
                     async move {
                         let cm = ConfigManager::new()
@@ -175,8 +189,7 @@ impl AppState {
                 self.is_importing = false;
                 match result {
                     Ok(_) => {
-                        self.rules_loaded_once = false;
-                        self.advanced_configs_loaded_once = false;
+                        self.invalidate_rules_dns_views();
                         let activate = self.import_activate;
                         self.import_url.clear();
                         self.import_name.clear();
@@ -211,8 +224,7 @@ impl AppState {
             ),
             Message::ProfileDeleted(result) => match result {
                 Ok(_) => {
-                    self.rules_loaded_once = false;
-                    self.advanced_configs_loaded_once = false;
+                    self.invalidate_rules_dns_views();
                     Task::batch(vec![
                         Task::done(Message::LoadProfiles),
                         Task::done(Message::ShowToast(
@@ -309,8 +321,7 @@ impl AppState {
                 self.is_importing_local = false;
                 match result {
                     Ok(_) => {
-                        self.rules_loaded_once = false;
-                        self.advanced_configs_loaded_once = false;
+                        self.invalidate_rules_dns_views();
                         let activate = self.local_import_activate;
                         self.local_import_path.clear();
                         self.local_import_name.clear();
@@ -578,8 +589,7 @@ impl AppState {
             }
             Message::ProfileSaved(result) => match result {
                 Ok(_) => {
-                    self.rules_loaded_once = false;
-                    self.advanced_configs_loaded_once = false;
+                    self.invalidate_rules_dns_views();
                     Task::done(Message::ShowToast(
                         "Profile saved".to_string(),
                         ToastStatus::Success,

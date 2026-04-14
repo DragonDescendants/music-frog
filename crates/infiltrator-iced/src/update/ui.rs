@@ -7,11 +7,14 @@ impl AppState {
     pub fn update_ui(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Navigate(route) => {
-                if self.current_route != route {
+                let route_changed = self.current_route != route;
+                if route_changed {
                     // 记录旧页面并启动计时器
                     self.transition.previous_route = Some(self.current_route);
                     self.transition.start_time = Some(Instant::now());
                     self.last_frame_time = Instant::now();
+                    self.perf_nav_started_at = Some(Instant::now());
+                    self.perf_nav_route = Some(route);
                     self.current_route = route;
                 }
 
@@ -31,6 +34,14 @@ impl AppState {
                 if route == Route::Dns && !self.advanced_configs_loaded_once {
                     tasks.push(Task::done(Message::LoadAdvancedConfigs));
                 }
+                if route == Route::Rules && route_changed {
+                    self.rules_heavy_ready = false;
+                    tasks.push(Task::done(Message::ActivateRulesHeavyView));
+                }
+                if route == Route::Dns && route_changed {
+                    self.dns_heavy_ready = false;
+                    tasks.push(Task::done(Message::ActivateDnsHeavyView));
+                }
                 Task::batch(tasks)
             }
             Message::TickFrame(now) => {
@@ -41,6 +52,16 @@ impl AppState {
                     self.fps = (1.0 / delta).round().clamp(1.0, 240.0) as u32;
                 }
                 self.last_frame_time = now;
+
+                if let (Some(start), Some(route)) = (self.perf_nav_started_at, self.perf_nav_route)
+                {
+                    if route == self.current_route {
+                        self.perf_snapshot.navigate_to_first_paint_ms =
+                            Some(now.saturating_duration_since(start).as_millis());
+                        self.perf_nav_started_at = None;
+                        self.perf_nav_route = None;
+                    }
+                }
 
                 if let Some(start) = self.transition.start_time {
                     // 动画结束清理
@@ -57,6 +78,10 @@ impl AppState {
                 } else {
                     Theme::Dark
                 };
+                Task::none()
+            }
+            Message::TogglePerfPanel => {
+                self.perf_panel_visible = !self.perf_panel_visible;
                 Task::none()
             }
             Message::WindowClosed(id) => {

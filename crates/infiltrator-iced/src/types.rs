@@ -105,6 +105,116 @@ pub struct AdvancedConfigsBundle {
     pub dns_json: String,
     pub fake_ip_json: String,
     pub tun_json: String,
+    pub dns: infiltrator_core::dns::DnsConfig,
+    pub fake_ip: infiltrator_core::fake_ip::FakeIpConfig,
+    pub tun: infiltrator_core::tun::TunConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RulesTab {
+    #[default]
+    RulesList,
+    Providers,
+    JsonEditors,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RulesJsonTab {
+    #[default]
+    RuleProviders,
+    ProxyProviders,
+    Sniffer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DnsTab {
+    #[default]
+    Dns,
+    FakeIp,
+    Tun,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AdvancedEditMode {
+    #[default]
+    Form,
+    Json,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DnsFormDraft {
+    pub enable: bool,
+    pub nameserver: String,
+    pub fallback: String,
+    pub enhanced_mode: String,
+    pub fake_ip_range: String,
+    pub fake_ip_filter: String,
+    pub ipv6: bool,
+    pub cache: bool,
+    pub use_hosts: bool,
+    pub use_system_hosts: bool,
+    pub respect_rules: bool,
+    pub proxy_server_nameserver: String,
+    pub direct_nameserver: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FakeIpFormDraft {
+    pub fake_ip_range: String,
+    pub fake_ip_filter: String,
+    pub store_fake_ip: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TunFormDraft {
+    pub enable: bool,
+    pub stack: String,
+    pub mtu: String,
+    pub dns_hijack: String,
+    pub auto_route: bool,
+    pub auto_detect_interface: bool,
+    pub strict_route: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AdvancedValidationState {
+    pub dns: Option<String>,
+    pub fake_ip: Option<String>,
+    pub tun: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EditorLazyState {
+    #[default]
+    Unloaded,
+    Loaded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuleBadgeKind {
+    Domain,
+    Ip,
+    #[default]
+    Other,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RuleRenderItem {
+    pub source_index: usize,
+    pub rule_type: String,
+    pub payload: String,
+    pub target: String,
+    pub search_key: String,
+    pub badge: RuleBadgeKind,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PerfSnapshot {
+    pub navigate_to_first_paint_ms: Option<u128>,
+    pub rules_cache_build_ms: u128,
+    pub rules_with_text_apply_ms: u128,
+    pub dns_with_text_apply_ms: u128,
+    pub rules_visible_rows: usize,
 }
 
 #[derive(Clone)]
@@ -182,6 +292,16 @@ pub enum Message {
     LoadRules,
     RulesBundleLoaded(Result<RulesLoadBundle, InfiltratorError>),
     RulesLoaded(Result<Vec<RuleEntry>, InfiltratorError>),
+    SetRulesTab(RulesTab),
+    SetRulesJsonTab(RulesJsonTab),
+    ToggleRulesProvidersExpanded,
+    RulesPrevPage,
+    RulesNextPage,
+    RulesSetPage(usize),
+    EnsureRuleProvidersEditorLoaded,
+    EnsureProxyProvidersEditorLoaded,
+    EnsureSnifferEditorLoaded,
+    ActivateRulesHeavyView,
     RuleProvidersJsonLoaded(Result<String, InfiltratorError>),
     ProxyProvidersJsonLoaded(Result<String, InfiltratorError>),
     SnifferJsonLoaded(Result<String, InfiltratorError>),
@@ -220,9 +340,41 @@ pub enum Message {
     SnifferJsonSaved(Result<(), InfiltratorError>),
     LoadAdvancedConfigs,
     AdvancedConfigsBundleLoaded(Result<AdvancedConfigsBundle, InfiltratorError>),
+    SetDnsTab(DnsTab),
+    SetAdvancedMode(DnsTab, AdvancedEditMode),
+    RefreshDnsOnly,
+    RefreshFakeIpOnly,
+    RefreshTunOnly,
+    EnsureDnsEditorLoaded,
+    EnsureFakeIpEditorLoaded,
+    EnsureTunEditorLoaded,
+    ActivateDnsHeavyView,
     DnsConfigJsonLoaded(Result<String, InfiltratorError>),
     FakeIpConfigJsonLoaded(Result<String, InfiltratorError>),
     TunConfigJsonLoaded(Result<String, InfiltratorError>),
+    UpdateDnsFormEnable(bool),
+    UpdateDnsFormNameserver(String),
+    UpdateDnsFormFallback(String),
+    UpdateDnsFormEnhancedMode(String),
+    UpdateDnsFormFakeIpRange(String),
+    UpdateDnsFormFakeIpFilter(String),
+    UpdateDnsFormIpv6(bool),
+    UpdateDnsFormCache(bool),
+    UpdateDnsFormUseHosts(bool),
+    UpdateDnsFormUseSystemHosts(bool),
+    UpdateDnsFormRespectRules(bool),
+    UpdateDnsFormProxyServerNameserver(String),
+    UpdateDnsFormDirectNameserver(String),
+    UpdateFakeIpFormRange(String),
+    UpdateFakeIpFormFilter(String),
+    UpdateFakeIpFormStore(bool),
+    UpdateTunFormEnable(bool),
+    UpdateTunFormStack(String),
+    UpdateTunFormMtu(String),
+    UpdateTunFormDnsHijack(String),
+    UpdateTunFormAutoRoute(bool),
+    UpdateTunFormAutoDetectInterface(bool),
+    UpdateTunFormStrictRoute(bool),
     DnsConfigEditorAction(text_editor::Action),
     FakeIpConfigEditorAction(text_editor::Action),
     TunConfigEditorAction(text_editor::Action),
@@ -291,6 +443,7 @@ pub enum Message {
     RuntimePanelSettingsSaved(Result<(), InfiltratorError>),
     RuntimeRebuildFinished(Result<Arc<MihomoRuntime>, InfiltratorError>),
     ClearRebuildFlow,
+    TogglePerfPanel,
     ToggleTheme,
     ShowToast(String, ToastStatus),
     RemoveToast(usize),
@@ -464,6 +617,20 @@ impl std::fmt::Debug for Message {
             Message::RulesBundleLoaded(Err(e)) => write!(f, "RulesBundleLoaded(Err({:?}))", e),
             Message::RulesLoaded(Ok(r)) => write!(f, "RulesLoaded(Ok({} rules))", r.len()),
             Message::RulesLoaded(Err(e)) => write!(f, "RulesLoaded(Err({:?}))", e),
+            Message::SetRulesTab(tab) => write!(f, "SetRulesTab({:?})", tab),
+            Message::SetRulesJsonTab(tab) => write!(f, "SetRulesJsonTab({:?})", tab),
+            Message::ToggleRulesProvidersExpanded => write!(f, "ToggleRulesProvidersExpanded"),
+            Message::RulesPrevPage => write!(f, "RulesPrevPage"),
+            Message::RulesNextPage => write!(f, "RulesNextPage"),
+            Message::RulesSetPage(page) => write!(f, "RulesSetPage({})", page),
+            Message::EnsureRuleProvidersEditorLoaded => {
+                write!(f, "EnsureRuleProvidersEditorLoaded")
+            }
+            Message::EnsureProxyProvidersEditorLoaded => {
+                write!(f, "EnsureProxyProvidersEditorLoaded")
+            }
+            Message::EnsureSnifferEditorLoaded => write!(f, "EnsureSnifferEditorLoaded"),
+            Message::ActivateRulesHeavyView => write!(f, "ActivateRulesHeavyView"),
             Message::RuleProvidersJsonLoaded(Ok(json)) => {
                 write!(f, "RuleProvidersJsonLoaded(Ok({} chars))", json.len())
             }
@@ -531,6 +698,17 @@ impl std::fmt::Debug for Message {
             Message::AdvancedConfigsBundleLoaded(Err(e)) => {
                 write!(f, "AdvancedConfigsBundleLoaded(Err({:?}))", e)
             }
+            Message::SetDnsTab(tab) => write!(f, "SetDnsTab({:?})", tab),
+            Message::SetAdvancedMode(tab, mode) => {
+                write!(f, "SetAdvancedMode({:?}, {:?})", tab, mode)
+            }
+            Message::RefreshDnsOnly => write!(f, "RefreshDnsOnly"),
+            Message::RefreshFakeIpOnly => write!(f, "RefreshFakeIpOnly"),
+            Message::RefreshTunOnly => write!(f, "RefreshTunOnly"),
+            Message::EnsureDnsEditorLoaded => write!(f, "EnsureDnsEditorLoaded"),
+            Message::EnsureFakeIpEditorLoaded => write!(f, "EnsureFakeIpEditorLoaded"),
+            Message::EnsureTunEditorLoaded => write!(f, "EnsureTunEditorLoaded"),
+            Message::ActivateDnsHeavyView => write!(f, "ActivateDnsHeavyView"),
             Message::DnsConfigJsonLoaded(Ok(json)) => {
                 write!(f, "DnsConfigJsonLoaded(Ok({} chars))", json.len())
             }
@@ -548,6 +726,47 @@ impl std::fmt::Debug for Message {
             }
             Message::TunConfigJsonLoaded(Err(e)) => {
                 write!(f, "TunConfigJsonLoaded(Err({:?}))", e)
+            }
+            Message::UpdateDnsFormEnable(v) => write!(f, "UpdateDnsFormEnable({})", v),
+            Message::UpdateDnsFormNameserver(v) => write!(f, "UpdateDnsFormNameserver({})", v),
+            Message::UpdateDnsFormFallback(v) => write!(f, "UpdateDnsFormFallback({})", v),
+            Message::UpdateDnsFormEnhancedMode(v) => {
+                write!(f, "UpdateDnsFormEnhancedMode({})", v)
+            }
+            Message::UpdateDnsFormFakeIpRange(v) => {
+                write!(f, "UpdateDnsFormFakeIpRange({})", v)
+            }
+            Message::UpdateDnsFormFakeIpFilter(v) => {
+                write!(f, "UpdateDnsFormFakeIpFilter({})", v)
+            }
+            Message::UpdateDnsFormIpv6(v) => write!(f, "UpdateDnsFormIpv6({})", v),
+            Message::UpdateDnsFormCache(v) => write!(f, "UpdateDnsFormCache({})", v),
+            Message::UpdateDnsFormUseHosts(v) => write!(f, "UpdateDnsFormUseHosts({})", v),
+            Message::UpdateDnsFormUseSystemHosts(v) => {
+                write!(f, "UpdateDnsFormUseSystemHosts({})", v)
+            }
+            Message::UpdateDnsFormRespectRules(v) => {
+                write!(f, "UpdateDnsFormRespectRules({})", v)
+            }
+            Message::UpdateDnsFormProxyServerNameserver(v) => {
+                write!(f, "UpdateDnsFormProxyServerNameserver({})", v)
+            }
+            Message::UpdateDnsFormDirectNameserver(v) => {
+                write!(f, "UpdateDnsFormDirectNameserver({})", v)
+            }
+            Message::UpdateFakeIpFormRange(v) => write!(f, "UpdateFakeIpFormRange({})", v),
+            Message::UpdateFakeIpFormFilter(v) => write!(f, "UpdateFakeIpFormFilter({})", v),
+            Message::UpdateFakeIpFormStore(v) => write!(f, "UpdateFakeIpFormStore({})", v),
+            Message::UpdateTunFormEnable(v) => write!(f, "UpdateTunFormEnable({})", v),
+            Message::UpdateTunFormStack(v) => write!(f, "UpdateTunFormStack({})", v),
+            Message::UpdateTunFormMtu(v) => write!(f, "UpdateTunFormMtu({})", v),
+            Message::UpdateTunFormDnsHijack(v) => write!(f, "UpdateTunFormDnsHijack({})", v),
+            Message::UpdateTunFormAutoRoute(v) => write!(f, "UpdateTunFormAutoRoute({})", v),
+            Message::UpdateTunFormAutoDetectInterface(v) => {
+                write!(f, "UpdateTunFormAutoDetectInterface({})", v)
+            }
+            Message::UpdateTunFormStrictRoute(v) => {
+                write!(f, "UpdateTunFormStrictRoute({})", v)
             }
             Message::DnsConfigEditorAction(_) => write!(f, "DnsConfigEditorAction"),
             Message::FakeIpConfigEditorAction(_) => write!(f, "FakeIpConfigEditorAction"),
@@ -652,6 +871,7 @@ impl std::fmt::Debug for Message {
                 write!(f, "RuntimeRebuildFinished(Err({:?}))", e)
             }
             Message::ClearRebuildFlow => write!(f, "ClearRebuildFlow"),
+            Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
             Message::ToggleTheme => write!(f, "ToggleTheme"),
             Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
             Message::RemoveToast(i) => write!(f, "RemoveToast({})", i),

@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use crate::types::{Message, RebuildFlowState, Route, ToastStatus};
 use crate::view;
-use iced::widget::{column, container, row, stack, text};
+use iced::widget::{button, column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use std::time::Instant;
 
@@ -56,15 +56,21 @@ impl AppState {
         let main_view = row![sidebar, main_content];
 
         // FPS 诊断显示 (调试用)
-        let fps_counter =
-            container(
+        let fps_counter = container(
+            row![
                 text(format!("{} FPS", self.fps))
                     .size(10)
                     .style(|_| text::Style {
                         color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2)),
                     }),
-            )
-            .padding(10);
+                button(text("Perf").size(10))
+                    .padding([2, 8])
+                    .style(button::secondary)
+                    .on_press(Message::TogglePerfPanel)
+            ]
+            .spacing(8),
+        )
+        .padding(10);
 
         let mut layers: Vec<Element<Message>> = vec![main_view.into()];
 
@@ -167,6 +173,66 @@ impl AppState {
                 .align_y(Alignment::Start)
                 .into(),
         );
+
+        if self.perf_panel_visible {
+            layers.push(
+                container(
+                    container(
+                        column![
+                            text("Performance Snapshot").size(13),
+                            text(format!(
+                                "Navigate->FirstPaint: {:?}",
+                                self.perf_snapshot.navigate_to_first_paint_ms
+                            ))
+                            .size(11),
+                            text(format!(
+                                "Rules cache build: {} ms",
+                                self.perf_snapshot.rules_cache_build_ms
+                            ))
+                            .size(11),
+                            text(format!(
+                                "Rules editor apply: {} ms",
+                                self.perf_snapshot.rules_with_text_apply_ms
+                            ))
+                            .size(11),
+                            text(format!(
+                                "DNS editor apply: {} ms",
+                                self.perf_snapshot.dns_with_text_apply_ms
+                            ))
+                            .size(11),
+                            text(format!(
+                                "Rules visible rows: {}",
+                                self.perf_snapshot.rules_visible_rows
+                            ))
+                            .size(11),
+                        ]
+                        .spacing(6),
+                    )
+                    .padding([10, 12])
+                    .style(|_| container::Style {
+                        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.86).into()),
+                        border: Border {
+                            radius: 10.0.into(),
+                            width: 1.0,
+                            color: Color::from_rgba(1.0, 1.0, 1.0, 0.2),
+                        },
+                        text_color: Some(Color::WHITE),
+                        ..Default::default()
+                    }),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(iced::Padding {
+                    top: 46.0,
+                    right: 12.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                })
+                .align_x(Alignment::End)
+                .align_y(Alignment::Start)
+                .into(),
+            );
+        }
 
         stack(layers).into()
     }
