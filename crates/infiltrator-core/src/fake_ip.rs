@@ -45,7 +45,7 @@ pub async fn load_fake_ip_config() -> Result<FakeIpConfig> {
         .await
         .context("read profile config")?;
     let doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
-    extract_fake_ip_config(&doc)
+    extract_fake_ip_config_from_doc(&doc)
 }
 
 pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfig> {
@@ -60,7 +60,7 @@ pub async fn save_fake_ip_config(patch: FakeIpConfigPatch) -> Result<FakeIpConfi
         .context("read profile config")?;
     let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
-    let mut config = extract_fake_ip_config(&doc)?;
+    let mut config = extract_fake_ip_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_fake_ip_config(&config)?;
     apply_fake_ip_config(&mut doc, &config)?;
@@ -95,7 +95,7 @@ pub async fn clear_fake_ip_cache() -> Result<bool> {
     Ok(false)
 }
 
-fn extract_fake_ip_config(doc: &Value) -> Result<FakeIpConfig> {
+pub fn extract_fake_ip_config_from_doc(doc: &Value) -> Result<FakeIpConfig> {
     let dns_value = doc
         .get("dns")
         .cloned()
@@ -157,14 +157,14 @@ mod tests {
     #[test]
     fn test_extract_fake_ip_default() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let config = extract_fake_ip_config(&doc).expect("fake ip config");
+        let config = extract_fake_ip_config_from_doc(&doc).expect("fake ip config");
         assert!(config.fake_ip_range.is_none());
     }
 
     #[test]
     fn test_apply_patch_and_validate() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let mut config = extract_fake_ip_config(&doc).expect("fake ip config");
+        let mut config = extract_fake_ip_config_from_doc(&doc).expect("fake ip config");
         let patch = FakeIpConfigPatch {
             fake_ip_range: Some("198.18.0.1/16".to_string()),
             fake_ip_filter: Some(vec!["*.lan".to_string()]),

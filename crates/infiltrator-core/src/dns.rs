@@ -138,7 +138,7 @@ pub async fn load_dns_config() -> Result<DnsConfig> {
         .await
         .context("read profile config")?;
     let doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
-    extract_dns_config(&doc)
+    extract_dns_config_from_doc(&doc)
 }
 
 pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
@@ -153,7 +153,7 @@ pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
         .context("read profile config")?;
     let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
-    let mut config = extract_dns_config(&doc)?;
+    let mut config = extract_dns_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_dns_config(&config)?;
     apply_dns_config(&mut doc, &config)?;
@@ -166,7 +166,7 @@ pub async fn save_dns_config(patch: DnsConfigPatch) -> Result<DnsConfig> {
     Ok(config)
 }
 
-fn extract_dns_config(doc: &Value) -> Result<DnsConfig> {
+pub fn extract_dns_config_from_doc(doc: &Value) -> Result<DnsConfig> {
     let dns_value = doc
         .get("dns")
         .cloned()
@@ -232,14 +232,14 @@ mod tests {
     #[test]
     fn test_extract_dns_default() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let config = extract_dns_config(&doc).expect("dns config");
+        let config = extract_dns_config_from_doc(&doc).expect("dns config");
         assert!(config.enable.is_none());
     }
 
     #[test]
     fn test_apply_patch_and_validate() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let mut config = extract_dns_config(&doc).expect("dns config");
+        let mut config = extract_dns_config_from_doc(&doc).expect("dns config");
         let patch = DnsConfigPatch {
             nameserver: Some(vec!["https://dns.google/dns-query".to_string()]),
             enhanced_mode: Some("fake-ip".to_string()),

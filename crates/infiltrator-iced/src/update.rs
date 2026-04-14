@@ -12,6 +12,7 @@ impl AppState {
             // UI & Navigation
             Message::Navigate(_)
             | Message::ToggleTheme
+            | Message::TickFrame(_)
             | Message::WindowClosed(_)
             | Message::HideWindow
             | Message::ShowWindow
@@ -27,8 +28,30 @@ impl AppState {
             | Message::SetActiveProfile(_)
             | Message::UpdateImportUrl(_)
             | Message::UpdateImportName(_)
+            | Message::UpdateImportActivate(_)
             | Message::ImportProfile
             | Message::ProfileImported(_)
+            | Message::DeleteProfile(_)
+            | Message::ProfileDeleted(_)
+            | Message::UpdateLocalImportPath(_)
+            | Message::BrowseLocalImportFile
+            | Message::LocalImportFilePicked(_)
+            | Message::UpdateLocalImportName(_)
+            | Message::UpdateLocalImportActivate(_)
+            | Message::ImportLocalProfile
+            | Message::LocalProfileImported(_)
+            | Message::SelectSubscriptionProfile(_)
+            | Message::UpdateSubscriptionUrl(_)
+            | Message::UpdateSubscriptionAutoUpdate(_)
+            | Message::UpdateSubscriptionInterval(_)
+            | Message::SaveSubscriptionSettings
+            | Message::SubscriptionSettingsSaved(_)
+            | Message::UpdateSubscriptionNow
+            | Message::SubscriptionUpdatedNow(_)
+            | Message::SubscriptionAutoUpdated(_)
+            | Message::UpdateProfilesFilter(_)
+            | Message::ClearProfiles
+            | Message::ProfilesCleared(_)
             | Message::EditProfile(_)
             | Message::ProfileContentLoaded(_)
             | Message::EditorAction(_)
@@ -37,6 +60,12 @@ impl AppState {
             | Message::UpdateWebDavUrl(_)
             | Message::UpdateWebDavUser(_)
             | Message::UpdateWebDavPass(_)
+            | Message::UpdateWebDavEnabled(_)
+            | Message::UpdateWebDavSyncInterval(_)
+            | Message::UpdateWebDavSyncOnStartup(_)
+            | Message::UpdateEditorPathSetting(_)
+            | Message::SaveAppSettings
+            | Message::AppSettingsSaved(_)
             | Message::SyncUpload
             | Message::SyncDownload
             | Message::SyncFinished(_)

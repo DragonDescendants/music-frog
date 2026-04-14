@@ -14,7 +14,7 @@ pub struct ProxyProvidersPayload {
 
 pub async fn load_proxy_providers() -> Result<ProxyProviders> {
     let doc = load_profile_doc().await?;
-    extract_proxy_providers(&doc)
+    extract_proxy_providers_from_doc(&doc)
 }
 
 pub async fn save_proxy_providers(providers: ProxyProviders) -> Result<ProxyProviders> {
@@ -52,7 +52,7 @@ async fn load_profile_doc() -> Result<Value> {
     serde_yml::from_str(&content).context("parse profile yaml")
 }
 
-fn extract_proxy_providers(doc: &Value) -> Result<ProxyProviders> {
+pub fn extract_proxy_providers_from_doc(doc: &Value) -> Result<ProxyProviders> {
     let value = doc
         .get("proxy-providers")
         .cloned()
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn test_extract_proxy_providers_default() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let providers = extract_proxy_providers(&doc).expect("extract");
+        let providers = extract_proxy_providers_from_doc(&doc).expect("extract");
         assert!(providers.is_empty());
     }
 
@@ -113,7 +113,7 @@ proxy-providers:
 "#,
         )
         .expect("yaml");
-        assert!(extract_proxy_providers(&doc).is_err());
+        assert!(extract_proxy_providers_from_doc(&doc).is_err());
     }
 
     #[test]

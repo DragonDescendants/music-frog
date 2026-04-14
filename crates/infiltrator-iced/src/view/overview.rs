@@ -1,10 +1,10 @@
 use crate::locales::{Lang, Localizer};
-use crate::view::components::{card, premium_card, status_dot, WEB_ACCENT};
 use crate::types::RuntimeStatus;
+use crate::view::components::{WEB_ACCENT, card, modern_scrollable, premium_card, status_dot};
 use crate::view::icons;
 use crate::{AppState, Message};
-use iced::widget::{button, column, container, row, text, Space, Scrollable};
-use iced::{Alignment, Color, Element, Font, Length, Border, border};
+use iced::widget::{Space, button, column, container, row, text};
+use iced::{Alignment, Border, Color, Element, Font, Length, border};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.lang);
@@ -17,40 +17,73 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text(lang.tr("nav_overview")).size(32).font(bold_font),
         text("Dashboard metrics and core control center")
             .size(14)
-            .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.4)) }),
-    ].spacing(4);
+            .style(|_| text::Style {
+                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.4))
+            }),
+    ]
+    .spacing(4);
 
     // 1. Top Metrics Row
     let metrics = row![
-        metric_card("Status".to_string(), match &state.status {
-            RuntimeStatus::Running => "ACTIVE".to_string(),
-            RuntimeStatus::Starting => "STARTING".to_string(),
-            _ => "STOPPED".to_string(),
-        }, WEB_ACCENT),
+        metric_card(
+            "Status".to_string(),
+            match &state.status {
+                RuntimeStatus::Running => "ACTIVE".to_string(),
+                RuntimeStatus::Starting => "STARTING".to_string(),
+                _ => "STOPPED".to_string(),
+            },
+            WEB_ACCENT
+        ),
         Space::new().width(20),
-        metric_card("Profiles".to_string(), format!("{}", state.profiles.len()), WEB_ACCENT),
+        metric_card(
+            "Profiles".to_string(),
+            format!("{}", state.profiles.len()),
+            WEB_ACCENT
+        ),
         Space::new().width(20),
-        metric_card("Proxies".to_string(), format!("{}", state.proxies.len()), WEB_ACCENT),
-    ].width(Length::Fill);
+        metric_card(
+            "Proxies".to_string(),
+            format!("{}", state.proxies.len()),
+            WEB_ACCENT
+        ),
+    ]
+    .width(Length::Fill);
 
     // 2. Main Content Grid
     let active_profile = state.profiles.iter().find(|p| p.active);
-    
+
     let left_col = column![
         premium_card(column![
-            text(lang.tr("nav_profiles")).font(bold_font).size(14).style(|_| text::Style { color: Some(WEB_ACCENT) }),
+            text(lang.tr("nav_profiles"))
+                .font(bold_font)
+                .size(14)
+                .style(|_| text::Style {
+                    color: Some(WEB_ACCENT)
+                }),
             Space::new().height(15),
             text(active_profile.map(|p| p.name.as_str()).unwrap_or("None"))
                 .size(24)
                 .font(bold_font),
-            text(active_profile.map(|p| p.path.to_string_lossy().to_string()).unwrap_or_default())
-                .size(12)
-                .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3)) }),
+            text(
+                active_profile
+                    .map(|p| p.path.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            )
+            .size(12)
+            .style(|_| text::Style {
+                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
+            }),
             Space::new().height(20),
-            button(row![text(icons::REFRESH).size(14), text(lang.tr("refresh")).size(14)].spacing(10))
-                .on_press(Message::LoadProfiles)
-                .padding([10, 20])
-                .style(button::secondary)
+            button(
+                row![
+                    text(icons::REFRESH).size(14),
+                    text(lang.tr("refresh")).size(14)
+                ]
+                .spacing(10)
+            )
+            .on_press(Message::LoadProfiles)
+            .padding([10, 20])
+            .style(button::secondary)
         ]),
         Space::new().height(24),
         card(column![
@@ -60,13 +93,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 row![
                     traffic_item("UPLOAD".to_string(), traffic.up, WEB_ACCENT),
                     Space::new().width(40),
-                    traffic_item("DOWNLOAD".to_string(), traffic.down, crate::view::components::WEB_SUCCESS),
+                    traffic_item(
+                        "DOWNLOAD".to_string(),
+                        traffic.down,
+                        crate::view::components::WEB_SUCCESS
+                    ),
                 ]
             } else {
-                row![text(lang.tr("waiting_traffic")).style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2)) })]
+                row![text(lang.tr("waiting_traffic")).style(|_| text::Style {
+                    color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2))
+                })]
             }
         ])
-    ].width(Length::FillPortion(1));
+    ]
+    .width(Length::FillPortion(1));
 
     let core_status_text = match &state.status {
         RuntimeStatus::Starting => lang.tr("status_starting"),
@@ -77,29 +117,52 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let right_col = column![
         premium_card(column![
-            text(lang.tr("overview_core")).font(bold_font).size(14).style(|_| text::Style { color: Some(WEB_ACCENT) }),
+            text(lang.tr("overview_core"))
+                .font(bold_font)
+                .size(14)
+                .style(|_| text::Style {
+                    color: Some(WEB_ACCENT)
+                }),
             Space::new().height(15),
             row![
                 status_dot(matches!(state.status, RuntimeStatus::Running)),
                 Space::new().width(12),
                 text(core_status_text.into_owned()).size(24).font(bold_font),
-            ].align_y(Alignment::Center),
-            text(format!("Operating Mode: {}", state.proxy_mode.as_deref().unwrap_or("rule").to_uppercase()))
-                .size(12)
-                .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3)) }),
+            ]
+            .align_y(Alignment::Center),
+            text(format!(
+                "Operating Mode: {}",
+                state.proxy_mode.as_deref().unwrap_or("rule").to_uppercase()
+            ))
+            .size(12)
+            .style(|_| text::Style {
+                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
+            }),
             Space::new().height(25),
             match state.status {
                 RuntimeStatus::Running => {
-                    button(row![text(icons::CLOSE).size(14), text(lang.tr("stop_proxy")).size(14)].spacing(10))
-                        .on_press(Message::StopProxy)
-                        .padding([12, 24])
-                        .style(button::danger)
+                    button(
+                        row![
+                            text(icons::CLOSE).size(14),
+                            text(lang.tr("stop_proxy")).size(14)
+                        ]
+                        .spacing(10),
+                    )
+                    .on_press(Message::StopProxy)
+                    .padding([12, 24])
+                    .style(button::danger)
                 }
                 _ => {
-                    button(row![text(icons::UPDATE).size(14), text(lang.tr("start_proxy")).size(14)].spacing(10))
-                        .on_press(Message::StartProxy)
-                        .padding([12, 24])
-                        .style(button::primary)
+                    button(
+                        row![
+                            text(icons::UPDATE).size(14),
+                            text(lang.tr("start_proxy")).size(14)
+                        ]
+                        .spacing(10),
+                    )
+                    .on_press(Message::StartProxy)
+                    .padding([12, 24])
+                    .style(button::primary)
                 }
             }
         ]),
@@ -107,25 +170,36 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         card(column![
             text(lang.tr("nav_proxies")).font(bold_font).size(14),
             Space::new().height(15),
-            text(state.proxies.get("GLOBAL").and_then(|g: &mihomo_api::Proxy| g.now()).unwrap_or("Direct"))
-                .size(20)
-                .font(bold_font),
+            text(
+                state
+                    .proxies
+                    .get("GLOBAL")
+                    .and_then(|g: &mihomo_api::Proxy| g.now())
+                    .unwrap_or("Direct")
+            )
+            .size(20)
+            .font(bold_font),
             text("Currently routed via GLOBAL")
                 .size(12)
-                .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3)) }),
+                .style(|_| text::Style {
+                    color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
+                }),
             Space::new().height(20),
-            button(row![text(icons::PROXY).size(14), text(lang.tr("btn_switch")).size(14)].spacing(10))
-                .on_press(Message::Navigate(crate::types::Route::Proxies))
-                .padding([10, 20])
-                .style(button::secondary)
+            button(
+                row![
+                    text(icons::PROXY).size(14),
+                    text(lang.tr("btn_switch")).size(14)
+                ]
+                .spacing(10)
+            )
+            .on_press(Message::Navigate(crate::types::Route::Proxies))
+            .padding([10, 20])
+            .style(button::secondary)
         ])
-    ].width(Length::FillPortion(1));
+    ]
+    .width(Length::FillPortion(1));
 
-    let main_grid = row![
-        left_col,
-        Space::new().width(24),
-        right_col
-    ].width(Length::Fill);
+    let main_grid = row![left_col, Space::new().width(24), right_col].width(Length::Fill);
 
     let content = column![
         header,
@@ -139,15 +213,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // 核心修复：移除所有 Scrollable 外层的 padding 和 center_x，
     // 由 view_root 统领布局，确保不因嵌套溢出而“内容失踪”
-    Scrollable::new(content).height(Length::Fill).into()
+    modern_scrollable(content).height(Length::Fill).into()
 }
 
 fn metric_card<'a>(label: String, value: String, color: Color) -> Element<'a, Message> {
     container(column![
-        text(label.to_uppercase()).size(10).font(Font { weight: iced::font::Weight::Bold, ..Default::default() })
-            .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3)) }),
+        text(label.to_uppercase())
+            .size(10)
+            .font(Font {
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            })
+            .style(|_| text::Style {
+                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
+            }),
         Space::new().height(5),
-        text(value).size(24).font(Font { weight: iced::font::Weight::Bold, ..Default::default() })
+        text(value)
+            .size(24)
+            .font(Font {
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            })
             .style(move |_| text::Style { color: Some(color) }),
     ])
     .padding(20)
@@ -166,11 +252,20 @@ fn metric_card<'a>(label: String, value: String, color: Color) -> Element<'a, Me
 
 fn traffic_item<'a>(label: String, bytes: u64, color: Color) -> Element<'a, Message> {
     column![
-        text(label).size(10).style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3)) }),
+        text(label).size(10).style(|_| text::Style {
+            color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.3))
+        }),
         row![
-            text(crate::utils::format_bytes(bytes)).size(24).font(Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+            text(crate::utils::format_bytes(bytes)).size(24).font(Font {
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            }),
             Space::new().width(8),
-            text("B/s").size(12).style(move |_| text::Style { color: Some(color) }),
-        ].align_y(Alignment::End)
-    ].into()
+            text("B/s")
+                .size(12)
+                .style(move |_| text::Style { color: Some(color) }),
+        ]
+        .align_y(Alignment::End)
+    ]
+    .into()
 }

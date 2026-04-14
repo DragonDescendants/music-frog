@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use crate::types::{Message, Route, ToastStatus};
+use crate::types::{Message, RebuildFlowState, Route, ToastStatus};
 use crate::view;
 use iced::widget::{column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
@@ -8,7 +8,7 @@ use std::time::Instant;
 impl AppState {
     pub fn view(&self) -> Element<'_, Message> {
         let sidebar = view::sidebar::sidebar(self);
-        
+
         // 声明式动画进度计算
         let progress = if let Some(start) = self.transition.start_time {
             let elapsed = Instant::now().duration_since(start).as_millis() as f32;
@@ -36,13 +36,19 @@ impl AppState {
         .style(move |theme: &Theme| {
             let is_dark = theme == &Theme::Dark;
             container::Style {
-                background: Some(if is_dark {
-                    Color::from_rgb(0.02, 0.04, 0.10) 
-                } else {
-                    Color::from_rgb(0.98, 0.98, 1.0)
-                }.into()),
+                background: Some(
+                    if is_dark {
+                        Color::from_rgb(0.02, 0.04, 0.10)
+                    } else {
+                        Color::from_rgb(0.98, 0.98, 1.0)
+                    }
+                    .into(),
+                ),
                 // 仅对文字颜色进行透明度插值，这在 CPU 渲染下极快
-                text_color: Some(Color { a: progress, ..theme.palette().text }),
+                text_color: Some(Color {
+                    a: progress,
+                    ..theme.palette().text
+                }),
                 ..Default::default()
             }
         });
@@ -50,12 +56,15 @@ impl AppState {
         let main_view = row![sidebar, main_content];
 
         // FPS 诊断显示 (调试用)
-        let fps_counter = container(
-            text(format!("{} FPS", self.fps))
-                .size(10)
-                .style(|_| text::Style { color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2)) })
-        )
-        .padding(10);
+        let fps_counter =
+            container(
+                text(format!("{} FPS", self.fps))
+                    .size(10)
+                    .style(|_| text::Style {
+                        color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.2)),
+                    }),
+            )
+            .padding(10);
 
         let mut layers: Vec<Element<Message>> = vec![main_view.into()];
 
@@ -92,7 +101,60 @@ impl AppState {
                     .padding(30)
                     .align_x(Alignment::End)
                     .align_y(Alignment::End)
-                    .into()
+                    .into(),
+            );
+        }
+
+        if !matches!(self.rebuild_flow, RebuildFlowState::Idle) {
+            let (title, detail, color) = match &self.rebuild_flow {
+                RebuildFlowState::Saving { label } => (
+                    "Saving configuration",
+                    label.as_str(),
+                    Color::from_rgb(0.2, 0.5, 0.8),
+                ),
+                RebuildFlowState::Rebuilding { label } => (
+                    "Rebuilding runtime",
+                    label.as_str(),
+                    Color::from_rgb(0.8, 0.6, 0.2),
+                ),
+                RebuildFlowState::Done { label } => {
+                    ("Completed", label.as_str(), Color::from_rgb(0.2, 0.7, 0.2))
+                }
+                RebuildFlowState::Failed { label, .. } => {
+                    ("Failed", label.as_str(), Color::from_rgb(0.8, 0.2, 0.2))
+                }
+                RebuildFlowState::Idle => ("", "", Color::WHITE),
+            };
+
+            layers.push(
+                container(
+                    container(
+                        column![
+                            text(title).size(14),
+                            text(detail).size(12).style(|_| text::Style {
+                                color: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.8))
+                            })
+                        ]
+                        .spacing(4),
+                    )
+                    .padding([12, 18])
+                    .style(move |_| container::Style {
+                        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.88).into()),
+                        border: Border {
+                            radius: 10.0.into(),
+                            width: 1.0,
+                            color,
+                        },
+                        text_color: Some(Color::WHITE),
+                        ..Default::default()
+                    }),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding([16, 0])
+                .align_x(Alignment::Center)
+                .align_y(Alignment::Start)
+                .into(),
             );
         }
 
@@ -103,7 +165,7 @@ impl AppState {
                 .height(Length::Fill)
                 .align_x(Alignment::End)
                 .align_y(Alignment::Start)
-                .into()
+                .into(),
         );
 
         stack(layers).into()

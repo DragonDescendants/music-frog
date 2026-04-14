@@ -22,15 +22,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let header = row![
         text(filename).size(20).font(bold_font),
         iced::widget::Space::new().width(Length::Fill),
-        button(row![text(icons::SAVE).size(12), text(lang.tr("btn_save")).size(12)].spacing(8))
-            .on_press(Message::SaveProfile)
-            .padding([6, 12])
-            .style(button::primary),
+        button(
+            row![
+                text(icons::SAVE).size(12),
+                text(lang.tr("btn_save")).size(12)
+            ]
+            .spacing(8)
+        )
+        .on_press(Message::SaveProfile)
+        .padding([6, 12])
+        .style(button::primary),
         iced::widget::Space::new().width(10),
-        button(row![text(icons::CANCEL).size(12), text(lang.tr("btn_cancel")).size(12)].spacing(8))
-            .on_press(Message::Navigate(crate::types::Route::Profiles))
-            .padding([6, 12])
-            .style(button::secondary),
+        button(
+            row![
+                text(icons::CANCEL).size(12),
+                text(lang.tr("btn_cancel")).size(12)
+            ]
+            .spacing(8)
+        )
+        .on_press(Message::Navigate(crate::types::Route::Profiles))
+        .padding([6, 12])
+        .style(button::secondary),
     ]
     .align_y(Alignment::Center);
 

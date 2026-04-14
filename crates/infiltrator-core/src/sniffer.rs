@@ -4,7 +4,7 @@ use serde_yml::{Mapping, Value};
 
 pub async fn load_sniffer_config() -> Result<serde_json::Value> {
     let doc = load_profile_doc().await?;
-    extract_sniffer_config(&doc)
+    extract_sniffer_config_from_doc(&doc)
 }
 
 pub async fn save_sniffer_config(config: serde_json::Value) -> Result<serde_json::Value> {
@@ -50,7 +50,7 @@ fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-fn extract_sniffer_config(doc: &Value) -> Result<serde_json::Value> {
+pub fn extract_sniffer_config_from_doc(doc: &Value) -> Result<serde_json::Value> {
     let value = doc
         .get("sniffer")
         .cloned()
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn test_extract_sniffer_default() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let config = extract_sniffer_config(&doc).expect("extract");
+        let config = extract_sniffer_config_from_doc(&doc).expect("extract");
         assert_eq!(config, serde_json::json!({}));
     }
 

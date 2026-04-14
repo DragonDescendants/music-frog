@@ -11,6 +11,7 @@ impl AppState {
                     // 记录旧页面并启动计时器
                     self.transition.previous_route = Some(self.current_route);
                     self.transition.start_time = Some(Instant::now());
+                    self.last_frame_time = Instant::now();
                     self.current_route = route;
                 }
 
@@ -21,16 +22,23 @@ impl AppState {
                 if route == Route::Overview || route == Route::Runtime {
                     tasks.push(Task::done(Message::FetchIpInfo));
                 }
-                if route == Route::Rules {
+                if route == Route::Runtime {
+                    tasks.push(Task::done(Message::RefreshRuntimeNow));
+                }
+                if route == Route::Rules && !self.rules_loaded_once {
                     tasks.push(Task::done(Message::LoadRules));
-                    tasks.push(Task::done(Message::LoadProviders));
+                }
+                if route == Route::Dns && !self.advanced_configs_loaded_once {
+                    tasks.push(Task::done(Message::LoadAdvancedConfigs));
                 }
                 Task::batch(tasks)
             }
             Message::TickFrame(now) => {
-                let delta = now.duration_since(self.last_frame_time).as_secs_f32();
-                if delta > 0.0 {
-                    self.fps = (1.0 / delta) as u32;
+                let delta = now
+                    .saturating_duration_since(self.last_frame_time)
+                    .as_secs_f32();
+                if delta > 0.0 && delta <= 0.5 {
+                    self.fps = (1.0 / delta).round().clamp(1.0, 240.0) as u32;
                 }
                 self.last_frame_time = now;
 
@@ -82,13 +90,16 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
-                            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), r.shutdown()).await;
+                            let _ = tokio::time::timeout(
+                                std::time::Duration::from_secs(2),
+                                r.shutdown(),
+                            )
+                            .await;
                         }
                     },
                     |_| Message::ProxyStopped,
-                ).then(|_| {
-                    iced::exit()
-                })
+                )
+                .then(|_| iced::exit())
             }
             Message::ShowToast(content, status) => {
                 self.toasts.push((content, status));
@@ -111,23 +122,25 @@ impl AppState {
                 self.system_proxy_enabled = enabled;
                 Task::perform(
                     async move {
-                        let endpoint = if enabled { Some("127.0.0.1:7890") } else { None };
+                        let endpoint = if enabled {
+                            Some("127.0.0.1:7890")
+                        } else {
+                            None
+                        };
                         infiltrator_desktop::proxy::apply_system_proxy(endpoint)
                             .map_err(|e: anyhow::Error| InfiltratorError::Privilege(e.to_string()))
                     },
                     Message::SystemProxySet,
                 )
             }
-            Message::SystemProxySet(result) => {
-                match result {
-                    Ok(_) => Task::none(),
-                    Err(e) => {
-                        self.system_proxy_enabled = !self.system_proxy_enabled;
-                        self.error_msg = Some(e.to_string());
-                        Task::none()
-                    }
+            Message::SystemProxySet(result) => match result {
+                Ok(_) => Task::none(),
+                Err(e) => {
+                    self.system_proxy_enabled = !self.system_proxy_enabled;
+                    self.error_msg = Some(e.to_string());
+                    Task::none()
                 }
-            }
+            },
             Message::RequestAdminPrivilege => {
                 #[cfg(target_os = "windows")]
                 {

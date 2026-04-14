@@ -1,6 +1,9 @@
 use super::*;
 use crate::locales::{Lang, Localizer};
+use crate::types::{RebuildFlowState, RuntimeConfig};
 use iced::widget::text_editor;
+use infiltrator_core::rules::RuleEntry;
+use infiltrator_core::settings::{AppSettings, RuntimePanelConfig};
 use mihomo_api::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, TrafficData};
 use mihomo_config::Profile;
 use std::path::PathBuf;
@@ -160,11 +163,9 @@ fn test_profiles_and_rules_loading() {
     assert!(!state.is_loading_profiles);
 
     // Rules loaded
-    let _ = state.update(Message::RulesLoaded(Ok(vec![mihomo_api::Rule {
-        rule_type: "Direct".into(),
-        payload: "local".into(),
-        proxy: "Direct".into(),
-        size: 0,
+    let _ = state.update(Message::RulesLoaded(Ok(vec![RuleEntry {
+        rule: "DOMAIN,example.com,DIRECT".into(),
+        enabled: true,
     }])));
     assert_eq!(state.rules.len(), 1);
 }
@@ -181,15 +182,42 @@ fn test_proxy_lifecycle_messages() {
 }
 
 #[test]
+fn test_rebuild_flow_state_transitions() {
+    let (mut state, _) = AppState::new();
+    state.rules = vec![RuleEntry {
+        rule: "MATCH,DIRECT".into(),
+        enabled: true,
+    }];
+
+    let _ = state.update(Message::SaveRules);
+    assert!(matches!(
+        state.rebuild_flow,
+        RebuildFlowState::Saving { .. }
+    ));
+
+    let _ = state.update(Message::RuntimeRebuildFinished(Err(
+        InfiltratorError::Mihomo("boom".into()),
+    )));
+    assert!(matches!(
+        state.rebuild_flow,
+        RebuildFlowState::Failed { .. }
+    ));
+
+    let _ = state.update(Message::ClearRebuildFlow);
+    assert!(matches!(state.rebuild_flow, RebuildFlowState::Idle));
+}
+
+#[test]
 fn test_log_buffer_limit_and_queue() {
     let (mut state, _) = AppState::new();
 
-    for i in 0..150 {
+    for i in 0..650 {
         let _ = state.update(Message::LogReceived(format!("log {}", i)));
     }
 
-    assert_eq!(state.logs.len(), 100);
-    assert_eq!(state.logs.back().unwrap(), "log 149");
+    assert_eq!(state.logs.len(), 500);
+    assert_eq!(state.logs.front().unwrap(), "log 150");
+    assert_eq!(state.logs.back().unwrap(), "log 649");
 }
 
 #[test]
@@ -338,6 +366,129 @@ fn test_proxy_filtering_and_sorting() {
     assert_eq!(all_members[0], "Proxy-B"); // 50ms
     assert_eq!(all_members[1], "Proxy-A"); // 100ms
     assert_eq!(all_members[2], "Special"); // 200ms
+}
+
+#[test]
+fn test_runtime_auto_refresh_toggle() {
+    let (mut state, _) = AppState::new();
+    assert!(state.runtime_auto_refresh);
+
+    let _ = state.update(Message::UpdateRuntimeAutoRefresh(false));
+    assert!(!state.runtime_auto_refresh);
+
+    let _ = state.update(Message::UpdateRuntimeAutoRefresh(true));
+    assert!(state.runtime_auto_refresh);
+}
+
+#[test]
+fn test_runtime_connection_sort_mode_switch() {
+    let (mut state, _) = AppState::new();
+    assert_eq!(state.runtime_connection_sort, "download_desc");
+
+    let _ = state.update(Message::UpdateRuntimeConnectionSort("upload_desc".into()));
+    assert_eq!(state.runtime_connection_sort, "upload_desc");
+
+    let _ = state.update(Message::UpdateRuntimeConnectionSort("invalid_key".into()));
+    assert_eq!(state.runtime_connection_sort, "download_desc");
+}
+
+#[test]
+fn test_proxy_delay_sort_mode_switch() {
+    let (mut state, _) = AppState::new();
+
+    let _ = state.update(Message::UpdateProxyDelaySort("name_desc".into()));
+    assert_eq!(state.proxy_delay_sort, "name_desc");
+    assert!(!state.proxy_sort_by_delay);
+
+    let _ = state.update(Message::UpdateProxyDelaySort("delay_desc".into()));
+    assert_eq!(state.proxy_delay_sort, "delay_desc");
+    assert!(state.proxy_sort_by_delay);
+}
+
+#[test]
+fn test_profiles_filter_state() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(Message::UpdateProfilesFilter("default".into()));
+    assert_eq!(state.profiles_filter, "default");
+}
+
+#[test]
+fn test_runtime_connection_filter_state() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(Message::UpdateRuntimeConnectionFilter("api".into()));
+    assert_eq!(state.runtime_connection_filter, "api");
+}
+
+#[test]
+fn test_runtime_proxy_selector_sync_and_apply() {
+    let (mut state, _) = AppState::new();
+    let mut proxies = std::collections::HashMap::new();
+
+    proxies.insert(
+        "GLOBAL".to_string(),
+        Proxy::Selector(ProxyGroup {
+            name: "GLOBAL".to_string(),
+            now: "Proxy-A".to_string(),
+            all: vec!["Proxy-A".into(), "Proxy-B".into()],
+            history: vec![],
+        }),
+    );
+    proxies.insert(
+        "Proxy-A".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Proxy-A".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+    proxies.insert(
+        "Proxy-B".to_string(),
+        Proxy::Shadowsocks(mihomo_api::proxy::types::Shadowsocks {
+            base: ProxyBase {
+                name: "Proxy-B".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+    );
+
+    let _ = state.update(Message::ProxiesLoaded(Ok(proxies)));
+    assert_eq!(state.runtime_selected_group, "GLOBAL");
+    assert_eq!(state.runtime_selected_proxy, "Proxy-A");
+
+    let _ = state.update(Message::UpdateRuntimeSelectedProxy("Proxy-B".into()));
+    assert_eq!(state.runtime_selected_proxy, "Proxy-B");
+
+    let _ = state.update(Message::ApplyRuntimeSelectedProxy);
+}
+
+#[test]
+fn test_settings_loaded_applies_runtime_panel_state() {
+    let (mut state, _) = AppState::new();
+    let settings = AppSettings {
+        runtime_panel: RuntimePanelConfig {
+            auto_refresh: false,
+            delay_sort: "name_desc".into(),
+            delay_test_url: "https://example.com/generate_204".into(),
+            delay_timeout_ms: 1200,
+            connection_filter: "api".into(),
+            connection_sort: "host_asc".into(),
+        },
+        ..AppSettings::default()
+    };
+
+    let _ = state.update(Message::SettingsLoaded(Ok(settings)));
+    assert!(!state.runtime_auto_refresh);
+    assert_eq!(state.proxy_delay_sort, "name_desc");
+    assert_eq!(
+        state.runtime_delay_test_url,
+        "https://example.com/generate_204"
+    );
+    assert_eq!(state.runtime_delay_timeout_ms, "1200");
+    assert_eq!(state.runtime_connection_filter, "api");
+    assert_eq!(state.runtime_connection_sort, "host_asc");
 }
 
 #[test]

@@ -65,7 +65,7 @@ impl TunConfig {
 
 pub async fn load_tun_config() -> Result<TunConfig> {
     let doc = load_profile_doc().await?;
-    extract_tun_config(&doc)
+    extract_tun_config_from_doc(&doc)
 }
 
 pub async fn save_tun_config(patch: TunConfigPatch) -> Result<TunConfig> {
@@ -80,7 +80,7 @@ pub async fn save_tun_config(patch: TunConfigPatch) -> Result<TunConfig> {
         .context("read profile config")?;
     let mut doc: Value = serde_yml::from_str(&content).context("parse profile yaml")?;
 
-    let mut config = extract_tun_config(&doc)?;
+    let mut config = extract_tun_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_tun_config(&config)?;
     apply_tun_config(&mut doc, &config)?;
@@ -106,7 +106,7 @@ async fn load_profile_doc() -> Result<Value> {
     serde_yml::from_str(&content).context("parse profile yaml")
 }
 
-fn extract_tun_config(doc: &Value) -> Result<TunConfig> {
+pub fn extract_tun_config_from_doc(doc: &Value) -> Result<TunConfig> {
     let value = doc
         .get("tun")
         .cloned()
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn test_extract_tun_default() {
         let doc: Value = serde_yml::from_str("port: 7890\n").expect("yaml");
-        let config = extract_tun_config(&doc).expect("tun config");
+        let config = extract_tun_config_from_doc(&doc).expect("tun config");
         assert!(config.enable.is_none());
     }
 

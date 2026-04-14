@@ -1,7 +1,8 @@
 use iced::{widget::text_editor, window};
 pub use infiltrator_core::error::InfiltratorError;
+use infiltrator_core::rules::RuleEntry;
 use infiltrator_desktop::MihomoRuntime;
-use mihomo_api::{ConnectionSnapshot, Rule, TrafficData};
+use mihomo_api::{ConnectionSnapshot, TrafficData};
 use mihomo_config::Profile;
 use mihomo_version::manager::VersionInfo;
 use muda::MenuEvent;
@@ -72,30 +73,98 @@ pub struct RuntimeConfig {
     pub sniffer_enabled: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum RebuildFlowState {
+    #[default]
+    Idle,
+    Saving {
+        label: String,
+    },
+    Rebuilding {
+        label: String,
+    },
+    Done {
+        label: String,
+    },
+    Failed {
+        label: String,
+        error: String,
+    },
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RulesLoadBundle {
+    pub rules: Vec<RuleEntry>,
+    pub rule_providers_json: String,
+    pub proxy_providers_json: String,
+    pub sniffer_json: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AdvancedConfigsBundle {
+    pub dns_json: String,
+    pub fake_ip_json: String,
+    pub tun_json: String,
+}
+
 #[derive(Clone)]
 pub enum Message {
+    Noop,
     Navigate(Route),
     StartProxy,
     StopProxy,
     ProxyStarted(Result<Arc<MihomoRuntime>, InfiltratorError>),
     ProxyStopped,
+    SettingsLoaded(Result<infiltrator_core::settings::AppSettings, InfiltratorError>),
     LoadProfiles,
     ProfilesLoaded(Result<Vec<Profile>, InfiltratorError>),
     SetActiveProfile(String),
     UpdateImportUrl(String),
     UpdateImportName(String),
+    UpdateImportActivate(bool),
     ImportProfile,
     ProfileImported(Result<(), InfiltratorError>),
+    DeleteProfile(String),
+    ProfileDeleted(Result<(), InfiltratorError>),
+    UpdateLocalImportPath(String),
+    BrowseLocalImportFile,
+    LocalImportFilePicked(Option<PathBuf>),
+    UpdateLocalImportName(String),
+    UpdateLocalImportActivate(bool),
+    ImportLocalProfile,
+    LocalProfileImported(Result<(), InfiltratorError>),
+    SelectSubscriptionProfile(String),
+    UpdateSubscriptionUrl(String),
+    UpdateSubscriptionAutoUpdate(bool),
+    UpdateSubscriptionInterval(String),
+    SaveSubscriptionSettings,
+    SubscriptionSettingsSaved(Result<(), InfiltratorError>),
+    UpdateSubscriptionNow,
+    SubscriptionUpdatedNow(Result<(), InfiltratorError>),
+    SubscriptionAutoUpdated(Result<(Vec<String>, bool), InfiltratorError>),
+    UpdateProfilesFilter(String),
+    ClearProfiles,
+    ProfilesCleared(Result<(), InfiltratorError>),
     LoadProxies,
     ProxiesLoaded(Result<HashMap<String, mihomo_api::Proxy>, InfiltratorError>),
     SelectProxy(String, String),
     FilterProxies(String),
     ToggleProxySort,
+    UpdateProxyDelaySort(String),
+    UpdateDelayTestUrl(String),
+    UpdateDelayTimeoutMs(String),
+    UpdateRuntimeSelectedGroup(String),
+    UpdateRuntimeSelectedProxy(String),
+    ApplyRuntimeSelectedProxy,
+    UpdateRuntimeConnectionFilter(String),
+    UpdateRuntimeConnectionSort(String),
+    RefreshRuntimeNow,
     TrafficReceived(TrafficData),
     MemoryReceived(mihomo_api::MemoryData),
     IpInfoReceived(Result<String, InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
+    ClearRuntimeLogs,
     SetLogLevel(String),
     CloseConnection(String),
     CloseAllConnections,
@@ -111,7 +180,11 @@ pub enum Message {
     ModeSetResult(Result<(), InfiltratorError>),
     OperationResult(Result<(), InfiltratorError>),
     LoadRules,
-    RulesLoaded(Result<Vec<Rule>, InfiltratorError>),
+    RulesBundleLoaded(Result<RulesLoadBundle, InfiltratorError>),
+    RulesLoaded(Result<Vec<RuleEntry>, InfiltratorError>),
+    RuleProvidersJsonLoaded(Result<String, InfiltratorError>),
+    ProxyProvidersJsonLoaded(Result<String, InfiltratorError>),
+    SnifferJsonLoaded(Result<String, InfiltratorError>),
     LoadProviders,
     ProvidersLoaded(
         Result<
@@ -131,8 +204,31 @@ pub enum Message {
     UpdateNewRuleTarget(String),
     AddCustomRule,
     RuleAdded(Result<(), InfiltratorError>),
+    ToggleRuleEnabled(usize),
+    MoveRuleUp(usize),
+    MoveRuleDown(usize),
+    SaveRules,
+    RulesSaved(Result<(), InfiltratorError>),
+    RuleProvidersEditorAction(text_editor::Action),
+    SaveRuleProvidersJson,
+    RuleProvidersJsonSaved(Result<(), InfiltratorError>),
+    ProxyProvidersEditorAction(text_editor::Action),
+    SaveProxyProvidersJson,
+    ProxyProvidersJsonSaved(Result<(), InfiltratorError>),
+    SnifferEditorAction(text_editor::Action),
+    SaveSnifferJson,
+    SnifferJsonSaved(Result<(), InfiltratorError>),
+    LoadAdvancedConfigs,
+    AdvancedConfigsBundleLoaded(Result<AdvancedConfigsBundle, InfiltratorError>),
+    DnsConfigJsonLoaded(Result<String, InfiltratorError>),
+    FakeIpConfigJsonLoaded(Result<String, InfiltratorError>),
+    TunConfigJsonLoaded(Result<String, InfiltratorError>),
+    DnsConfigEditorAction(text_editor::Action),
+    FakeIpConfigEditorAction(text_editor::Action),
+    TunConfigEditorAction(text_editor::Action),
     TickSubUpdate,
     TickWebDavSync,
+    TickRuntimeRefresh,
     TickFrame(Instant),
     TrayIconEvent(TrayIconEvent),
     MenuEvent(MenuEvent),
@@ -147,11 +243,21 @@ pub enum Message {
     RemoveFallbackDnsServer(usize),
     SaveDns,
     DnsSaved(Result<(), InfiltratorError>),
+    SaveFakeIpConfig,
+    FakeIpConfigSaved(Result<(), InfiltratorError>),
+    SaveTunConfig,
+    TunConfigSaved(Result<(), InfiltratorError>),
     SetAutostart(bool),
     AutostartSet(Result<(), InfiltratorError>),
+    UpdateWebDavEnabled(bool),
     UpdateWebDavUrl(String),
     UpdateWebDavUser(String),
     UpdateWebDavPass(String),
+    UpdateWebDavSyncInterval(String),
+    UpdateWebDavSyncOnStartup(bool),
+    SaveAppSettings,
+    AppSettingsSaved(Result<(), InfiltratorError>),
+    UpdateEditorPathSetting(String),
     SyncUpload,
     SyncDownload,
     SyncFinished(Result<(), InfiltratorError>),
@@ -181,35 +287,117 @@ pub enum Message {
     WindowClosed(window::Id),
     HideWindow,
     ShowWindow,
+    UpdateRuntimeAutoRefresh(bool),
+    RuntimePanelSettingsSaved(Result<(), InfiltratorError>),
+    RuntimeRebuildFinished(Result<Arc<MihomoRuntime>, InfiltratorError>),
+    ClearRebuildFlow,
     ToggleTheme,
     ShowToast(String, ToastStatus),
     RemoveToast(usize),
+    TestAllProxyDelays,
+    AllProxyDelaysTested(Result<(usize, usize), InfiltratorError>),
 }
 
 impl std::fmt::Debug for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Message::Noop => write!(f, "Noop"),
             Message::Navigate(route) => write!(f, "Navigate({:?})", route),
             Message::StartProxy => write!(f, "StartProxy"),
             Message::StopProxy => write!(f, "StopProxy"),
             Message::ProxyStarted(Ok(_)) => write!(f, "ProxyStarted(Ok)"),
             Message::ProxyStarted(Err(e)) => write!(f, "ProxyStarted(Err({:?}))", e),
             Message::ProxyStopped => write!(f, "ProxyStopped"),
+            Message::SettingsLoaded(Ok(_)) => write!(f, "SettingsLoaded(Ok)"),
+            Message::SettingsLoaded(Err(e)) => write!(f, "SettingsLoaded(Err({:?}))", e),
             Message::LoadProfiles => write!(f, "LoadProfiles"),
             Message::ProfilesLoaded(Ok(p)) => write!(f, "ProfilesLoaded(Ok({} profiles))", p.len()),
             Message::ProfilesLoaded(Err(e)) => write!(f, "ProfilesLoaded(Err({:?}))", e),
             Message::SetActiveProfile(name) => write!(f, "SetActiveProfile({})", name),
             Message::UpdateImportUrl(url) => write!(f, "UpdateImportUrl({})", url),
             Message::UpdateImportName(name) => write!(f, "UpdateImportName({})", name),
+            Message::UpdateImportActivate(enabled) => {
+                write!(f, "UpdateImportActivate({})", enabled)
+            }
             Message::ImportProfile => write!(f, "ImportProfile"),
             Message::ProfileImported(Ok(_)) => write!(f, "ProfileImported(Ok)"),
             Message::ProfileImported(Err(e)) => write!(f, "ProfileImported(Err({:?}))", e),
+            Message::DeleteProfile(name) => write!(f, "DeleteProfile({})", name),
+            Message::ProfileDeleted(Ok(_)) => write!(f, "ProfileDeleted(Ok)"),
+            Message::ProfileDeleted(Err(e)) => write!(f, "ProfileDeleted(Err({:?}))", e),
+            Message::UpdateLocalImportPath(path) => write!(f, "UpdateLocalImportPath({})", path),
+            Message::BrowseLocalImportFile => write!(f, "BrowseLocalImportFile"),
+            Message::LocalImportFilePicked(Some(path)) => {
+                write!(f, "LocalImportFilePicked(Some({:?}))", path)
+            }
+            Message::LocalImportFilePicked(None) => write!(f, "LocalImportFilePicked(None)"),
+            Message::UpdateLocalImportName(name) => write!(f, "UpdateLocalImportName({})", name),
+            Message::UpdateLocalImportActivate(enabled) => {
+                write!(f, "UpdateLocalImportActivate({})", enabled)
+            }
+            Message::ImportLocalProfile => write!(f, "ImportLocalProfile"),
+            Message::LocalProfileImported(Ok(_)) => write!(f, "LocalProfileImported(Ok)"),
+            Message::LocalProfileImported(Err(e)) => {
+                write!(f, "LocalProfileImported(Err({:?}))", e)
+            }
+            Message::SelectSubscriptionProfile(name) => {
+                write!(f, "SelectSubscriptionProfile({})", name)
+            }
+            Message::UpdateSubscriptionUrl(url) => write!(f, "UpdateSubscriptionUrl({})", url),
+            Message::UpdateSubscriptionAutoUpdate(enabled) => {
+                write!(f, "UpdateSubscriptionAutoUpdate({})", enabled)
+            }
+            Message::UpdateSubscriptionInterval(v) => {
+                write!(f, "UpdateSubscriptionInterval({})", v)
+            }
+            Message::SaveSubscriptionSettings => write!(f, "SaveSubscriptionSettings"),
+            Message::SubscriptionSettingsSaved(Ok(_)) => {
+                write!(f, "SubscriptionSettingsSaved(Ok)")
+            }
+            Message::SubscriptionSettingsSaved(Err(e)) => {
+                write!(f, "SubscriptionSettingsSaved(Err({:?}))", e)
+            }
+            Message::UpdateSubscriptionNow => write!(f, "UpdateSubscriptionNow"),
+            Message::SubscriptionUpdatedNow(Ok(_)) => write!(f, "SubscriptionUpdatedNow(Ok)"),
+            Message::SubscriptionUpdatedNow(Err(e)) => {
+                write!(f, "SubscriptionUpdatedNow(Err({:?}))", e)
+            }
+            Message::SubscriptionAutoUpdated(Ok((names, active_updated))) => write!(
+                f,
+                "SubscriptionAutoUpdated(Ok({} profiles, active_updated={}))",
+                names.len(),
+                active_updated
+            ),
+            Message::SubscriptionAutoUpdated(Err(e)) => {
+                write!(f, "SubscriptionAutoUpdated(Err({:?}))", e)
+            }
+            Message::UpdateProfilesFilter(s) => write!(f, "UpdateProfilesFilter({})", s),
+            Message::ClearProfiles => write!(f, "ClearProfiles"),
+            Message::ProfilesCleared(Ok(_)) => write!(f, "ProfilesCleared(Ok)"),
+            Message::ProfilesCleared(Err(e)) => write!(f, "ProfilesCleared(Err({:?}))", e),
             Message::LoadProxies => write!(f, "LoadProxies"),
             Message::ProxiesLoaded(Ok(p)) => write!(f, "ProxiesLoaded(Ok({} proxies))", p.len()),
             Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({:?}))", e),
             Message::SelectProxy(g, n) => write!(f, "SelectProxy({}, {})", g, n),
             Message::FilterProxies(s) => write!(f, "FilterProxies({})", s),
             Message::ToggleProxySort => write!(f, "ToggleProxySort"),
+            Message::UpdateProxyDelaySort(s) => write!(f, "UpdateProxyDelaySort({})", s),
+            Message::UpdateDelayTestUrl(s) => write!(f, "UpdateDelayTestUrl({})", s),
+            Message::UpdateDelayTimeoutMs(s) => write!(f, "UpdateDelayTimeoutMs({})", s),
+            Message::UpdateRuntimeSelectedGroup(s) => {
+                write!(f, "UpdateRuntimeSelectedGroup({})", s)
+            }
+            Message::UpdateRuntimeSelectedProxy(s) => {
+                write!(f, "UpdateRuntimeSelectedProxy({})", s)
+            }
+            Message::ApplyRuntimeSelectedProxy => write!(f, "ApplyRuntimeSelectedProxy"),
+            Message::UpdateRuntimeConnectionFilter(s) => {
+                write!(f, "UpdateRuntimeConnectionFilter({})", s)
+            }
+            Message::UpdateRuntimeConnectionSort(s) => {
+                write!(f, "UpdateRuntimeConnectionSort({})", s)
+            }
+            Message::RefreshRuntimeNow => write!(f, "RefreshRuntimeNow"),
             Message::TrafficReceived(t) => {
                 write!(f, "TrafficReceived(up: {}, down: {})", t.up, t.down)
             }
@@ -230,6 +418,7 @@ impl std::fmt::Debug for Message {
                 c.connections.len()
             ),
             Message::LogReceived(l) => write!(f, "LogReceived({})", l),
+            Message::ClearRuntimeLogs => write!(f, "ClearRuntimeLogs"),
             Message::SetLogLevel(l) => write!(f, "SetLogLevel({})", l),
             Message::CloseConnection(id) => write!(f, "CloseConnection({})", id),
             Message::CloseAllConnections => write!(f, "CloseAllConnections"),
@@ -264,8 +453,33 @@ impl std::fmt::Debug for Message {
             Message::OperationResult(Ok(_)) => write!(f, "OperationResult(Ok)"),
             Message::OperationResult(Err(e)) => write!(f, "OperationResult(Err({:?}))", e),
             Message::LoadRules => write!(f, "LoadRules"),
+            Message::RulesBundleLoaded(Ok(bundle)) => write!(
+                f,
+                "RulesBundleLoaded(Ok({} rules, rp:{} chars, pp:{} chars, sn:{} chars))",
+                bundle.rules.len(),
+                bundle.rule_providers_json.len(),
+                bundle.proxy_providers_json.len(),
+                bundle.sniffer_json.len()
+            ),
+            Message::RulesBundleLoaded(Err(e)) => write!(f, "RulesBundleLoaded(Err({:?}))", e),
             Message::RulesLoaded(Ok(r)) => write!(f, "RulesLoaded(Ok({} rules))", r.len()),
             Message::RulesLoaded(Err(e)) => write!(f, "RulesLoaded(Err({:?}))", e),
+            Message::RuleProvidersJsonLoaded(Ok(json)) => {
+                write!(f, "RuleProvidersJsonLoaded(Ok({} chars))", json.len())
+            }
+            Message::RuleProvidersJsonLoaded(Err(e)) => {
+                write!(f, "RuleProvidersJsonLoaded(Err({:?}))", e)
+            }
+            Message::ProxyProvidersJsonLoaded(Ok(json)) => {
+                write!(f, "ProxyProvidersJsonLoaded(Ok({} chars))", json.len())
+            }
+            Message::ProxyProvidersJsonLoaded(Err(e)) => {
+                write!(f, "ProxyProvidersJsonLoaded(Err({:?}))", e)
+            }
+            Message::SnifferJsonLoaded(Ok(json)) => {
+                write!(f, "SnifferJsonLoaded(Ok({} chars))", json.len())
+            }
+            Message::SnifferJsonLoaded(Err(e)) => write!(f, "SnifferJsonLoaded(Err({:?}))", e),
             Message::LoadProviders => write!(f, "LoadProviders"),
             Message::ProvidersLoaded(Ok((p, r))) => write!(
                 f,
@@ -284,8 +498,63 @@ impl std::fmt::Debug for Message {
             Message::AddCustomRule => write!(f, "AddCustomRule"),
             Message::RuleAdded(Ok(_)) => write!(f, "RuleAdded(Ok)"),
             Message::RuleAdded(Err(e)) => write!(f, "RuleAdded(Err({:?}))", e),
+            Message::ToggleRuleEnabled(index) => write!(f, "ToggleRuleEnabled({})", index),
+            Message::MoveRuleUp(index) => write!(f, "MoveRuleUp({})", index),
+            Message::MoveRuleDown(index) => write!(f, "MoveRuleDown({})", index),
+            Message::SaveRules => write!(f, "SaveRules"),
+            Message::RulesSaved(Ok(_)) => write!(f, "RulesSaved(Ok)"),
+            Message::RulesSaved(Err(e)) => write!(f, "RulesSaved(Err({:?}))", e),
+            Message::RuleProvidersEditorAction(_) => write!(f, "RuleProvidersEditorAction"),
+            Message::SaveRuleProvidersJson => write!(f, "SaveRuleProvidersJson"),
+            Message::RuleProvidersJsonSaved(Ok(_)) => write!(f, "RuleProvidersJsonSaved(Ok)"),
+            Message::RuleProvidersJsonSaved(Err(e)) => {
+                write!(f, "RuleProvidersJsonSaved(Err({:?}))", e)
+            }
+            Message::ProxyProvidersEditorAction(_) => write!(f, "ProxyProvidersEditorAction"),
+            Message::SaveProxyProvidersJson => write!(f, "SaveProxyProvidersJson"),
+            Message::ProxyProvidersJsonSaved(Ok(_)) => write!(f, "ProxyProvidersJsonSaved(Ok)"),
+            Message::ProxyProvidersJsonSaved(Err(e)) => {
+                write!(f, "ProxyProvidersJsonSaved(Err({:?}))", e)
+            }
+            Message::SnifferEditorAction(_) => write!(f, "SnifferEditorAction"),
+            Message::SaveSnifferJson => write!(f, "SaveSnifferJson"),
+            Message::SnifferJsonSaved(Ok(_)) => write!(f, "SnifferJsonSaved(Ok)"),
+            Message::SnifferJsonSaved(Err(e)) => write!(f, "SnifferJsonSaved(Err({:?}))", e),
+            Message::LoadAdvancedConfigs => write!(f, "LoadAdvancedConfigs"),
+            Message::AdvancedConfigsBundleLoaded(Ok(bundle)) => write!(
+                f,
+                "AdvancedConfigsBundleLoaded(Ok(dns:{} chars, fake:{} chars, tun:{} chars))",
+                bundle.dns_json.len(),
+                bundle.fake_ip_json.len(),
+                bundle.tun_json.len()
+            ),
+            Message::AdvancedConfigsBundleLoaded(Err(e)) => {
+                write!(f, "AdvancedConfigsBundleLoaded(Err({:?}))", e)
+            }
+            Message::DnsConfigJsonLoaded(Ok(json)) => {
+                write!(f, "DnsConfigJsonLoaded(Ok({} chars))", json.len())
+            }
+            Message::DnsConfigJsonLoaded(Err(e)) => {
+                write!(f, "DnsConfigJsonLoaded(Err({:?}))", e)
+            }
+            Message::FakeIpConfigJsonLoaded(Ok(json)) => {
+                write!(f, "FakeIpConfigJsonLoaded(Ok({} chars))", json.len())
+            }
+            Message::FakeIpConfigJsonLoaded(Err(e)) => {
+                write!(f, "FakeIpConfigJsonLoaded(Err({:?}))", e)
+            }
+            Message::TunConfigJsonLoaded(Ok(json)) => {
+                write!(f, "TunConfigJsonLoaded(Ok({} chars))", json.len())
+            }
+            Message::TunConfigJsonLoaded(Err(e)) => {
+                write!(f, "TunConfigJsonLoaded(Err({:?}))", e)
+            }
+            Message::DnsConfigEditorAction(_) => write!(f, "DnsConfigEditorAction"),
+            Message::FakeIpConfigEditorAction(_) => write!(f, "FakeIpConfigEditorAction"),
+            Message::TunConfigEditorAction(_) => write!(f, "TunConfigEditorAction"),
             Message::TickSubUpdate => write!(f, "TickSubUpdate"),
             Message::TickWebDavSync => write!(f, "TickWebDavSync"),
+            Message::TickRuntimeRefresh => write!(f, "TickRuntimeRefresh"),
             Message::TickFrame(now) => write!(f, "TickFrame({:?})", now),
             Message::TrayIconEvent(_) => write!(f, "TrayIconEvent"),
             Message::MenuEvent(e) => write!(f, "MenuEvent({:?})", e),
@@ -303,12 +572,29 @@ impl std::fmt::Debug for Message {
             Message::SaveDns => write!(f, "SaveDns"),
             Message::DnsSaved(Ok(_)) => write!(f, "DnsSaved(Ok)"),
             Message::DnsSaved(Err(e)) => write!(f, "DnsSaved(Err({:?}))", e),
+            Message::SaveFakeIpConfig => write!(f, "SaveFakeIpConfig"),
+            Message::FakeIpConfigSaved(Ok(_)) => write!(f, "FakeIpConfigSaved(Ok)"),
+            Message::FakeIpConfigSaved(Err(e)) => write!(f, "FakeIpConfigSaved(Err({:?}))", e),
+            Message::SaveTunConfig => write!(f, "SaveTunConfig"),
+            Message::TunConfigSaved(Ok(_)) => write!(f, "TunConfigSaved(Ok)"),
+            Message::TunConfigSaved(Err(e)) => write!(f, "TunConfigSaved(Err({:?}))", e),
             Message::SetAutostart(b) => write!(f, "SetAutostart({})", b),
             Message::AutostartSet(Ok(_)) => write!(f, "AutostartSet(Ok)"),
             Message::AutostartSet(Err(e)) => write!(f, "AutostartSet(Err({:?}))", e),
+            Message::UpdateWebDavEnabled(b) => write!(f, "UpdateWebDavEnabled({})", b),
             Message::UpdateWebDavUrl(s) => write!(f, "UpdateWebDavUrl({})", s),
             Message::UpdateWebDavUser(s) => write!(f, "UpdateWebDavUser({})", s),
             Message::UpdateWebDavPass(_) => write!(f, "UpdateWebDavPass(***)"),
+            Message::UpdateWebDavSyncInterval(s) => {
+                write!(f, "UpdateWebDavSyncInterval({})", s)
+            }
+            Message::UpdateWebDavSyncOnStartup(b) => {
+                write!(f, "UpdateWebDavSyncOnStartup({})", b)
+            }
+            Message::SaveAppSettings => write!(f, "SaveAppSettings"),
+            Message::AppSettingsSaved(Ok(_)) => write!(f, "AppSettingsSaved(Ok)"),
+            Message::AppSettingsSaved(Err(e)) => write!(f, "AppSettingsSaved(Err({:?}))", e),
+            Message::UpdateEditorPathSetting(s) => write!(f, "UpdateEditorPathSetting({})", s),
             Message::SyncUpload => write!(f, "SyncUpload"),
             Message::SyncDownload => write!(f, "SyncDownload"),
             Message::SyncFinished(Ok(_)) => write!(f, "SyncFinished(Ok)"),
@@ -354,9 +640,32 @@ impl std::fmt::Debug for Message {
             Message::WindowClosed(id) => write!(f, "WindowClosed({:?})", id),
             Message::HideWindow => write!(f, "HideWindow"),
             Message::ShowWindow => write!(f, "ShowWindow"),
+            Message::UpdateRuntimeAutoRefresh(v) => write!(f, "UpdateRuntimeAutoRefresh({})", v),
+            Message::RuntimePanelSettingsSaved(Ok(_)) => {
+                write!(f, "RuntimePanelSettingsSaved(Ok)")
+            }
+            Message::RuntimePanelSettingsSaved(Err(e)) => {
+                write!(f, "RuntimePanelSettingsSaved(Err({:?}))", e)
+            }
+            Message::RuntimeRebuildFinished(Ok(_)) => write!(f, "RuntimeRebuildFinished(Ok)"),
+            Message::RuntimeRebuildFinished(Err(e)) => {
+                write!(f, "RuntimeRebuildFinished(Err({:?}))", e)
+            }
+            Message::ClearRebuildFlow => write!(f, "ClearRebuildFlow"),
             Message::ToggleTheme => write!(f, "ToggleTheme"),
             Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
             Message::RemoveToast(i) => write!(f, "RemoveToast({})", i),
+            Message::TestAllProxyDelays => write!(f, "TestAllProxyDelays"),
+            Message::AllProxyDelaysTested(Ok((s, f_cnt))) => {
+                write!(
+                    f,
+                    "AllProxyDelaysTested(Ok(success={}, failed={}))",
+                    s, f_cnt
+                )
+            }
+            Message::AllProxyDelaysTested(Err(e)) => {
+                write!(f, "AllProxyDelaysTested(Err({:?}))", e)
+            }
         }
     }
 }

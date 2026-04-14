@@ -25,7 +25,7 @@ pub struct RulesPayload {
 
 pub async fn load_rule_providers() -> Result<RuleProviders> {
     let doc = load_profile_doc().await?;
-    extract_rule_providers(&doc)
+    extract_rule_providers_from_doc(&doc)
 }
 
 pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProviders> {
@@ -52,7 +52,7 @@ pub async fn save_rule_providers(providers: RuleProviders) -> Result<RuleProvide
 
 pub async fn load_rules() -> Result<Vec<RuleEntry>> {
     let doc = load_profile_doc().await?;
-    extract_rules(&doc)
+    extract_rules_from_doc(&doc)
 }
 
 pub async fn save_rules(rules: Vec<RuleEntry>) -> Result<Vec<RuleEntry>> {
@@ -91,7 +91,7 @@ async fn load_profile_doc() -> Result<Value> {
     serde_yml::from_str(&content).context("parse profile yaml")
 }
 
-fn extract_rule_providers(doc: &Value) -> Result<RuleProviders> {
+pub fn extract_rule_providers_from_doc(doc: &Value) -> Result<RuleProviders> {
     let value = doc
         .get("rule-providers")
         .cloned()
@@ -131,7 +131,7 @@ fn apply_rule_providers(doc: &mut Value, providers: &RuleProviders) -> Result<()
     Ok(())
 }
 
-fn extract_rules(doc: &Value) -> Result<Vec<RuleEntry>> {
+pub fn extract_rules_from_doc(doc: &Value) -> Result<Vec<RuleEntry>> {
     let value = match doc.get("rules") {
         Some(v) => v.clone(),
         None => return Ok(Vec::new()),

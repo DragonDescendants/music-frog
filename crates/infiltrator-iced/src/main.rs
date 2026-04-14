@@ -13,14 +13,14 @@ pub mod view_root;
 #[cfg(test)]
 mod tests;
 
-pub use types::{Message, Route, InfiltratorError, RuntimeStatus};
 pub use state::AppState;
+pub use types::{InfiltratorError, Message, Route, RuntimeStatus};
 
 use iced::{application, window};
-use std::panic;
+use single_instance::SingleInstance;
 use std::fs::File;
 use std::io::Write;
-use single_instance::SingleInstance;
+use std::panic;
 
 fn main() -> iced::Result {
     let log_dir = mihomo_platform::get_home_dir().unwrap_or_else(|_| std::env::temp_dir());
